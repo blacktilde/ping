@@ -37,15 +37,11 @@
 
   <div class="min-h-0 flex-1">
     {#if body.type === 'none'}
-      <p class="px-4 py-6 text-sm text-neutral-600">This request sends no body.</p>
+      <p class="px-4 py-6 text-sm text-fg-faint">This request sends no body.</p>
     {:else if body.type === 'json'}
-      {#key body.type}
-        <CodeEditor bind:value={body.content} language="json" label="JSON request body" />
-      {/key}
+      <CodeEditor bind:value={body.content} language="json" label="JSON request body" />
     {:else if body.type === 'raw'}
-      {#key body.type}
-        <CodeEditor bind:value={body.content} language="plain" label="Raw request body" />
-      {/key}
+      <CodeEditor bind:value={body.content} language="plain" label="Raw request body" />
     {:else}
       <KeyValueEditor
         items={body.fields}

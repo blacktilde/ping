@@ -1,5 +1,6 @@
 package dev.ping.http;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.ArrayList;
@@ -74,6 +75,7 @@ public record RequestSpec(
             String refreshToken,
             Long expiresAtMillis) {
 
+        @JsonIgnore
         public boolean isConfigured() {
             return type != null && !type.isBlank() && !type.equalsIgnoreCase("none");
         }

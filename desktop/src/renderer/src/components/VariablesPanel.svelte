@@ -17,12 +17,12 @@
   class="flex h-full w-96 shrink-0 flex-col border-l border-line bg-panel"
 >
   <header class="flex items-center justify-between border-b border-line px-3 py-2">
-    <span class="text-xs font-medium uppercase tracking-wide text-neutral-500">Variables</span>
+    <span class="text-xs font-medium uppercase tracking-wide text-fg-muted">Variables</span>
     <button
       type="button"
       onclick={onClose}
       aria-label="Close variables"
-      class="rounded px-2 text-lg leading-none text-neutral-500 transition hover:text-neutral-200"
+      class="rounded px-2 text-lg leading-none text-fg-muted transition hover:text-fg"
     >
       ×
     </button>
@@ -31,7 +31,7 @@
   <div class="flex-1 overflow-auto">
     <section class="border-b border-line">
       <div class="flex items-center gap-2 px-3 py-2">
-        <h3 class="text-xs uppercase tracking-wide text-neutral-500">Collection</h3>
+        <h3 class="text-xs uppercase tracking-wide text-fg-muted">Collection</h3>
         <input
           bind:value={variables.name}
           aria-label="Collection name"
@@ -52,12 +52,12 @@
 
     <section>
       <div class="flex items-center justify-between px-3 py-2">
-        <h3 class="text-xs uppercase tracking-wide text-neutral-500">Environment</h3>
+        <h3 class="text-xs uppercase tracking-wide text-fg-muted">Environment</h3>
         <button
           type="button"
           onclick={onAddEnvironment}
-          class="rounded-md px-2 py-1 text-xs text-neutral-400 transition hover:bg-line/60
-                 hover:text-neutral-200"
+          class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                 hover:text-fg"
         >
           + New
         </button>
@@ -73,7 +73,7 @@
           />
         </div>
       {:else}
-        <p class="px-3 pb-6 text-sm text-neutral-600">
+        <p class="px-3 pb-6 text-sm text-fg-faint">
           No environment selected. Choose one, or create a new one, to override collection
           variables.
         </p>
@@ -82,8 +82,8 @@
 
     <section class="border-t border-line">
       <div class="px-3 py-2">
-        <h3 class="text-xs uppercase tracking-wide text-neutral-500">Secrets</h3>
-        <p class="mt-1 text-xs text-neutral-600">
+        <h3 class="text-xs uppercase tracking-wide text-fg-muted">Secrets</h3>
+        <p class="mt-1 text-xs text-fg-faint">
           Encrypted by the shell, never written to the collection. Reference one as
           <code class="font-mono">&#123;&#123;name&#125;&#125;</code>.
         </p>

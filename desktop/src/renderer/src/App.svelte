@@ -25,12 +25,16 @@
     variables
   } from './lib/vars.svelte'
   import { loadSecretRows, persistSecretRows } from './lib/secrets.svelte'
+  import { setSecret } from './lib/secrets'
+  import { cycleTheme, theme } from './lib/theme.svelte'
   import KeyValueEditor from './components/KeyValueEditor.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
   import ResponsePane from './components/ResponsePane.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import VariablesPanel from './components/VariablesPanel.svelte'
+  import Tabs from './components/Tabs.svelte'
+  import CommandPalette from './components/CommandPalette.svelte'
 
   interface CoreInfo {
     coreVersion: string
@@ -39,18 +43,9 @@
     nativeImage: boolean
   }
 
-  type Tab = 'params' | 'headers' | 'body' | 'auth'
-
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'params', label: 'Params' },
-    { id: 'headers', label: 'Headers' },
-    { id: 'body', label: 'Body' },
-    { id: 'auth', label: 'Auth' }
-  ]
-
   let info = $state<CoreInfo | null>(null)
   let bootError = $state('')
-  let tab = $state<Tab>('params')
+  let tab = $state('params')
   let response = $state<HttpResponse | null>(null)
   let error = $state('')
   let cancelled = $state(false)
@@ -63,12 +58,20 @@
   let storeError = $state('')
   let showVariables = $state(false)
   let authStatus = $state('')
+  let paletteOpen = $state(false)
 
   const queryCount = $derived(enabledCount(draft.query))
   const headerCount = $derived(enabledCount(draft.headers))
   const dirty = $derived(savedKey !== null && draftKey(draft) !== savedKey)
   // A collection is always the first path segment; requests can nest below it.
   const activeCollection = $derived(activePath ? activePath.split('/')[0] : '')
+
+  const requestTabs = $derived([
+    { id: 'params', label: 'Params', badge: queryCount > 0 ? String(queryCount) : null },
+    { id: 'headers', label: 'Headers', badge: headerCount > 0 ? String(headerCount) : null },
+    { id: 'body', label: 'Body', badge: draft.body.type === 'none' ? null : '•' },
+    { id: 'auth', label: 'Auth', badge: draft.auth.type === 'none' ? null : 'on' }
+  ])
 
   // Proves the whole chain on startup: renderer, preload, main, core process.
   $effect(() => {
@@ -196,12 +199,45 @@
       return
     }
     try {
+      await protectAuthSecrets()
       await writeRequest(activePath, draftToStored(draft))
       savedKey = draftKey(draft)
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
     }
+  }
+
+  const SECRET_FIELDS = ['password', 'token', 'value', 'clientSecret'] as const
+
+  /**
+   * Moves literal credentials out of the file. A secret-bearing auth field the user typed
+   * into is stored in the shell and replaced with a {{name}} reference, so a collection
+   * that is committed and shared never carries the value.
+   */
+  async function protectAuthSecrets(): Promise<void> {
+    for (const field of SECRET_FIELDS) {
+      const value = draft.auth[field]
+      if (!value || value.includes('{{')) {
+        continue
+      }
+      const name = secretNameFor(field)
+      await setSecret(name, value)
+      draft.auth[field] = `{{${name}}}`
+    }
+  }
+
+  function secretNameFor(field: string): string {
+    const seed = activePath ?? draft.name ?? 'request'
+    return `auth-${field}-${shortHash(seed)}`
+  }
+
+  function shortHash(value: string): string {
+    let hash = 0
+    for (let index = 0; index < value.length; index++) {
+      hash = (Math.imul(31, hash) + value.charCodeAt(index)) | 0
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0')
   }
 
   async function authorize(): Promise<void> {
@@ -250,9 +286,19 @@
   }
 
   function onKeydown(event: KeyboardEvent): void {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+    if (!event.metaKey && !event.ctrlKey) {
+      return
+    }
+    const key = event.key.toLowerCase()
+    if (key === 'k') {
+      event.preventDefault()
+      paletteOpen = !paletteOpen
+    } else if (key === 's') {
       event.preventDefault()
       void save()
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      void send()
     }
   }
 
@@ -319,12 +365,43 @@
     }
   }
 
-  function tabBadge(id: Tab): string | null {
-    if (id === 'params') return queryCount > 0 ? String(queryCount) : null
-    if (id === 'headers') return headerCount > 0 ? String(headerCount) : null
-    if (id === 'body') return draft.body.type === 'none' ? null : '•'
-    return draft.auth.type === 'none' ? null : 'on'
-  }
+  const paletteCommands = $derived.by(() => {
+    const commands: { id: string; label: string; hint?: string; run: () => void }[] = [
+      { id: 'send', label: 'Send request', hint: '⌘↵', run: () => void send() },
+      { id: 'save', label: 'Save request', hint: '⌘S', run: () => void save() },
+      { id: 'open', label: 'Open folder…', run: () => void openFolder() },
+      {
+        id: 'variables',
+        label: 'Toggle variables panel',
+        run: () => (showVariables = !showVariables)
+      },
+      {
+        id: 'theme',
+        label: theme.resolved === 'dark' ? 'Theme: light' : 'Theme: dark',
+        run: cycleTheme
+      },
+      { id: 'tab-params', label: 'Go to Params', run: () => (tab = 'params') },
+      { id: 'tab-headers', label: 'Go to Headers', run: () => (tab = 'headers') },
+      { id: 'tab-body', label: 'Go to Body', run: () => (tab = 'body') },
+      { id: 'tab-auth', label: 'Go to Auth', run: () => (tab = 'auth') },
+      { id: 'env-none', label: 'Environment: none', run: () => void onEnvironmentChange('') }
+    ]
+
+    if (activeCollection) {
+      commands.push({ id: 'new', label: 'New request', run: () => void createIn(activeCollection) })
+    }
+    if (draft.auth.type === 'oauth2-authorization-code') {
+      commands.push({ id: 'authorize', label: 'Authorize (OAuth2)', run: () => void authorize() })
+    }
+    for (const environment of variables.environments) {
+      commands.push({
+        id: `env-${environment.path}`,
+        label: `Environment: ${environment.name}`,
+        run: () => void onEnvironmentChange(environment.path)
+      })
+    }
+    return commands
+  })
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -342,20 +419,20 @@
     <header class="flex items-baseline justify-between border-b border-line pb-3">
       <div>
         <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-        <p class="text-sm text-neutral-500">Phase 6 — collections on disk</p>
+        <p class="text-sm text-fg-muted">Phase 6 — collections on disk</p>
       </div>
 
       {#if info}
-        <dl class="flex gap-5 text-xs text-neutral-400">
-          <div><dt class="inline text-neutral-600">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
-          <div><dt class="inline text-neutral-600">java</dt> <dd class="inline">{info.javaVersion}</dd></div>
+        <dl class="flex gap-5 text-xs text-fg-muted">
+          <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
+          <div><dt class="inline text-fg-faint">java</dt> <dd class="inline">{info.javaVersion}</dd></div>
           <div>
-            <dt class="inline text-neutral-600">mode</dt>
+            <dt class="inline text-fg-faint">mode</dt>
             <dd class="inline">{info.nativeImage ? 'native-image' : 'jvm'}</dd>
           </div>
         </dl>
       {:else if !bootError}
-        <span class="text-xs text-neutral-600">connecting to core…</span>
+        <span class="text-xs text-fg-faint">connecting to core…</span>
       {/if}
     </header>
 
@@ -364,7 +441,7 @@
         bind:value={draft.name}
         aria-label="Request name"
         class="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm
-               text-neutral-200 outline-none transition focus:border-accent"
+               text-fg outline-none transition focus:border-accent"
       />
       {#if dirty}
         <span
@@ -377,7 +454,7 @@
         value={variables.environment}
         onchange={(event) => void onEnvironmentChange(event.currentTarget.value)}
         aria-label="Environment"
-        class="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-neutral-300
+        class="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg
                outline-none transition focus:border-accent"
       >
         <option value="">No environment</option>
@@ -389,7 +466,7 @@
         type="button"
         onclick={() => (showVariables = !showVariables)}
         aria-pressed={showVariables}
-        class="rounded-lg border border-line px-4 py-2 text-sm text-neutral-300 transition
+        class="rounded-lg border border-line px-4 py-2 text-sm text-fg transition
                hover:border-accent"
       >
         Variables
@@ -399,7 +476,7 @@
         type="button"
         onclick={save}
         disabled={!activePath || !dirty}
-        class="rounded-lg border border-line px-4 py-2 text-sm text-neutral-300 transition
+        class="rounded-lg border border-line px-4 py-2 text-sm text-fg transition
                hover:border-accent disabled:opacity-40"
       >
         Save
@@ -447,8 +524,8 @@
         <button
           type="button"
           onclick={cancel}
-          class="rounded-lg border border-line px-4 py-2.5 text-sm text-neutral-300
-                 transition hover:border-neutral-500"
+          class="rounded-lg border border-line px-4 py-2.5 text-sm text-fg
+                 transition hover:border-fg-muted"
         >
           Cancel
         </button>
@@ -476,7 +553,7 @@
     {:else if cancelled}
       <p
         data-role="cancelled"
-        class="rounded-lg border border-line bg-panel px-4 py-3 text-sm text-neutral-400"
+        class="rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
       >
         Request cancelled.
       </p>
@@ -487,29 +564,14 @@
         data-role="request"
         class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
       >
-        <div role="tablist" class="flex items-center gap-1 border-b border-line px-2">
-          {#each tabs as entry (entry.id)}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === entry.id}
-              onclick={() => (tab = entry.id)}
-              class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition
-                     {tab === entry.id
-                ? 'border-accent text-neutral-100'
-                : 'border-transparent text-neutral-500 hover:text-neutral-300'}"
-            >
-              {entry.label}
-              {#if tabBadge(entry.id)}
-                <span class="rounded-full bg-line px-1.5 text-[10px] text-neutral-400">
-                  {tabBadge(entry.id)}
-                </span>
-              {/if}
-            </button>
-          {/each}
-        </div>
+        <Tabs tabs={requestTabs} bind:active={tab} idPrefix="request" />
 
-        <div class="min-h-0 flex-1">
+        <div
+          id="request-panel"
+          role="tabpanel"
+          aria-labelledby={`request-tab-${tab}`}
+          class="min-h-0 flex-1"
+        >
           {#if tab === 'params'}
             <KeyValueEditor
               items={draft.query}
@@ -545,4 +607,6 @@
       onAddEnvironment={onAddEnvironment}
     />
   {/if}
+
+  <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
 </div>

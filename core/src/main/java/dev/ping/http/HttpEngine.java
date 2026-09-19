@@ -37,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -57,6 +58,13 @@ public final class HttpEngine {
     /** Headers the JDK client sets itself; letting a user override them throws. */
     private static final List<String> RESTRICTED_HEADERS =
             List.of("connection", "content-length", "expect", "host", "upgrade");
+
+    /**
+     * RFC 7230 token: the only characters legal in a header field name. The JDK enforces
+     * this by throwing {@link IllegalArgumentException}, which would surface as raw Java;
+     * checking first lets us report bad input as bad input.
+     */
+    private static final Pattern HEADER_NAME = Pattern.compile("[!#$%&'*+\\-.^_`|~0-9A-Za-z]+");
 
     private final Map<String, Exchange> inFlight = new ConcurrentHashMap<>();
     private final TokenCache tokenCache;
@@ -262,6 +270,21 @@ public final class HttpEngine {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 
+    /** Header injection is bad input, not an internal fault: report it as such. */
+    private static void validateHeader(String name, String value) {
+        if (name.isEmpty() || !HEADER_NAME.matcher(name).matches()) {
+            throw RpcException.invalidParams(
+                    "Header name contains characters that are not allowed: " + printable(name));
+        }
+        if (value != null && (value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0)) {
+            throw RpcException.invalidParams("Header value must not contain line breaks: " + name);
+        }
+    }
+
+    private static String printable(String value) {
+        return value.replace('\r', ' ').replace('\n', ' ');
+    }
+
     private HttpRequest buildRequest(
             RequestSpec spec, URI uri, Map<String, String> variables, Map<String, String> authHeaders) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
@@ -281,7 +304,9 @@ public final class HttpEngine {
                     // The JDK owns these; setting one throws IllegalArgumentException.
                     continue;
                 }
-                builder.header(name, interpolate(header.value(), variables));
+                String value = interpolate(header.value(), variables);
+                validateHeader(name, value);
+                builder.header(name, value);
                 contentTypeSet |= name.equalsIgnoreCase("content-type");
             }
         }
@@ -337,9 +362,15 @@ public final class HttpEngine {
                 if (!field.isEnabled() || field.name() == null || field.name().isBlank()) {
                     continue;
                 }
+                String name = interpolate(field.name(), variables);
+                if (name.indexOf('"') >= 0 || name.indexOf('\r') >= 0 || name.indexOf('\n') >= 0) {
+                    throw RpcException.invalidParams(
+                            "Multipart field name must not contain quotes or line breaks: "
+                                    + printable(name));
+                }
                 payload.append("--").append(boundary).append("\r\n")
                         .append("Content-Disposition: form-data; name=\"")
-                        .append(interpolate(field.name(), variables)).append("\"\r\n\r\n")
+                        .append(name).append("\"\r\n\r\n")
                         .append(interpolate(field.value(), variables)).append("\r\n");
             }
         }

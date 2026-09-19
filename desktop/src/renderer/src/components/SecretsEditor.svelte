@@ -8,7 +8,7 @@
 
 <div class="flex flex-col">
   {#if secretRows.length === 0}
-    <p class="px-3 py-4 text-sm text-neutral-600">No secrets stored.</p>
+    <p class="px-3 py-4 text-sm text-fg-faint">No secrets stored.</p>
   {/if}
 
   {#each secretRows as row, index (row)}
@@ -26,8 +26,8 @@
         type="button"
         onclick={() => secretRows.splice(index, 1)}
         aria-label="Remove secret"
-        class="rounded-md px-2 py-1 text-lg leading-none text-neutral-600 transition
-               hover:text-neutral-300"
+        class="rounded-md px-2 py-1 text-lg leading-none text-fg-faint transition
+               hover:text-fg"
       >
         ×
       </button>
@@ -38,7 +38,7 @@
     <button
       type="button"
       onclick={() => secretRows.push({ name: '', value: '' })}
-      class="rounded-md px-3 py-1.5 text-sm text-neutral-400 transition hover:text-accent"
+      class="rounded-md px-3 py-1.5 text-sm text-fg-muted transition hover:text-accent"
     >
       + Add secret
     </button>

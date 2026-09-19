@@ -206,7 +206,30 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   auth config's literal fields; if `tokenUrl`, `clientId` or `scopes` themselves use
   `{{variables}}`, the shell cannot rebuild the key across a restart, though the core's
   session cache still works. Revisit if that combination turns out to matter.
-- [ ] **9. Polish.** Command palette, keyboard-first navigation, themes, motion, empty states.
+- [x] **9. Polish.** Command palette, keyboard-first navigation, themes, motion, empty states.
+
+  **Outcome.** A command palette on `Cmd/Ctrl-K` filters and runs everything the toolbar and
+  menus offer — send, save, open folder, new request, go to a tab, switch environment, toggle
+  the variables panel, authorize, and switch theme — and `Cmd/Ctrl-Enter` sends and
+  `Cmd/Ctrl-S` saves. Themes are semantic: components use `text-fg`/`text-fg-muted`/
+  `text-fg-faint` over `@theme` variables, so a light theme is a variable override, chosen
+  system/light/dark, remembered in the renderer, and following `prefers-color-scheme` when
+  set to system. A single `Tabs.svelte` now backs both tabbed surfaces with the full ARIA
+  pattern and arrow-key navigation, the response view control is a labelled radio group, and
+  motion is one entrance animation behind a `prefers-reduced-motion` stop. Empty states name
+  the next action ("Open a folder", "No response yet.").
+
+  **Review items folded in.** The palette also surfaced the auth findings from phase 8:
+  typed credentials are moved into `safeStorage` on save and the file keeps only a `{{name}}`
+  reference; `auth.completed` is stripped of tokens before it reaches the renderer;
+  `shell.openExternal` accepts only `http(s)`; the derived `configured` flag is `@JsonIgnore`d;
+  header names/values and multipart field names are validated so injection is `INVALID_PARAMS`
+  rather than raw Java.
+
+  **Verified.** `make native-test` passes all 64 tests. `make smoke` drives the palette,
+  theme switch, and tabpanel wiring, and proves a typed credential lands in the shell rather
+  than the file. The remaining store findings (symlink boundary, file mode) are still open in
+  `docs/REVIEW.md` and belong with the store, not polish.
 - [ ] **10. Packaging.** `electron-builder`, native core as an `extraResource`, per-OS CI,
   signing, updater.
 

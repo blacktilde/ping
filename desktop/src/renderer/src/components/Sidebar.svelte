@@ -60,11 +60,11 @@
   class="flex h-full w-64 shrink-0 flex-col border-r border-line bg-panel"
 >
   <div class="flex items-center justify-between border-b border-line px-3 py-2">
-    <span class="text-xs font-medium uppercase tracking-wide text-neutral-500">Collections</span>
+    <span class="text-xs font-medium uppercase tracking-wide text-fg-muted">Collections</span>
     <button
       type="button"
       onclick={onOpenFolder}
-      class="rounded-md px-2 py-1 text-xs text-neutral-400 transition hover:bg-line/60 hover:text-neutral-200"
+      class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60 hover:text-fg"
     >
       Open folder
     </button>
@@ -72,7 +72,17 @@
 
   <div class="flex-1 overflow-auto py-1">
     {#if rows.length === 0}
-      <p class="px-3 py-4 text-sm text-neutral-600">No collections yet.</p>
+      <div class="flex flex-col items-start gap-2 px-3 py-6">
+        <p class="text-sm text-fg-faint">No collections yet.</p>
+        <button
+          type="button"
+          onclick={onOpenFolder}
+          class="rounded-md border border-line px-3 py-1.5 text-sm text-fg-muted transition
+                 hover:border-accent hover:text-fg"
+        >
+          Open a folder
+        </button>
+      </div>
     {/if}
 
     {#each rows as row (row.node.path)}
@@ -90,10 +100,10 @@
             class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left text-sm
                    transition
                    {activePath === node.path
-              ? 'bg-line text-neutral-100'
-              : 'text-neutral-400 hover:bg-line/50 hover:text-neutral-200'}"
+              ? 'bg-line text-fg'
+              : 'text-fg-muted hover:bg-line/50 hover:text-fg'}"
           >
-            <span class="w-9 shrink-0 font-mono text-[10px] uppercase text-neutral-600">
+            <span class="w-9 shrink-0 font-mono text-[10px] uppercase text-fg-faint">
               {node.method ?? ''}
             </span>
             <span class="truncate">{node.name}</span>
@@ -103,9 +113,9 @@
             type="button"
             onclick={() => toggle(node.path)}
             class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left text-sm
-                   text-neutral-300 transition hover:bg-line/50"
+                   text-fg transition hover:bg-line/50"
           >
-            <span class="w-3 shrink-0 text-neutral-600">
+            <span class="w-3 shrink-0 text-fg-faint">
               {expanded.includes(node.path) ? '▾' : '▸'}
             </span>
             <span class="truncate">{node.name}</span>
@@ -114,7 +124,7 @@
             type="button"
             onclick={() => onCreate(node.path)}
             aria-label="New request in {node.name}"
-            class="mr-1 rounded px-1.5 text-neutral-600 opacity-0 transition
+            class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
                    group-hover:opacity-100 hover:text-accent"
           >
             +

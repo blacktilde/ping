@@ -50,7 +50,10 @@ function createWindow(): void {
 
   // Anything targeting a new window is an external link; hand it to the real browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    const safe = safeExternalUrl(url)
+    if (safe) {
+      void shell.openExternal(safe)
+    }
     return { action: 'deny' }
   })
 
@@ -143,7 +146,30 @@ function authorizeUrl(value: unknown): string | null {
     return null
   }
   const url = (value as Record<string, unknown>).authorizeUrl
-  return typeof url === 'string' && url ? url : null
+  return typeof url === 'string' ? safeExternalUrl(url) : null
+}
+
+/** Only http(s) may be handed to the OS; a crafted collection must not pick the handler. */
+function safeExternalUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
+/** Just the parts the renderer needs; the access and refresh tokens stay in the shell. */
+function authOutcome(params: unknown): Record<string, unknown> {
+  const payload = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
+  const outcome: Record<string, unknown> = {}
+  if (typeof payload.flowId === 'string') {
+    outcome.flowId = payload.flowId
+  }
+  if (typeof payload.error === 'string') {
+    outcome.error = payload.error
+  }
+  return outcome
 }
 
 function storeOAuthTokens(params: unknown): void {
@@ -239,8 +265,14 @@ function registerIpc(): void {
 app.whenReady().then(async () => {
   core.notifications((notification) => {
     if (notification.method === 'auth.completed') {
-      // The shell owns token persistence; the core keeps its session cache.
+      // The shell owns token persistence; the core keeps its session cache. Only the
+      // outcome is forwarded, so tokens never reach the least-trusted layer.
       storeOAuthTokens(notification.params)
+      mainWindow?.webContents.send('core:notification', {
+        method: notification.method,
+        params: authOutcome(notification.params)
+      })
+      return
     }
     mainWindow?.webContents.send('core:notification', notification)
   })

@@ -175,6 +175,19 @@ class HttpMethodsTest {
     }
 
     @Test
+    void reportsHeaderInjectionAsInvalidParams() throws Exception {
+        List<JsonNode> out = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{\
+                "url":"%s/data","headers":[{"name":"X-Injected","value":"ok\\r\\nX-Evil: yes"}]}}"""
+                .formatted(baseUrl));
+
+        JsonNode error = out.get(0).path("error");
+        assertEquals(RpcException.INVALID_PARAMS, error.path("code").asInt());
+        assertFalse(error.path("message").asText().contains("Exception"),
+                error.path("message").asText());
+    }
+
+    @Test
     void rejectsAMissingUrl() throws Exception {
         List<JsonNode> out = exchange(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"http.send\",\"params\":{\"method\":\"GET\"}}");

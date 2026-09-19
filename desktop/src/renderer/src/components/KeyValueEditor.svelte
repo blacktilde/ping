@@ -26,7 +26,7 @@
 <div class="flex h-full flex-col">
   <div class="flex-1 overflow-auto">
     {#if items.length === 0}
-      <p class="px-4 py-6 text-sm text-neutral-600">{emptyText}</p>
+      <p class="px-4 py-6 text-sm text-fg-faint">{emptyText}</p>
     {/if}
 
     {#each items as item, index (item)}
@@ -53,8 +53,8 @@
           type="button"
           onclick={() => items.splice(index, 1)}
           aria-label="Remove row"
-          class="rounded-md px-2 py-1 text-lg leading-none text-neutral-600 transition
-                 hover:text-neutral-300"
+          class="rounded-md px-2 py-1 text-lg leading-none text-fg-faint transition
+                 hover:text-fg"
         >
           ×
         </button>
@@ -66,7 +66,7 @@
     <button
       type="button"
       onclick={() => items.push(emptyParam())}
-      class="rounded-md px-3 py-1.5 text-sm text-neutral-400 transition hover:text-accent"
+      class="rounded-md px-3 py-1.5 text-sm text-fg-muted transition hover:text-accent"
     >
       + {addLabel}
     </button>

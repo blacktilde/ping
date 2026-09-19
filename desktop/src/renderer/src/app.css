@@ -1,11 +1,28 @@
 @import 'tailwindcss';
 
-/* Names here become utilities: --color-panel gives bg-panel, border-panel, text-panel. */
+/*
+ * Names here become utilities: --color-panel gives bg-panel, border-panel, text-panel.
+ * The foreground scale is semantic so a light theme only has to redefine variables, not
+ * every component: text-fg is primary, text-fg-muted secondary, text-fg-faint a hint.
+ */
 @theme {
   --color-base: #0b0d10;
   --color-panel: #14171c;
   --color-line: #232830;
   --color-accent: #4f8cff;
+  --color-fg: #e6e9ef;
+  --color-fg-muted: #9aa4b2;
+  --color-fg-faint: #6b7280;
+}
+
+:root[data-theme='light'] {
+  --color-base: #f3f4f6;
+  --color-panel: #ffffff;
+  --color-line: #d9dee5;
+  --color-accent: #2563eb;
+  --color-fg: #1f2933;
+  --color-fg-muted: #52606d;
+  --color-fg-faint: #7b8794;
 }
 
 html,
@@ -17,6 +34,42 @@ body,
 body {
   margin: 0;
   background-color: var(--color-base);
-  color: #e6e9ef;
+  color: var(--color-fg);
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* A subtle panel entrance, and a hard stop for anyone who asked for less motion. */
+@keyframes ping-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.motion-rise {
+  animation: ping-rise 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-line);
+  border-radius: 9999px;
 }

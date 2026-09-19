@@ -494,6 +494,39 @@ class HttpEngineTest {
     }
 
     @Test
+    void rejectsHeaderLineBreaksAsBadInput() {
+        RpcException thrown = assertThrows(RpcException.class, () -> engine.send(
+                new RequestSpec.Builder(baseUrl + "/x")
+                        .header("X-Injected", "ok\r\nX-Evil: yes")
+                        .build()));
+
+        assertEquals(RpcException.INVALID_PARAMS, thrown.code());
+        assertFalse(thrown.getMessage().contains("Exception"),
+                "raw Java must not reach the user: " + thrown.getMessage());
+    }
+
+    @Test
+    void rejectsInvalidHeaderNames() {
+        RpcException thrown = assertThrows(RpcException.class, () -> engine.send(
+                new RequestSpec.Builder(baseUrl + "/x").header("Bad Name", "v").build()));
+
+        assertEquals(RpcException.INVALID_PARAMS, thrown.code());
+        assertFalse(thrown.getMessage().contains("Exception"), thrown.getMessage());
+    }
+
+    @Test
+    void rejectsMultipartNamesThatBreakFraming() {
+        RpcException thrown = assertThrows(RpcException.class, () -> engine.send(
+                new RequestSpec.Builder(baseUrl + "/upload")
+                        .method("POST")
+                        .multipartBody(List.of(
+                                new RequestSpec.Param("a\"\r\nContent-Type: text/html", "v", true)))
+                        .build()));
+
+        assertEquals(RpcException.INVALID_PARAMS, thrown.code());
+    }
+
+    @Test
     void rewritesTransportFailuresForPeople() {
         assertEquals("Unknown host: nope.invalid",
                 HttpEngine.describe(new UnknownHostException("nope.invalid")));

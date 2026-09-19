@@ -435,6 +435,31 @@ try {
   )
   await evaluate(setSelect('Auth type', 'none'))
 
+  console.log('--- 2e. a typed credential never reaches the file')
+  await evaluate(clickTab('Auth'))
+  await evaluate(setSelect('Auth type', 'bearer'))
+  await evaluate(setInput('Bearer token', 'typed-secret'))
+  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }))`)
+  await waitFor(
+    async () => readFileSync(savedRequest, 'utf8').includes('{{auth-token-'),
+    5000,
+    'the credential to be replaced by a reference'
+  )
+  check(
+    'moves a typed credential out of the file',
+    !readFileSync(savedRequest, 'utf8').includes('typed-secret'),
+    readFileSync(savedRequest, 'utf8')
+  )
+  await clickSend()
+  await waitFor(async () => (await snap()).body.includes('typed-secret'), 5000, 'the restored credential')
+  const typed = echo((await snap()).body)
+  check(
+    'sends the credential from the shell store',
+    typed?.headers?.authorization === 'Bearer typed-secret',
+    typed?.headers?.authorization ?? 'none'
+  )
+  await evaluate(setSelect('Auth type', 'none'))
+
   console.log('--- 3. a form body reaches the server')
   await evaluate(clickTab('Body'))
   await evaluate(setSelect('Body mode', 'form'))
@@ -492,7 +517,17 @@ try {
   await waitFor(async () => (await snap()).paneText.includes('text/html'), 5000, 'the HTML response')
   await evaluate(clickResponseTab('Body'))
   await evaluate(clickResponseView('preview'))
-  check('renders HTML in a sandboxed frame', (await snap()).body.includes('preview me'), 'preview')
+  const frame = await evaluate(`(() => {
+    const element = document.querySelector('[data-role="response"] iframe');
+    return element
+      ? { sandbox: element.getAttribute('sandbox'), srcdoc: element.getAttribute('srcdoc') ?? '' }
+      : null;
+  })()`)
+  check(
+    'preview embeds the HTML in a locked-down frame',
+    !!frame && frame.sandbox === '' && frame.srcdoc.includes('preview me'),
+    JSON.stringify(frame)
+  )
 
   console.log('--- 6. exchange over real HTTPS')
   if (process.env.PING_SMOKE_OFFLINE === '1') {
@@ -544,6 +579,73 @@ try {
     !/remote method/i.test(failed.error ?? ''),
     failed.error ?? ''
   )
+
+  console.log('--- 9. command palette, theme and tabs')
+  const semantics = await evaluate(`(() => {
+    const panel = document.getElementById('request-panel');
+    const labelledBy = panel?.getAttribute('aria-labelledby');
+    const tab = labelledBy ? document.getElementById(labelledBy) : null;
+    return {
+      role: panel?.getAttribute('role') ?? null,
+      labelled: !!tab,
+      controls: tab?.getAttribute('aria-controls') === 'request-panel',
+      tabbable: tab?.getAttribute('tabindex') === '0'
+    };
+  })()`)
+  check(
+    'tabs expose a labelled tabpanel',
+    semantics.role === 'tabpanel' && semantics.labelled && semantics.controls && semantics.tabbable,
+    JSON.stringify(semantics)
+  )
+
+  const pressCtrlK = `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))`
+  await evaluate(pressCtrlK)
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="palette"]')`),
+    2000,
+    'the command palette'
+  )
+  check('command palette opens on Ctrl-K', true)
+
+  await evaluate(`(() => {
+    const input = document.querySelector('[data-role="palette"] input');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input, 'theme');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return input.value;
+  })()`)
+  await waitFor(
+    async () =>
+      await evaluate(
+        `[...document.querySelectorAll('[data-role="palette"] button')].some(b => b.textContent.includes('Theme:'))`
+      ),
+    2000,
+    'the theme command'
+  )
+  check('palette filters commands', true)
+
+  const initialTheme = await evaluate(`document.documentElement.dataset.theme`)
+  await evaluate(
+    `[...document.querySelectorAll('[data-role="palette"] button')].find(b => b.textContent.includes('Theme:'))?.click()`
+  )
+  await waitFor(
+    async () => (await evaluate(`document.documentElement.dataset.theme`)) !== initialTheme,
+    2000,
+    'the theme to change'
+  )
+  check('theme command switches the theme', true)
+
+  await evaluate(pressCtrlK)
+  await wait(200)
+  await evaluate(
+    `[...document.querySelectorAll('[data-role="palette"] button')].find(b => b.textContent.includes('Theme:'))?.click()`
+  )
+  await waitFor(
+    async () => (await evaluate(`document.documentElement.dataset.theme`)) === initialTheme,
+    2000,
+    'the theme to return'
+  )
+  check('theme command switches back', true)
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)

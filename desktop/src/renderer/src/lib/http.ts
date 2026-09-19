@@ -122,7 +122,7 @@ export interface RequestDraft {
   maxBodyBytes?: number
 }
 
-/** Exactly the params `http.send` accepts. */
+/** The params `http.send` accepts. Settings are optional; the core applies their defaults. */
 export interface HttpRequestSpec {
   requestId: string
   method: HttpMethod
