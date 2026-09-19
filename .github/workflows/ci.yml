@@ -1,25 +1,62 @@
 name: CI
 
+# Verifies every push and pull request. Builds nothing shippable — see release.yml for that.
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 jobs:
   core:
-    name: Core (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: Core tests
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # native-image cannot cross-compile, so every target OS builds its own binary.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Test on the JVM
+        run: ./gradlew :core:test
+
+  core-cross-os:
+    name: Core tests (${{ matrix.os }})
+    # Platform paths and filesystem behaviour move slowly, and a macOS/Windows runner pair is
+    # the expensive part of CI, so this runs after merge rather than on every pull request.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Test on the JVM
+        run: ./gradlew :core:test
+
+  native:
+    name: Native compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The gate that matters: the same suite compiled the way the core ships. Catches
+      # reflection that works on the JVM and is missing from the reachability metadata.
+      # One OS is enough here; the per-OS native build is a release concern (release.yml).
       - uses: graalvm/setup-graalvm@v1
         with:
           java-version: '25'
@@ -27,24 +64,8 @@ jobs:
           cache: gradle
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Test on the JVM
-        run: ./gradlew :core:test
-
-      # The gate that matters: the same suite, compiled the way the core ships. Catches
-      # reflection that works on the JVM and is missing from the reachability metadata.
       - name: Test as a native image
         run: ./gradlew :core:nativeTest
-
-      - name: Build the native core
-        run: ./gradlew :core:nativeCompile
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ping-core-${{ matrix.os }}
-          path: |
-            core/build/native/nativeCompile/ping-core
-            core/build/native/nativeCompile/ping-core.exe
-          if-no-files-found: error
 
   desktop:
     name: Desktop
@@ -88,77 +109,3 @@ jobs:
         working-directory: desktop
         env:
           PING_SMOKE_OFFLINE: '1'
-
-  package:
-    name: Package (${{ matrix.os }})
-    # The native image cannot cross-compile, so take the one this OS built.
-    needs: core
-    # Packaging is slow and only meaningful from main or a manual run, not every PR.
-    if: github.event_name != 'pull_request'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '26'
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: ping-core-${{ matrix.os }}
-          path: core/build/native/nativeCompile
-
-      - run: npm ci
-        working-directory: desktop
-
-      - run: npm run build
-        working-directory: desktop
-
-      # Unsigned by default. A release build supplies CSC_LINK / CSC_KEY_PASSWORD and the
-      # Apple credentials; electron-builder picks them up without a config change.
-      - name: Package
-        run: npx electron-builder --publish never
-        working-directory: desktop
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ping-dist-${{ matrix.os }}
-          path: |
-            desktop/dist/*.AppImage
-            desktop/dist/*.deb
-            desktop/dist/*.dmg
-            desktop/dist/*.zip
-            desktop/dist/*.exe
-            desktop/dist/*.yml
-            desktop/dist/*.blockmap
-          if-no-files-found: warn
-
-  release:
-    name: Release
-    # All installers are built; a tag turns them into a downloadable GitHub Release.
-    needs: package
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: ping-dist-*
-          path: installers
-          merge-multiple: true
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: installers/*
-          generate_release_notes: true

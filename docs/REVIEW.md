@@ -29,10 +29,10 @@ _None._
 `anomalyco` was confirmed third party, so the `publish` block and
 `desktop/src/main/updater.ts` were removed while the only remote was private. The repository
 is now public (`dbohry/ping`), so `publish` names it, electron-builder emits the `latest*.yml`
-feed plus `app-update.yml`, and a `v*` tag creates a GitHub Release carrying the installers.
-`startUpdater` checks once in a packaged build but downloads and installs only after a dialog
-answer — `autoDownload` is false, per this finding. `make smoke` and the packaged-app check
-still pass.
+feed plus `app-update.yml`, and a manual release run builds the installers per OS and creates
+the GitHub Release for the tag it is given. `startUpdater` checks once in a packaged build but
+downloads and installs only after a dialog answer — `autoDownload` is false, per this finding.
+`make smoke` and the packaged-app check still pass.
 
 ### The hardened runtime keeps only what V8 needs — phase 10
 

@@ -241,20 +241,22 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   because Vite bundles it into the renderer, which cut the asar from 5.9 MB to 3.2 MB, and
   `build/icon.png` replaces the default Electron icon.
 
-  **Releases and updates.** A `v*` tag drives a `release` job that gathers the per-OS
-  installers and creates a GitHub Release, so packages are downloadable. `publish` points at
-  the public `dbohry/ping` repository, which is what makes electron-builder emit the
-  `latest*.yml` metadata and the `app-update.yml` electron-updater reads. The app checks once
-  in a packaged build and **asks before doing anything**: `autoDownload` is false, and a
-  dialog offers Download, then Restart. The feed must stay a public repository this project
-  controls — a wrong or private owner is a silent 404 at best, and a stranger choosing what
-  every install runs at worst.
+  **Releases and updates.** `release.yml` is manual (`workflow_dispatch`) and takes a tag: it
+  compiles the native core per OS, packages the installers, and creates the GitHub Release, so
+  packages are downloadable. The version comes from the tag, keeping installer names and the
+  `latest*.yml` update metadata in step. `publish` points at the public `dbohry/ping`
+  repository, which is what makes electron-builder emit that metadata and the `app-update.yml`
+  electron-updater reads. The app checks once in a packaged build and **asks before doing
+  anything**: `autoDownload` is false, and a dialog offers Download, then Restart. The feed
+  must stay a public repository this project controls — a wrong or private owner is a silent
+  404 at best, and a stranger choosing what every install runs at worst.
 
-  **Per-OS CI.** A `package` job matrix downloads the `ping-core-<os>` artifact the core job
-  built, runs `electron-builder`, and uploads the installers. It is skipped on pull requests
-  and runs on `main` or a manual dispatch; signing turns on from secrets
-  (`CSC_LINK`/`CSC_KEY_PASSWORD`, Apple credentials) with no config change, and an unsigned
-  run sets `CSC_IDENTITY_AUTO_DISCOVERY=false`.
+  **CI, split in two.** `ci.yml` runs on every push and pull request and builds nothing
+  shippable. A pull request gets the JVM suite on Linux, `nativeTest` on Linux for the
+  reflection gate, and the desktop `check` + CDP smoke; the macOS and Windows JVM runners only
+  join on a push to `main`, since platform behaviour moves slowly and those runners are the
+  expensive part. `release.yml` is the only thing that compiles binaries and installers, and
+  only on demand, so a small change costs one test run rather than nine packaging builds.
 
   **Verified locally.** `make package` produced an AppImage (134 MB) and a deb (107 MB), and
   the unpacked app, launched against a throwaway profile, reported `mode native-image` — it
