@@ -4,6 +4,10 @@ build/
 dist/
 .gradle/
 
+# Packaging resources live in desktop/build/ despite the rule above.
+!desktop/build/
+!desktop/build/**
+
 # Dependencies
 node_modules/
 

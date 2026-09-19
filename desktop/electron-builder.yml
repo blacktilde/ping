@@ -1,0 +1,57 @@
+# Packaging for the Electron shell plus the native core it spawns.
+#
+# electron-vite writes the shell to out/. The core travels beside the app, not inside the
+# asar, because the main process spawns it and needs a real executable at
+# resources/core/ping-core — the path `resolveCoreBinary` looks for.
+appId: dev.ping.desktop
+productName: Ping
+copyright: Copyright © 2026 Ping contributors
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+extraResources:
+  - from: ../core/build/native/nativeCompile
+    to: core
+    filter:
+      - ping-core
+      - ping-core.exe
+
+asar: true
+# No native node modules to rebuild; electron-builder's default would only slow the build.
+npmRebuild: false
+
+mac:
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarization turns on when APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID are
+  # present; the default keeps an unsigned CI build from failing.
+  notarize: false
+  target:
+    - dmg
+    - zip
+
+win:
+  target:
+    - nsis
+
+linux:
+  executableName: ping
+  category: Development
+  maintainer: Ping contributors
+  target:
+    - AppImage
+    - deb
+
+# Release feeds electron-updater; the shell only checks when packaged.
+publish:
+  provider: github
+  owner: anomalyco
+  repo: ping

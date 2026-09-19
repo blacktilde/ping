@@ -230,8 +230,29 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   theme switch, and tabpanel wiring, and proves a typed credential lands in the shell rather
   than the file. The remaining store findings (symlink boundary, file mode) are still open in
   `docs/REVIEW.md` and belong with the store, not polish.
-- [ ] **10. Packaging.** `electron-builder`, native core as an `extraResource`, per-OS CI,
+- [x] **10. Packaging.** `electron-builder`, native core as an `extraResource`, per-OS CI,
   signing, updater.
+
+  **Outcome.** `desktop/electron-builder.yml` packs `out/` (the electron-vite build) with an
+  `extraResources` entry that copies the native core to `resources/core/ping-core` — exactly
+  the path `resolveCoreBinary` looks for — so an installed app spawns the bundled binary
+  rather than a JVM. Targets are AppImage/deb (Linux), dmg/zip (macOS, hardened runtime with
+  `build/entitlements.mac.plist`) and NSIS (Windows), publishing to GitHub releases for the
+  updater. `electron-updater` is a static import in `main/updater.ts` and only runs when
+  `app.isPackaged`, reading the `app-update.yml` electron-builder writes. CodeMirror moved to
+  `devDependencies` because Vite bundles it into the renderer, which cut the asar from 5.9 MB
+  to 3.2 MB, and `build/icon.png` replaces the default Electron icon.
+
+  **Per-OS CI.** A `package` job matrix downloads the `ping-core-<os>` artifact the core job
+  built, runs `electron-builder --publish never`, and uploads the installers. It is skipped
+  on pull requests and runs on `main` or a manual dispatch; signing turns on from secrets
+  (`CSC_LINK`/`CSC_KEY_PASSWORD`, Apple credentials) with no config change, and an unsigned
+  run sets `CSC_IDENTITY_AUTO_DISCOVERY=false`.
+
+  **Verified locally.** `make package` produced an AppImage (134 MB) and a deb (107 MB), and
+  the unpacked app, launched against a throwaway profile, reported `mode native-image` — it
+  had spawned the bundled core. Signing/notarization and the update feed are configured but
+  not exercised here: they need credentials and a published release.
 
 ## Protocol notes
 

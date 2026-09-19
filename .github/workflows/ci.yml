@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   core:
@@ -75,3 +76,54 @@ jobs:
         working-directory: desktop
         env:
           PING_SMOKE_OFFLINE: '1'
+
+  package:
+    name: Package (${{ matrix.os }})
+    # The native image cannot cross-compile, so take the one this OS built.
+    needs: core
+    # Packaging is slow and only meaningful from main or a manual run, not every PR.
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ping-core-${{ matrix.os }}
+          path: core/build/native/nativeCompile
+
+      - run: npm ci
+        working-directory: desktop
+
+      - run: npm run build
+        working-directory: desktop
+
+      # Unsigned by default. A release build supplies CSC_LINK / CSC_KEY_PASSWORD and the
+      # Apple credentials; electron-builder picks them up without a config change.
+      - name: Package
+        run: npx electron-builder --publish never
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ping-${{ matrix.os }}
+          path: |
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.exe
+          if-no-files-found: warn

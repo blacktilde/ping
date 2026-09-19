@@ -19,12 +19,19 @@ lists open review findings, each tagged with the phase it should be folded into.
 | `make build`| Production build                                     |
 | `make check`| Type-check the desktop shell with svelte-check       |
 | `make smoke`| Build the desktop and drive the UI over CDP          |
+| `make package`| Build the native core and package for this OS      |
 | `make native`| Compile the core to a native image (minutes)        |
 | `make native-test`| Run the suite compiled as a native image       |
 | `make agent`| Regenerate native-image reachability metadata        |
 
 The Electron dev server does not rebuild Java. After editing the core, run `make core`
 and restart.
+
+Packaging bundles the native core as `resources/core/ping-core`, the path the main process
+looks for, so it must be built on the target OS (`make package` depends on `make native`).
+Signing switches on from environment alone — `CSC_LINK`/`CSC_KEY_PASSWORD` for Windows and
+macOS, `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` for notarization — and an
+unsigned CI build sets `CSC_IDENTITY_AUTO_DISCOVERY=false` instead.
 
 ## Rules
 

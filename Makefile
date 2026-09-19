@@ -5,7 +5,7 @@
 GRAALVM_HOME ?= $(lastword $(sort $(wildcard $(HOME)/.sdkman/candidates/java/*-graalce)))
 export GRAALVM_HOME
 
-.PHONY: help setup core test dev build check smoke clean native native-test agent
+.PHONY: help setup core test dev build check smoke package clean native native-test agent
 
 help:
 	@echo "setup  Install desktop dependencies and build the core"
@@ -15,6 +15,7 @@ help:
 	@echo "build  Production build of core and desktop"
 	@echo "check  Type-check the desktop shell with svelte-check"
 	@echo "smoke  Build the desktop and drive the UI over CDP"
+	@echo "package  Build the native core and package the app for this OS"
 	@echo "clean  Remove all build output"
 	@echo ""
 	@echo "native       Compile the core to a GraalVM native image (minutes, needs GraalVM)"
@@ -44,6 +45,10 @@ check:
 # Builds first: the smoke test drives the packaged renderer, not the dev server.
 smoke: core
 	cd desktop && npm run build && npm run smoke
+
+# The native image cannot cross-compile, so packaging runs on the target OS and takes minutes.
+package: native
+	cd desktop && npm run build && npm run package
 
 native: require-graalvm
 	./gradlew :core:nativeCompile
