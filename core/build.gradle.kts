@@ -19,6 +19,9 @@ repositories {
 
 dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
+    // Collections are YAML on disk. Jackson already owns the model binding; this only adds
+    // the YAML front end (SnakeYAML), so the reflection config stays on the same records.
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.17.2")
 
     testImplementation(platform("org.junit:junit-bom:5.11.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")

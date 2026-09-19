@@ -31,6 +31,7 @@ export function emptyParam(): Param {
 
 export function newDraft(): RequestDraft {
   return {
+    name: 'Untitled request',
     method: 'GET',
     url: 'https://jsonplaceholder.typicode.com/todos/1',
     query: [],
@@ -70,7 +71,7 @@ export function bodyToSpec(body: RequestBody): HttpRequestSpec['body'] {
 }
 
 export function toRequestSpec(draft: RequestDraft, requestId: string): HttpRequestSpec {
-  return {
+  const spec: HttpRequestSpec = {
     requestId,
     method: draft.method,
     url: draft.url,
@@ -78,6 +79,13 @@ export function toRequestSpec(draft: RequestDraft, requestId: string): HttpReque
     headers: plainParams(draft.headers),
     body: bodyToSpec(draft.body)
   }
+
+  // Settings only travel when the file carried them; the engine owns the defaults.
+  if (draft.timeoutMs != null) spec.timeoutMs = draft.timeoutMs
+  if (draft.redirects != null) spec.redirects = draft.redirects
+  if (draft.verifyTls != null) spec.verifyTls = draft.verifyTls
+  if (draft.maxBodyBytes != null) spec.maxBodyBytes = draft.maxBodyBytes
+  return spec
 }
 
 /** Rows that will actually reach the wire: enabled and named. Used for the tab badges. */

@@ -134,7 +134,29 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   panel. The coarse split is stated in the UI itself, so it cannot be mistaken for the whole
   story. Revisit if the missing split is actually felt; the change stays behind `HttpEngine`
   and does not move the RPC contract.
-- [ ] **6. File store.** YAML schema in the core, sidebar tree, filesystem watching, dirty state.
+- [x] **6. File store.** YAML schema in the core, sidebar tree, filesystem watching, dirty state.
+
+  **Outcome.** Collections are a folder per collection and a YAML file per request, and the
+  **core** owns both the schema and the file access (`dev.ping.store`), so the future CLI
+  runner can read the same tree with no Electron. `store.scan` returns the sidebar tree,
+  `store.read`/`store.write` move a `storedRequest` whose field names mirror `http.send`
+  with `name` added, and `store.create` derives a unique filename. Writes go through a temp
+  file and a rename. **The shell owns the root:** Electron main keeps the open folder
+  (dialog, `PING_WORKSPACE`, remembered between runs), injects it on every `store.*` call,
+  and rejects absolute or `..` paths before the core checks the same boundary again. A
+  recursive `fs.watch`, debounced, tells the renderer to rescan. The renderer keeps the
+  draft's dirty state as a fingerprint of its stored form, saves with a button or Cmd/Ctrl-S,
+  and opens the first request when a folder is opened.
+
+  **Native-image held.** `jackson-dataformat-yaml` (SnakeYAML) parsed, wrote and round-tripped
+  under the image; `make agent` added the new records and `make native-test` passed all 43
+  tests. The contract gained `store.schema.json` and error `-32003`.
+
+  **Left for later, deliberately.** A file changed on disk under a dirty draft refreshes the
+  tree but does not flag or reload the open request; there is no delete or rename; and
+  per-request settings round-trip through files and reach `http.send` but have no controls
+  yet. None of these block the MVP; the conflict case is the one worth revisiting when the
+  store is next touched.
 - [ ] **7. Variables and environments.** Precedence rules. Must land before auth, which depends on it.
 - [ ] **8. Auth.** Basic, Bearer, API key, then OAuth2 client credentials, then auth code
   with PKCE — loopback listener in the core, browser via `shell.openExternal`, tokens in

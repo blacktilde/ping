@@ -33,6 +33,10 @@ A request without an `id` is a notification: the core runs it and answers nothin
 | `core.info`   | none                      | `{ coreVersion, javaVersion, vendor, nativeImage }` |
 | `http.send`   | see `http.schema.json`    | status, headers, body, timing, redirect chain       |
 | `http.cancel` | `{ requestId: string }`   | `{ cancelled: boolean }`                            |
+| `store.scan`  | `{ root: string }`        | `{ collections: Node[] }`                           |
+| `store.read`  | `{ root, path }`          | `StoredRequest`                                     |
+| `store.write` | `{ root, path, request }` | `{ path: string }`                                  |
+| `store.create`| `{ root, collection?, name }` | `{ path: string }`                              |
 
 `core.info.nativeImage` reports whether the running core is the GraalVM native image or
 the JVM build, so the UI can show which one is in use.
@@ -53,6 +57,20 @@ memory. Non-textual payloads report their size with `content: null`.
 JDK client does not expose those, and a fabricated breakdown would be worse than an
 absent one. See the phase 5 note in `docs/PLAN.md`.
 
+### store.*
+
+Collections live on disk as a folder per collection and a YAML file per request. The core
+owns both the YAML and the file access, so the future CLI runner can read the same tree
+with no Electron involved. The Electron main process owns the workspace root, the folder
+dialog and the file watcher; it supplies `root` on every call and rejects paths that escape
+it, and the core checks again.
+
+`store.scan` returns the sidebar tree. A node is a `collection`, a `folder` or a `request`;
+request node names come from the file's `name`, not its filename. `storedRequest` fields
+mirror the `http.send` params (see `store.schema.json`), with `name` added and empty fields
+omitted. Writes go through a temp file and a rename, so a crash cannot leave a half-written
+request. `store.create` derives a unique filename from the request name.
+
 ### Error codes
 
 Beyond the JSON-RPC reserved range:
@@ -61,6 +79,7 @@ Beyond the JSON-RPC reserved range:
 |----------|--------------------------------------------------------------|
 | `-32001` | Request cancelled by the caller                              |
 | `-32002` | Exchange failed: DNS, connection, TLS or timeout             |
+| `-32003` | Collection store failed: read, parse or write               |
 
 The engine tracks cancellation intent itself rather than inferring it from the exception
 type, because the JDK surfaces an aborted exchange differently depending on how far it

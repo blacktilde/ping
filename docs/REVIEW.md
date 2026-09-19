@@ -20,6 +20,11 @@ numbering of the files they describe.
 
 ## Open
 
+> Items marked **Carried from** were raised for an earlier phase and not picked up.
+> Skipping is a fair call, but silently is what turns a backlog into landfill: close an item
+> with a reason, or say the tags are not being used and they will stop being written.
+
+
 ### `make smoke` is flaky and leaks processes — medium
 
 Six consecutive runs: three passed, three failed — twice `timed out waiting for the
@@ -44,7 +49,7 @@ before the harness exits, and give each run a temporary `--user-data-dir`.
 Inherited from phase 3, when the harness was written, but phase 4 promoted it to the CI
 gate.
 
-Fold into: phase 6. **Was tagged phase 5 and not picked up.**
+Fold into: phase 7. **Carried from phases 5 and 6.**
 
 ### Multipart and the CodeMirror body are untested — medium
 
@@ -63,7 +68,7 @@ Multipart deserves a Java test, where a delimiter or CRLF slip would live. CodeM
 cannot be reached by the smoke test's existing helpers; it needs CDP `Input.insertText`
 after focusing `.cm-content`.
 
-Fold into: phase 6. **Was tagged phase 5 and not picked up.**
+Fold into: phase 7. **Carried from phases 5 and 6.**
 
 ### The tab pattern is half-implemented, and now duplicated — low
 
@@ -78,7 +83,7 @@ panel in both `App.svelte` and `ResponsePane.svelte`, and `aria-pressed` buttons
 pretty / raw / preview in `ResponseBody.svelte`. Fixing it once, as a shared component, is
 now worth more than it was.
 
-Fold into: phase 6. **Was tagged phase 5 and not picked up.**
+Fold into: phase 7. **Carried from phases 5 and 6.**
 
 ### Small corrections — low
 
@@ -91,7 +96,7 @@ Fold into: phase 6. **Was tagged phase 5 and not picked up.**
   accepts" but omits `timeoutMs`, `redirects`, `verifyTls` and `maxBodyBytes`, whose
   defaults are applied in the core. It is a subset, and the comment should say so.
 
-Fold into: phase 6. **Was tagged phase 5 and not picked up.**
+Fold into: phase 7. **Carried from phases 5 and 6.**
 
 ### The response view resets on every request — low
 
@@ -100,7 +105,7 @@ it and the body view returns to `pretty`. Choosing `raw`, sending again, and lan
 `pretty` is a papercut for the send-tweak-send loop this app exists for; Postman keeps the
 selection. Verified against the running app.
 
-Fold into: phase 6.
+Fold into: phase 7. **Carried from phase 6.**
 
 ### Nothing explains why "pretty" is not pretty — low
 
@@ -115,7 +120,7 @@ it never reports: a non-JSON body renders with zero lint marks and zero gutter m
 (verified). Either drop the linter from the response path as dead weight, or say "not valid
 JSON" next to the view buttons.
 
-Fold into: phase 6.
+Fold into: phase 7. **Carried from phase 6.**
 
 ### The preview smoke check asserts the attribute, not the render — low
 
@@ -125,7 +130,64 @@ anything — it would still pass if CSP blocked the frame outright. The sandboxi
 sound (verified separately: `sandbox=""`, an inline `<script>` in the payload does not run,
 no CSP violations logged), so this is a mislabelled assertion rather than a broken feature.
 
-Fold into: phase 6.
+Fold into: phase 7. **Carried from phase 6.**
+
+### Symlinks escape the workspace boundary — blocking
+
+`YamlStore` documents that "every path is resolved against the workspace root and rejected
+if it escapes, so a renderer bug cannot reach outside the folder the user opened". The
+check is lexical only — `normalize()` collapses `..` textually and never resolves symlinks
+— so a symlink inside the opened folder reaches outside it. Confirmed against the built
+core, with a workspace containing `col/linked.yaml -> outside/secret.yaml` and
+`col/outdir -> outside/`:
+
+- `store.scan` walked the symlinked directory and listed files outside the workspace in the
+  sidebar tree.
+- `store.read` returned the contents of both the symlinked file and a file inside the
+  symlinked directory.
+- `store.write` created a new file outside the workspace, `outside/planted.yaml`.
+
+Writing through a symlinked *file* did not overwrite its target, because the temp-file and
+rename replaces the link rather than following it. That is luck, not defence, and it does
+not apply to the directory case.
+
+The threat model is the product's own premise. Collections are folders shared through git,
+git records symlinks, and opening a cloned collection is the intended workflow — so
+"a folder the user opened" is not the same as "files the user wrote". It still takes a
+crafted repository and a user opening it, so this is not remotely triggerable.
+
+Marked blocking not because the app is unusable but because the boundary is documented,
+tested and absent: `StoreMethodsTest.refusesToEscapeTheWorkspace` covers only lexical
+`../escape.yaml`. A boundary that is believed to exist is worse than one nobody relies on.
+
+Fix: compare real paths, not lexical ones — resolve the target (or its nearest existing
+ancestor) with `toRealPath()` against `root.toRealPath()` — and skip symlinks while
+scanning. Then extend that test with a symlinked file and a symlinked directory.
+
+Fold into: phase 7.
+
+### Saved request files are mode 600 — low
+
+`write` creates its temp file with `Files.createTempFile`, which is `rw-------` by design,
+and the rename carries those permissions to the request file. Observed on a written file:
+`-rw------- planted.yaml`, beside hand-created files at `-rw-r--r--`.
+
+For collections meant to be committed and shared, files whose mode depends on whether Ping
+or a human last wrote them are a small, lasting oddity — it shows up as spurious mode
+changes in git on systems that track them. Set the permissions explicitly after the move,
+or create the temp file with the process umask.
+
+Fold into: phase 7.
+
+### A self-referential symlink fills the sidebar — low
+
+`ln -s .. col/loop` inside a workspace makes `children()` recurse through the link. It does
+not hang — the OS symlink limit makes `Files.isDirectory` return false around forty levels
+down, and the scan returns in about 150 ms — but it returns roughly 29 KB of tree that is
+the same folder nested forty times. Skipping symlinks while scanning, as the escape fix
+above requires anyway, removes this too.
+
+Fold into: phase 7.
 
 ## Closed
 

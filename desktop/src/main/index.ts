@@ -1,8 +1,10 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { CoreClient, CoreRpcError } from './core'
+import { Workspace } from './workspace'
 
 const core = new CoreClient()
+const workspace = new Workspace()
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
@@ -56,6 +58,42 @@ function createWindow(): void {
   }
 }
 
+function failure(code: number | null, message: string): { ok: false; error: { code: number | null; message: string } } {
+  return { ok: false, error: { code, message } }
+}
+
+/** Rejects anything that is not a plain path inside the workspace. */
+function isRelativePath(value: string): boolean {
+  if (value.startsWith('/') || value.startsWith('\\') || /^[a-zA-Z]:[\\/]/.test(value)) {
+    return false
+  }
+  return !value.split(/[\\/]/).includes('..')
+}
+
+/**
+ * Store calls name a root, but the renderer does not get to choose it: the shell owns the
+ * open folder. Injecting the root here means a compromised renderer cannot read or write
+ * outside it, and the core checks the same boundary again.
+ */
+function withWorkspaceRoot(
+  params: unknown,
+  root: string
+): { params: Record<string, unknown> } | { message: string } {
+  const source = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
+  const safe: Record<string, unknown> = { ...source, root }
+
+  for (const field of ['path', 'collection']) {
+    const value = safe[field]
+    if (value === undefined) {
+      continue
+    }
+    if (typeof value !== 'string' || !isRelativePath(value)) {
+      return { message: `Unsafe ${field}: ${String(value)}` }
+    }
+  }
+  return { params: safe }
+}
+
 /**
  * The renderer never touches the core directly: it is sandboxed and has no process access.
  * Every call crosses this single choke point, which is also where argument validation and
@@ -68,32 +106,48 @@ function createWindow(): void {
  * once the value is back in its own realm.
  */
 function registerIpc(): void {
+  ipcMain.handle('workspace:current', () => workspace.current())
+  ipcMain.handle('workspace:choose', () => workspace.choose())
+
   ipcMain.handle('core:request', async (_event, method: unknown, params: unknown) => {
     if (typeof method !== 'string') {
-      return { ok: false, error: { code: null, message: 'core:request requires a method name' } }
+      return failure(null, 'core:request requires a method name')
     }
+
+    let args = params
+    if (method.startsWith('store.')) {
+      const current = workspace.current()
+      if (!current) {
+        return failure(null, 'No collection folder is open')
+      }
+      const checked = withWorkspaceRoot(params, current.root)
+      if ('message' in checked) {
+        return failure(null, checked.message)
+      }
+      args = checked.params
+    }
+
     try {
       await core.ready
-      return { ok: true, value: await core.request(method, params) }
+      return { ok: true, value: await core.request(method, args) }
     } catch (cause) {
-      return {
-        ok: false,
-        error: {
-          code: cause instanceof CoreRpcError ? cause.code : null,
-          message: cause instanceof Error ? cause.message : String(cause)
-        }
-      }
+      return failure(
+        cause instanceof CoreRpcError ? cause.code : null,
+        cause instanceof Error ? cause.message : String(cause)
+      )
     }
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   core.notifications((notification) => {
     mainWindow?.webContents.send('core:notification', notification)
   })
   core.start()
 
   registerIpc()
+  workspace.onChange(() => mainWindow?.webContents.send('store:changed'))
+  await workspace.restore()
   createWindow()
 
   app.on('activate', () => {

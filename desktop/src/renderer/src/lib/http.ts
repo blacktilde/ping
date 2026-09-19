@@ -11,6 +11,8 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 
 
 export type BodyMode = 'none' | 'json' | 'raw' | 'form' | 'multipart'
 
+export type RedirectPolicy = 'never' | 'normal' | 'always'
+
 /** A name/value row the user can disable without deleting. Mirrors contract `param`. */
 export interface Param {
   name: string
@@ -28,11 +30,16 @@ export interface RequestBody {
 
 /** The editable request, before it is turned into RPC params. */
 export interface RequestDraft {
+  name: string
   method: HttpMethod
   url: string
   query: Param[]
   headers: Param[]
   body: RequestBody
+  timeoutMs?: number
+  redirects?: RedirectPolicy
+  verifyTls?: boolean
+  maxBodyBytes?: number
 }
 
 /** Exactly the params `http.send` accepts. */
@@ -48,6 +55,10 @@ export interface HttpRequestSpec {
     contentType?: string
     fields?: Param[]
   }
+  timeoutMs?: number
+  redirects?: RedirectPolicy
+  verifyTls?: boolean
+  maxBodyBytes?: number
 }
 
 export interface HttpHeader {

@@ -16,6 +16,9 @@ public class RpcException extends RuntimeException {
     /** The request was well formed but the exchange failed: DNS, connect, TLS or timeout. */
     public static final int REQUEST_FAILED = -32002;
 
+    /** The collection store could not read, parse or write a file. */
+    public static final int STORE_FAILED = -32003;
+
     private final int code;
 
     public RpcException(int code, String message) {
@@ -38,5 +41,13 @@ public class RpcException extends RuntimeException {
 
     public static RpcException invalidParams(String detail) {
         return new RpcException(INVALID_PARAMS, detail);
+    }
+
+    public static RpcException storeFailed(String detail) {
+        return new RpcException(STORE_FAILED, detail);
+    }
+
+    public static RpcException storeFailed(String detail, Throwable cause) {
+        return new RpcException(STORE_FAILED, detail, cause);
     }
 }

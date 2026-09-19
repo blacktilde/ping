@@ -112,6 +112,22 @@
             "java.lang.String",
             "java.util.List"
           ]
+        },
+        {
+          "name": "content",
+          "parameterTypes": []
+        },
+        {
+          "name": "contentType",
+          "parameterTypes": []
+        },
+        {
+          "name": "fields",
+          "parameterTypes": []
+        },
+        {
+          "name": "type",
+          "parameterTypes": []
         }
       ]
     },
@@ -125,6 +141,18 @@
             "java.lang.String",
             "java.lang.Boolean"
           ]
+        },
+        {
+          "name": "isEnabled",
+          "parameterTypes": []
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "value",
+          "parameterTypes": []
         }
       ]
     },
@@ -224,6 +252,91 @@
       ]
     },
     {
+      "type": "dev.ping.store.CollectionNode",
+      "methods": [
+        {
+          "name": "children",
+          "parameterTypes": []
+        },
+        {
+          "name": "method",
+          "parameterTypes": []
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "path",
+          "parameterTypes": []
+        },
+        {
+          "name": "type",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.store.StoredRequest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.util.List",
+            "java.util.List",
+            "dev.ping.http.RequestSpec$Body",
+            "java.lang.Integer",
+            "java.lang.String",
+            "java.lang.Boolean",
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "body",
+          "parameterTypes": []
+        },
+        {
+          "name": "headers",
+          "parameterTypes": []
+        },
+        {
+          "name": "maxBodyBytes",
+          "parameterTypes": []
+        },
+        {
+          "name": "method",
+          "parameterTypes": []
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "query",
+          "parameterTypes": []
+        },
+        {
+          "name": "redirects",
+          "parameterTypes": []
+        },
+        {
+          "name": "timeoutMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "url",
+          "parameterTypes": []
+        },
+        {
+          "name": "verifyTls",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "java.lang.Boolean",
       "jniAccessible": true,
       "methods": [
@@ -287,6 +400,12 @@
     },
     {
       "type": "java.security.KeyStoreSpi"
+    },
+    {
+      "type": "java.sql.Date"
+    },
+    {
+      "type": "java.sql.Timestamp"
     },
     {
       "type": "java.util.HashSet",

@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/store.schema.json",
+  "title": "Ping core RPC — collection store",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "description": "One entry in the sidebar tree. Paths are relative to the workspace root and use forward slashes on every platform.",
+      "required": ["name", "path", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "path": { "type": "string" },
+        "type": { "enum": ["collection", "folder", "request"] },
+        "method": {
+          "type": ["string", "null"],
+          "description": "Request method for display; null for collections and folders, and for a file that could not be parsed."
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/node" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "storedRequest": {
+      "type": "object",
+      "description": "A request as it lives in a collection file. Field names mirror the http.send params; `name` is the sidebar label.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "method": { "type": "string" },
+        "url": { "type": "string" },
+        "query": {
+          "type": "array",
+          "items": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/param" }
+        },
+        "headers": {
+          "type": "array",
+          "items": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/param" }
+        },
+        "body": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/body" },
+        "timeoutMs": { "type": "integer" },
+        "redirects": { "enum": ["never", "normal", "always"] },
+        "verifyTls": { "type": "boolean" },
+        "maxBodyBytes": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+
+    "store.scan.params": {
+      "type": "object",
+      "required": ["root"],
+      "properties": {
+        "root": {
+          "type": "string",
+          "description": "Absolute workspace root. The shell owns it and supplies it on every call."
+        }
+      },
+      "additionalProperties": false
+    },
+    "store.scan.result": {
+      "type": "object",
+      "required": ["collections"],
+      "properties": {
+        "collections": {
+          "type": "array",
+          "description": "Top-level folders, each a collection. Loose YAML at the root is not a collection.",
+          "items": { "$ref": "#/$defs/node" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "store.read.params": {
+      "type": "object",
+      "required": ["root", "path"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string", "description": "Relative to root; must not escape it." }
+      },
+      "additionalProperties": false
+    },
+    "store.read.result": { "$ref": "#/$defs/storedRequest" },
+
+    "store.write.params": {
+      "type": "object",
+      "required": ["root", "path", "request"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string" },
+        "request": { "$ref": "#/$defs/storedRequest" }
+      },
+      "additionalProperties": false
+    },
+    "store.write.result": {
+      "type": "object",
+      "required": ["path"],
+      "properties": { "path": { "type": "string" } },
+      "additionalProperties": false
+    },
+
+    "store.create.params": {
+      "type": "object",
+      "required": ["root", "name"],
+      "properties": {
+        "root": { "type": "string" },
+        "collection": {
+          "type": "string",
+          "description": "Relative path of an existing collection folder. Omitted means the workspace root."
+        },
+        "name": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "store.create.result": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "description": "Where the new request was written; unique even for repeated names." }
+      },
+      "additionalProperties": false
+    }
+  }
+}

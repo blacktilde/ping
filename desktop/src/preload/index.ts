@@ -24,6 +24,23 @@ const api = {
     return ipcRenderer.invoke('core:request', method, params) as Promise<CoreResult<T>>
   },
 
+  /** The folder the shell has open, or null. The renderer never chooses it directly. */
+  workspace(): Promise<{ root: string } | null> {
+    return ipcRenderer.invoke('workspace:current') as Promise<{ root: string } | null>
+  },
+
+  /** Opens the folder picker. Returns the current folder when the dialog is dismissed. */
+  chooseWorkspace(): Promise<{ root: string } | null> {
+    return ipcRenderer.invoke('workspace:choose') as Promise<{ root: string } | null>
+  },
+
+  /** Fires when the open folder changes on disk, so the tree can be rescanned. */
+  onStoreChanged(listener: () => void): () => void {
+    const handler = (): void => listener()
+    ipcRenderer.on('store:changed', handler)
+    return () => ipcRenderer.off('store:changed', handler)
+  },
+
   /** Subscribes to server-initiated core messages. Returns an unsubscribe function. */
   onNotification(listener: (notification: { method: string; params: unknown }) => void): () => void {
     const handler = (_event: IpcRendererEvent, notification: { method: string; params: unknown }) =>

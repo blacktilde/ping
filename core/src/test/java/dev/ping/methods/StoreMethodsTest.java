@@ -1,0 +1,216 @@
+package dev.ping.methods;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.ping.rpc.RpcException;
+import dev.ping.rpc.RpcServer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Drives the store the way the desktop does: as JSON crossing the RPC boundary.
+ *
+ * <p>Besides covering the behaviour, these tests are what the native-image tracing agent
+ * observes. The YAML round trip uses Jackson reflection on {@code StoredRequest} and the
+ * nested request records, so without a test that actually binds them from JSON the shipped
+ * binary would fail on the first collection it opened.
+ */
+class StoreMethodsTest {
+
+    private final ObjectMapper json = new ObjectMapper();
+
+    @TempDir
+    Path workspace;
+
+    /** Builds a request line structurally so Windows paths never need hand-escaping. */
+    private String line(int id, String method, Object params) throws Exception {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("jsonrpc", "2.0");
+        request.put("id", id);
+        request.put("method", method);
+        request.put("params", params);
+        return json.writeValueAsString(request);
+    }
+
+    private JsonNode call(String method, Object params) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        RpcServer server = new RpcServer(
+                new ByteArrayInputStream((line(1, method, params) + "\n").getBytes(StandardCharsets.UTF_8)),
+                out);
+        StoreMethods.registerOn(server);
+        server.serve();
+
+        List<JsonNode> responses = out.toString(StandardCharsets.UTF_8)
+                .lines()
+                .filter(line -> !line.isBlank())
+                .map(text -> {
+                    try {
+                        return json.readTree(text);
+                    } catch (Exception e) {
+                        throw new AssertionError("Non-JSON output: " + text, e);
+                    }
+                })
+                .filter(node -> node.has("id"))
+                .toList();
+
+        return responses.get(0);
+    }
+
+    @Test
+    void scansCollectionsFoldersAndRequests() throws Exception {
+        Files.createDirectories(workspace.resolve("my-api/users"));
+        Files.writeString(workspace.resolve("my-api/login.yaml"), """
+                name: Login
+                method: POST
+                url: https://example.com/login
+                """);
+        Files.writeString(workspace.resolve("my-api/users/list.yaml"), """
+                name: List users
+                method: GET
+                url: https://example.com/users
+                """);
+        // Hidden files and non-YAML files are not part of the tree.
+        Files.writeString(workspace.resolve("my-api/.notes.yaml"), "name: nope");
+        Files.writeString(workspace.resolve("my-api/readme.md"), "not a request");
+
+        JsonNode collections = call("store.scan", Map.of("root", workspace.toString()))
+                .path("result").path("collections");
+
+        assertEquals(1, collections.size());
+        JsonNode collection = collections.get(0);
+        assertEquals("my-api", collection.path("name").asText());
+        assertEquals("collection", collection.path("type").asText());
+        assertEquals("my-api", collection.path("path").asText());
+
+        // Folders sort before requests.
+        assertEquals("users", collection.path("children").get(0).path("name").asText());
+        assertEquals("folder", collection.path("children").get(0).path("type").asText());
+        JsonNode login = collection.path("children").get(1);
+        assertEquals("Login", login.path("name").asText(), "the display name comes from the file");
+        assertEquals("POST", login.path("method").asText());
+        assertEquals("my-api/login.yaml", login.path("path").asText());
+
+        JsonNode listed = collection.path("children").get(0).path("children").get(0);
+        assertEquals("List users", listed.path("name").asText());
+        assertEquals("my-api/users/list.yaml", listed.path("path").asText());
+    }
+
+    @Test
+    void readsARequestFile() throws Exception {
+        Files.createDirectories(workspace.resolve("api"));
+        Files.writeString(workspace.resolve("api/create.yaml"), """
+                name: Create item
+                method: POST
+                url: https://example.com/items
+                query:
+                  - name: dry
+                    value: "true"
+                headers:
+                  - name: X-Token
+                    value: keep-out
+                body:
+                  type: json
+                  content: '{"a":1}'
+                timeoutMs: 1234
+                """);
+
+        JsonNode result = call("store.read",
+                Map.of("root", workspace.toString(), "path", "api/create.yaml")).path("result");
+
+        assertEquals("Create item", result.path("name").asText());
+        assertEquals("POST", result.path("method").asText());
+        assertEquals("true", result.path("query").get(0).path("value").asText());
+        assertEquals("X-Token", result.path("headers").get(0).path("name").asText());
+        assertEquals("json", result.path("body").path("type").asText());
+        assertEquals("{\"a\":1}", result.path("body").path("content").asText());
+        assertEquals(1234, result.path("timeoutMs").asInt());
+    }
+
+    @Test
+    void writesYamlThatReadsBack() throws Exception {
+        Map<String, Object> request = Map.of(
+                "name", "New request",
+                "method", "PUT",
+                "url", "https://example.com/x",
+                "query", List.of(Map.of("name", "a", "value", "b", "enabled", true)),
+                "body", Map.of("type", "raw", "content", "hello", "contentType", "text/plain"));
+
+        JsonNode response = call("store.write", Map.of(
+                "root", workspace.toString(),
+                "path", "api/new.yaml",
+                "request", request));
+
+        assertEquals("api/new.yaml", response.path("result").path("path").asText());
+
+        Path file = workspace.resolve("api/new.yaml");
+        assertTrue(Files.isRegularFile(file), "the write must create parent folders");
+        String yaml = Files.readString(file);
+        assertTrue(yaml.contains("method: PUT"), yaml);
+        assertFalse(yaml.contains("null"), "empty fields must be omitted: " + yaml);
+        assertFalse(yaml.startsWith("---"), "no document marker for a single document");
+
+        JsonNode readBack = call("store.read",
+                Map.of("root", workspace.toString(), "path", "api/new.yaml")).path("result");
+        assertEquals("PUT", readBack.path("method").asText());
+        assertEquals("hello", readBack.path("body").path("content").asText());
+        assertEquals("a", readBack.path("query").get(0).path("name").asText());
+    }
+
+    @Test
+    void createsUniqueFilesForRepeatedNames() throws Exception {
+        Files.createDirectories(workspace.resolve("api"));
+
+        String first = call("store.create",
+                Map.of("root", workspace.toString(), "collection", "api", "name", "Get thing"))
+                .path("result").path("path").asText();
+        String second = call("store.create",
+                Map.of("root", workspace.toString(), "collection", "api", "name", "Get thing"))
+                .path("result").path("path").asText();
+
+        assertEquals("api/get-thing.yaml", first);
+        assertEquals("api/get-thing-2.yaml", second);
+        assertTrue(Files.isRegularFile(workspace.resolve(second)));
+
+        JsonNode created = call("store.read",
+                Map.of("root", workspace.toString(), "path", second)).path("result");
+        assertEquals("Get thing", created.path("name").asText());
+        assertEquals("none", created.path("body").path("type").asText());
+    }
+
+    @Test
+    void refusesToEscapeTheWorkspace() throws Exception {
+        JsonNode read = call("store.read",
+                Map.of("root", workspace.toString(), "path", "../escape.yaml"));
+        assertEquals(RpcException.INVALID_PARAMS, read.path("error").path("code").asInt());
+
+        JsonNode write = call("store.write", Map.of(
+                "root", workspace.toString(),
+                "path", "../escape.yaml",
+                "request", Map.of("name", "nope")));
+        assertEquals(RpcException.INVALID_PARAMS, write.path("error").path("code").asInt());
+    }
+
+    @Test
+    void reportsUnparseableFilesAsStoreFailures() throws Exception {
+        Files.createDirectories(workspace.resolve("api"));
+        Files.writeString(workspace.resolve("api/broken.yaml"), "name: [unclosed\n");
+
+        JsonNode response = call("store.read",
+                Map.of("root", workspace.toString(), "path", "api/broken.yaml"));
+
+        assertEquals(RpcException.STORE_FAILED, response.path("error").path("code").asInt());
+    }
+}

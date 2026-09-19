@@ -1,0 +1,44 @@
+package dev.ping.store;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import dev.ping.http.RequestSpec;
+
+import java.util.List;
+
+/**
+ * A request as it lives in a collection file.
+ *
+ * <p>Field names match the {@code http.send} params on purpose: a file and an RPC call
+ * describe the same thing, so whoever can read one can read the other. The one addition is
+ * {@code name}, which is what the sidebar shows and the filename only approximates.
+ *
+ * <p>Empty and null fields are omitted, so a freshly created request is a handful of lines
+ * rather than a wall of nulls. The engine applies defaults for anything absent.
+ */
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
+@JsonPropertyOrder({"name", "method", "url", "query", "headers", "body",
+        "timeoutMs", "redirects", "verifyTls", "maxBodyBytes"})
+public record StoredRequest(
+        String name,
+        String method,
+        String url,
+        List<RequestSpec.Param> query,
+        List<RequestSpec.Param> headers,
+        RequestSpec.Body body,
+        Integer timeoutMs,
+        String redirects,
+        Boolean verifyTls,
+        Integer maxBodyBytes) {
+
+    public RequestSpec toSpec() {
+        return new RequestSpec(null, method, url, query, headers, body,
+                timeoutMs, redirects, verifyTls, maxBodyBytes);
+    }
+
+    public static StoredRequest fromSpec(String name, RequestSpec spec) {
+        return new StoredRequest(name, spec.method(), spec.url(), spec.query(), spec.headers(),
+                spec.body(), spec.timeoutMs(), spec.redirects(), spec.verifyTls(),
+                spec.maxBodyBytes());
+    }
+}

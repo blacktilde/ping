@@ -39,6 +39,11 @@ change the schema first, then both sides. Do not hand-edit the types apart.
 needs crosses the `core:request` handler in the Electron main process, which is also where
 argument validation and secret resolution belong.
 
+**The shell owns the filesystem root.** Store calls carry paths relative to the open
+folder; the main process injects that root and rejects absolute or `..` paths before they
+reach the core, which checks the same boundary again. A new store method takes a relative
+path, never an absolute one.
+
 **Secrets never touch collection files.** They live in Electron `safeStorage`; YAML holds
 only the variable name.
 

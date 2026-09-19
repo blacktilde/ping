@@ -11,7 +11,10 @@
  * live HTTPS check, which is what CI does so the suite does not depend on a third party.
  */
 import { spawn } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import electron from 'electron'
 
 const PORT = 8791
@@ -57,10 +60,22 @@ const server = http.createServer(async (req, res) => {
 })
 await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
 
+// A throwaway collection so the test can prove load, dirty, save and watching without a
+// folder dialog. The shell takes its workspace from PING_WORKSPACE, which is also how CI
+// runs headless.
+const workspaceDir = mkdtempSync(join(tmpdir(), 'ping-smoke-'))
+mkdirSync(join(workspaceDir, 'demo'), { recursive: true })
+const savedRequest = join(workspaceDir, 'demo', 'get.yaml')
+writeFileSync(savedRequest, `name: Smoke get\nmethod: GET\nurl: ${base}/data\n`)
+
 const app = spawn(
   electron,
   ['.', `--remote-debugging-port=${DEBUG_PORT}`, '--disable-gpu', '--no-sandbox'],
-  { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] }
+  {
+    cwd: root,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PING_WORKSPACE: workspaceDir }
+  }
 )
 app.stderr.on('data', (chunk) => {
   const text = String(chunk)
@@ -207,6 +222,53 @@ try {
     }
   }
 
+  console.log('--- 0. workspace: load, dirty, save, watch')
+  const sidebarText = async () =>
+    await evaluate(`document.querySelector('[data-role="sidebar"]')?.textContent ?? ''`)
+  await waitFor(async () => (await sidebarText()).includes('Smoke get'), 8000, 'the tree to load')
+  check('shows the collection tree', (await sidebarText()).includes('demo'))
+
+  await waitFor(
+    async () =>
+      (await evaluate(`document.querySelector('input[aria-label="Request name"]')?.value`)) ===
+      'Smoke get',
+    5000,
+    'the first request to open'
+  )
+  check(
+    'loads the request from disk',
+    (await evaluate(`document.querySelector('input[aria-label="Request URL"]')?.value`)) ===
+      `${base}/data`
+  )
+  check('starts clean', !(await evaluate(`!!document.querySelector('[data-role="dirty"]')`)))
+
+  await evaluate(setInput('Request URL', `${base}/changed`))
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="dirty"]')`),
+    2000,
+    'the dirty marker'
+  )
+  check('marks unsaved edits', true)
+
+  await evaluate(`document.querySelector('[data-role="save"]').click()`)
+  await waitFor(
+    async () => !(await evaluate(`!!document.querySelector('[data-role="dirty"]')`)),
+    3000,
+    'the save to finish'
+  )
+  check('writes the edit to disk', readFileSync(savedRequest, 'utf8').includes('/changed'))
+
+  writeFileSync(
+    join(workspaceDir, 'demo', 'added.yaml'),
+    'name: Added remotely\nmethod: GET\nurl: https://example.com\n'
+  )
+  await waitFor(
+    async () => (await sidebarText()).includes('Added remotely'),
+    8000,
+    'the watcher to refresh the tree'
+  )
+  check('watcher refreshes the tree', true)
+
   console.log('--- 1. exchange with the local server')
   await evaluate(setUrl(`${base}/data`))
   await evaluate(setMethod('GET'))
@@ -322,6 +384,7 @@ try {
   socket?.close()
   app.kill()
   server.close()
+  rmSync(workspaceDir, { recursive: true, force: true })
 }
 
 console.log(failures === 0 ? '\nAll smoke checks passed.' : `\n${failures} smoke check(s) failed.`)
