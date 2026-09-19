@@ -731,6 +731,30 @@ try {
     return Number(handle.getAttribute('aria-valuenow'));
   })()`)
   check('dragging the handle resizes the split', dragged < resized.value, `${resized.value} -> ${dragged}`)
+
+  console.log('--- 11. collapse the collections sidebar')
+  const sidebarVisible = async () => await evaluate(`!!document.querySelector('[data-role="sidebar"]')`)
+  const separatorCount = async () =>
+    await evaluate(`document.querySelectorAll('[role="separator"]').length`)
+  check('sidebar starts visible', await sidebarVisible())
+
+  await evaluate(
+    `document.querySelector('button[aria-label="Hide collections sidebar"]')?.click()`
+  )
+  await waitFor(async () => !(await sidebarVisible()), 2000, 'the sidebar to collapse')
+  check('hides the sidebar', !(await sidebarVisible()))
+  check('drops its split handle', (await separatorCount()) === 1, String(await separatorCount()))
+  check(
+    'keeps the main pane mounted',
+    (await evaluate(`!!document.querySelector('input[aria-label="Request URL"]')`))
+  )
+
+  await evaluate(
+    `document.querySelector('button[aria-label="Show collections sidebar"]')?.click()`
+  )
+  await waitFor(async () => await sidebarVisible(), 2000, 'the sidebar to return')
+  check('shows the sidebar again', await sidebarVisible())
+  check('restores both split handles', (await separatorCount()) === 2, String(await separatorCount()))
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)

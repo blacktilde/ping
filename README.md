@@ -1,7 +1,6 @@
 # Ping
 
-A desktop REST client in the spirit of Postman, Bruno and Yaak: git-friendly collections, a
-polished UI, and an engine that is fast because the work never happens in JavaScript.
+A lightweight, privacy-focused HTTP client that runs entirely on your local machine.
 
 ## How it fits together
 
