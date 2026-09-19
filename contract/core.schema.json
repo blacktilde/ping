@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/core.schema.json",
+  "title": "Ping core RPC — lifecycle and diagnostics",
+  "$defs": {
+    "core.ping.params": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "Echoed back verbatim. Omitted means the core answers \"pong\"."
+        }
+      },
+      "additionalProperties": false
+    },
+    "core.ping.result": {
+      "type": "object",
+      "required": ["message", "receivedAt"],
+      "properties": {
+        "message": { "type": "string" },
+        "receivedAt": {
+          "type": "integer",
+          "description": "Core-side receipt time, epoch milliseconds."
+        }
+      },
+      "additionalProperties": false
+    },
+    "core.info.result": {
+      "type": "object",
+      "required": ["coreVersion", "javaVersion", "vendor", "nativeImage"],
+      "properties": {
+        "coreVersion": { "type": "string" },
+        "javaVersion": { "type": "string" },
+        "vendor": { "type": "string" },
+        "nativeImage": {
+          "type": "boolean",
+          "description": "True when running as a GraalVM native image rather than on the JVM."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

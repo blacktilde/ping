@@ -1,0 +1,16 @@
+# Build output
+out/
+build/
+dist/
+.gradle/
+
+# Dependencies
+node_modules/
+
+# Editors
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log

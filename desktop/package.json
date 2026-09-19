@@ -1,0 +1,23 @@
+{
+  "name": "ping-desktop",
+  "version": "0.1.0",
+  "description": "Ping desktop shell: Electron main process and Svelte UI.",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.2",
+    "electron": "^44.4.3",
+    "electron-vite": "^5.0.0",
+    "svelte": "^5.57.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}

@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+/* Names here become utilities: --color-panel gives bg-panel, border-panel, text-panel. */
+@theme {
+  --color-base: #0b0d10;
+  --color-panel: #14171c;
+  --color-line: #232830;
+  --color-accent: #4f8cff;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-base);
+  color: #e6e9ef;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
