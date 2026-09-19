@@ -145,7 +145,7 @@
   bind:this={container}
   class="flex min-h-0 min-w-0 flex-1 {vertical ? 'flex-col' : 'flex-row'}"
 >
-  <div class="grid min-h-0 min-w-0 overflow-hidden {vertical ? 'grid-rows-1' : 'grid-cols-1'}" style={firstStyle}>
+  <div class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden" style={firstStyle}>
     {@render first()}
   </div>
 
@@ -171,7 +171,7 @@
     ></span>
   </div>
 
-  <div class="grid min-h-0 min-w-0 overflow-hidden {vertical ? 'grid-rows-1' : 'grid-cols-1'}" style={secondStyle}>
+  <div class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden" style={secondStyle}>
     {@render second()}
   </div>
 </div>

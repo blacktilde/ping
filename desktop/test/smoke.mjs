@@ -56,6 +56,15 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  if (req.url.startsWith('/large')) {
+    // Long enough to overflow any viewport: the response pane must clip it, not grow the
+    // split container until the resize handle is scrolled off-screen.
+    const items = Array.from({ length: 500 }, (_, i) => ({ id: i, name: `item-${i}` }))
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ items }))
+    return
+  }
+
   const chunks = []
   for await (const chunk of req) chunks.push(chunk)
 
@@ -755,6 +764,57 @@ try {
   await waitFor(async () => await sidebarVisible(), 2000, 'the sidebar to return')
   check('shows the sidebar again', await sidebarVisible())
   check('restores both split handles', (await separatorCount()) === 2, String(await separatorCount()))
+
+  console.log('--- 12. a large response does not push the resize handle away')
+  // The response body is unbounded content; if its split cell lets that size the layout,
+  // the container grows past the window and the handle scrolls out of reach. It must clip.
+  await evaluate(setUrl(`${base}/large`))
+  await clickSend()
+  await waitFor(async () => (await snap()).status === '200', 8000, 'the large response')
+  const layout = await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    const container = handle.parentElement;
+    const viewport = document.documentElement.clientHeight;
+    const handleRect = handle.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    return {
+      value: Number(handle.getAttribute('aria-valuenow')),
+      containerHeight: Math.round(containerRect.height),
+      viewport,
+      handleTop: Math.round(handleRect.top),
+      handleBottom: Math.round(handleRect.bottom),
+    };
+  })()`)
+  check(
+    'the split container stays within the viewport',
+    layout.containerHeight <= layout.viewport + 1,
+    `container ${layout.containerHeight}px, viewport ${layout.viewport}px`
+  )
+  check(
+    'the handle stays on screen',
+    layout.handleTop >= 0 && layout.handleBottom <= layout.viewport,
+    `handle ${layout.handleTop}..${layout.handleBottom}`
+  )
+
+  await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    const rect = handle.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: cx, clientY: cy }));
+    window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: cx, clientY: cy - 200 }));
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: cx, clientY: cy - 200 }));
+    return true;
+  })()`)
+  await wait(100)
+  const grown = await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    return Number(handle.getAttribute('aria-valuenow'));
+  })()`)
+  check('the response pane can still be grown', grown < layout.value, `${layout.value} -> ${grown}`)
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)
