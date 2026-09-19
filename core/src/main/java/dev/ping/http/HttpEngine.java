@@ -1,6 +1,10 @@
 package dev.ping.http;
 
+import dev.ping.auth.Authenticator;
+import dev.ping.auth.TokenCache;
+import dev.ping.auth.TokenClient;
 import dev.ping.rpc.RpcException;
+import dev.ping.vars.Interpolation;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -33,8 +37,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -56,10 +58,19 @@ public final class HttpEngine {
     private static final List<String> RESTRICTED_HEADERS =
             List.of("connection", "content-length", "expect", "host", "upgrade");
 
-    /** {@code {{ name }}}, tolerating whitespace inside the braces. */
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*\\}\\}");
-
     private final Map<String, Exchange> inFlight = new ConcurrentHashMap<>();
+    private final TokenCache tokenCache;
+    private final Authenticator authenticator;
+
+    public HttpEngine() {
+        this(new TokenCache());
+    }
+
+    /** Shares the token cache with the interactive OAuth2 flow, so a send can reuse a token. */
+    public HttpEngine(TokenCache tokenCache) {
+        this.tokenCache = tokenCache;
+        this.authenticator = new Authenticator(new TokenClient(), tokenCache);
+    }
 
     /**
      * An in-flight request and whether we asked it to stop.
@@ -134,8 +145,9 @@ public final class HttpEngine {
                 throw cancelledException();
             }
 
-            URI uri = buildUri(spec, variables);
-            HttpRequest request = buildRequest(spec, uri, variables);
+            Authenticator.Applied auth = authenticator.apply(spec.auth(), variables);
+            URI uri = buildUri(spec, variables, auth.query());
+            HttpRequest request = buildRequest(spec, uri, variables, auth.headers());
 
             // Resolved before dispatch so the cost is attributable; the client's own lookup
             // then hits the JDK cache. Failure is not fatal: report the timing as unknown.
@@ -199,13 +211,18 @@ public final class HttpEngine {
 
     // --- request construction ------------------------------------------------------------
 
-    private static URI buildUri(RequestSpec spec, Map<String, String> variables) {
+    private static URI buildUri(
+            RequestSpec spec, Map<String, String> variables, List<RequestSpec.Param> authQuery) {
         if (spec.url() == null || spec.url().isBlank()) {
             throw RpcException.invalidParams("A url is required");
         }
 
         String url = interpolate(spec.url().trim(), variables);
         String encodedQuery = encodeQuery(spec.query(), variables);
+        String encodedAuth = encodeQuery(authQuery, variables);
+        if (!encodedAuth.isEmpty()) {
+            encodedQuery = encodedQuery.isEmpty() ? encodedAuth : encodedQuery + "&" + encodedAuth;
+        }
         if (!encodedQuery.isEmpty()) {
             url += (url.contains("?") ? "&" : "?") + encodedQuery;
         }
@@ -245,7 +262,8 @@ public final class HttpEngine {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 
-    private HttpRequest buildRequest(RequestSpec spec, URI uri, Map<String, String> variables) {
+    private HttpRequest buildRequest(
+            RequestSpec spec, URI uri, Map<String, String> variables, Map<String, String> authHeaders) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofMillis(spec.timeoutOrDefault()));
 
@@ -268,9 +286,15 @@ public final class HttpEngine {
             }
         }
 
+        // Auth is applied last and replaces any header of the same name: an explicit auth
+        // config wins over a stale Authorization the user left in the table.
+        for (Map.Entry<String, String> header : authHeaders.entrySet()) {
+            builder.setHeader(header.getKey(), header.getValue());
+        }
+
         // An explicit header always wins over the type implied by the body mode.
         if (!contentTypeSet && body.contentType() != null) {
-            builder.header("Content-Type", body.contentType());
+            builder.setHeader("Content-Type", body.contentType());
         }
         return builder.build();
     }
@@ -445,24 +469,11 @@ public final class HttpEngine {
     }
 
     /**
-     * Substitutes {@code {{name}}} from the resolved map.
-     *
-     * <p>An unknown name is left exactly as written, so a half-configured request shows
-     * what is missing on the wire rather than silently sending an empty value.
+     * Substitutes {@code {{name}}} from the resolved map. An unknown name is left exactly as
+     * written, so a half-configured request shows what is missing on the wire.
      */
     static String interpolate(String value, Map<String, String> variables) {
-        if (value == null || variables == null || variables.isEmpty() || value.indexOf("{{") < 0) {
-            return value;
-        }
-        Matcher matcher = PLACEHOLDER.matcher(value);
-        StringBuilder resolved = new StringBuilder();
-        while (matcher.find()) {
-            String replacement = variables.get(matcher.group(1).trim());
-            matcher.appendReplacement(resolved,
-                    Matcher.quoteReplacement(replacement == null ? matcher.group(0) : replacement));
-        }
-        matcher.appendTail(resolved);
-        return resolved.toString();
+        return Interpolation.apply(value, variables);
     }
 
     /**

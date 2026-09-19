@@ -42,6 +42,7 @@ A request without an `id` is a notification: the core runs it and answers nothin
 | `vars.saveCollection`| `{ root, collection, name?, variables? }` | `{}`                     |
 | `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
+| `auth.authorize`| `{ auth, variables? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
 
 `core.info.nativeImage` reports whether the running core is the GraalVM native image or
 the JVM build, so the UI can show which one is in use.
@@ -90,6 +91,26 @@ written, so a half-configured request shows what is missing on the wire rather t
 sending an empty value. Substitution happens in the core, so the future CLI behaves
 identically.
 
+### Auth
+
+`http.send` accepts an `auth` object (see `http.schema.json`). Basic, bearer and API key
+attach a header or query parameter. OAuth2 client credentials fetches a token from
+`tokenUrl`, caches it for the life of the core process, and attaches a bearer token. OAuth2
+authorization code uses the token the interactive flow obtained; without one, the send
+fails with `-32004` until the user authorizes.
+
+Auth field values are interpolated after variables are resolved, so a secret is an ordinary
+variable whose value the shell read from `safeStorage`. Collection files hold only the
+placeholder, and the shell merges secret values in at runtime precedence.
+
+`auth.authorize` runs the authorization-code + PKCE flow: it opens a loopback listener and
+returns the authorize URL for the shell to open in a browser. The core captures the
+redirect, checks the state, exchanges the code with the verifier, caches the token under the
+same key a later send looks it up by, and emits an `auth.completed` notification carrying
+`{ flowId, grantKey, accessToken, refreshToken?, expiresAtMillis }` or `{ flowId, error }`.
+The shell stores the tokens in `safeStorage` and restores them onto `http.send` as the
+auth's `accessToken`/`refreshToken`/`expiresAtMillis`.
+
 ### Error codes
 
 Beyond the JSON-RPC reserved range:
@@ -99,6 +120,7 @@ Beyond the JSON-RPC reserved range:
 | `-32001` | Request cancelled by the caller                              |
 | `-32002` | Exchange failed: DNS, connection, TLS or timeout             |
 | `-32003` | Collection store failed: read, parse or write               |
+| `-32004` | Authentication failed: bad configuration or token exchange  |
 
 The engine tracks cancellation intent itself rather than inferring it from the exception
 type, because the JDK surfaces an aborted exchange differently depending on how far it

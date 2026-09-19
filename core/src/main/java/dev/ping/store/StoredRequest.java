@@ -17,7 +17,7 @@ import java.util.List;
  * rather than a wall of nulls. The engine applies defaults for anything absent.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-@JsonPropertyOrder({"name", "method", "url", "query", "headers", "body",
+@JsonPropertyOrder({"name", "method", "url", "query", "headers", "body", "auth",
         "timeoutMs", "redirects", "verifyTls", "maxBodyBytes"})
 public record StoredRequest(
         String name,
@@ -26,19 +26,20 @@ public record StoredRequest(
         List<RequestSpec.Param> query,
         List<RequestSpec.Param> headers,
         RequestSpec.Body body,
+        RequestSpec.Auth auth,
         Integer timeoutMs,
         String redirects,
         Boolean verifyTls,
         Integer maxBodyBytes) {
 
     public RequestSpec toSpec() {
-        return new RequestSpec(null, method, url, query, headers, body,
+        return new RequestSpec(null, method, url, query, headers, body, auth,
                 timeoutMs, redirects, verifyTls, maxBodyBytes);
     }
 
     public static StoredRequest fromSpec(String name, RequestSpec spec) {
         return new StoredRequest(name, spec.method(), spec.url(), spec.query(), spec.headers(),
-                spec.body(), spec.timeoutMs(), spec.redirects(), spec.verifyTls(),
+                spec.body(), spec.auth(), spec.timeoutMs(), spec.redirects(), spec.verifyTls(),
                 spec.maxBodyBytes());
     }
 }

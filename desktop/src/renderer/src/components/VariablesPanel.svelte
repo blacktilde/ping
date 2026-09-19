@@ -1,6 +1,7 @@
 <script lang="ts">
   import { variables } from '../lib/vars.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
+  import SecretsEditor from './SecretsEditor.svelte'
 
   interface Props {
     onClose: () => void
@@ -77,6 +78,17 @@
           variables.
         </p>
       {/if}
+    </section>
+
+    <section class="border-t border-line">
+      <div class="px-3 py-2">
+        <h3 class="text-xs uppercase tracking-wide text-neutral-500">Secrets</h3>
+        <p class="mt-1 text-xs text-neutral-600">
+          Encrypted by the shell, never written to the collection. Reference one as
+          <code class="font-mono">&#123;&#123;name&#125;&#125;</code>.
+        </p>
+      </div>
+      <SecretsEditor />
     </section>
   </div>
 

@@ -93,6 +93,7 @@
             "java.util.List",
             "java.util.List",
             "dev.ping.http.RequestSpec$Body",
+            "dev.ping.http.RequestSpec$Auth",
             "java.lang.Integer",
             "java.lang.String",
             "java.lang.Boolean",
@@ -100,6 +101,9 @@
           ]
         }
       ]
+    },
+    {
+      "type": "dev.ping.http.RequestSpec$Auth"
     },
     {
       "type": "dev.ping.http.RequestSpec$Body",
@@ -341,11 +345,16 @@
             "java.util.List",
             "java.util.List",
             "dev.ping.http.RequestSpec$Body",
+            "dev.ping.http.RequestSpec$Auth",
             "java.lang.Integer",
             "java.lang.String",
             "java.lang.Boolean",
             "java.lang.Integer"
           ]
+        },
+        {
+          "name": "auth",
+          "parameterTypes": []
         },
         {
           "name": "body",

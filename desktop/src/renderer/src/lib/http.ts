@@ -13,6 +13,85 @@ export type BodyMode = 'none' | 'json' | 'raw' | 'form' | 'multipart'
 
 export type RedirectPolicy = 'never' | 'normal' | 'always'
 
+export type AuthType =
+  | 'none'
+  | 'basic'
+  | 'bearer'
+  | 'api-key'
+  | 'oauth2-client-credentials'
+  | 'oauth2-authorization-code'
+
+/** The editable auth config. Every field is a string so the editor can bind unconditionally. */
+export interface AuthDraft {
+  type: AuthType
+  username: string
+  password: string
+  token: string
+  key: string
+  value: string
+  in: 'header' | 'query'
+  tokenUrl: string
+  authUrl: string
+  clientId: string
+  clientSecret: string
+  scopes: string
+}
+
+/** As it crosses the boundary; empty fields are dropped. */
+export interface AuthSpec {
+  type: AuthType
+  username?: string
+  password?: string
+  token?: string
+  key?: string
+  value?: string
+  in?: 'header' | 'query'
+  tokenUrl?: string
+  authUrl?: string
+  clientId?: string
+  clientSecret?: string
+  scopes?: string
+}
+
+export function newAuth(): AuthDraft {
+  return {
+    type: 'none',
+    username: '',
+    password: '',
+    token: '',
+    key: '',
+    value: '',
+    in: 'header',
+    tokenUrl: '',
+    authUrl: '',
+    clientId: '',
+    clientSecret: '',
+    scopes: ''
+  }
+}
+
+export function normalizeAuth(auth: Partial<AuthDraft> | null | undefined): AuthDraft {
+  return { ...newAuth(), ...(auth ?? {}) }
+}
+
+export function authToSpec(auth: AuthDraft): AuthSpec | undefined {
+  if (auth.type === 'none') {
+    return undefined
+  }
+  const spec: AuthSpec = { type: auth.type }
+  const fields: (keyof AuthDraft)[] = [
+    'username', 'password', 'token', 'key', 'value', 'in',
+    'tokenUrl', 'authUrl', 'clientId', 'clientSecret', 'scopes'
+  ]
+  for (const field of fields) {
+    const value = auth[field]
+    if (typeof value === 'string' && value.length > 0) {
+      ;(spec as unknown as Record<string, unknown>)[field] = value
+    }
+  }
+  return spec
+}
+
 /** A name/value row the user can disable without deleting. Mirrors contract `param`. */
 export interface Param {
   name: string
@@ -36,6 +115,7 @@ export interface RequestDraft {
   query: Param[]
   headers: Param[]
   body: RequestBody
+  auth: AuthDraft
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
@@ -59,6 +139,8 @@ export interface HttpRequestSpec {
   redirects?: RedirectPolicy
   verifyTls?: boolean
   maxBodyBytes?: number
+  /** How to authenticate; values may reference variables, which secrets resolve into. */
+  auth?: AuthSpec
   /** Resolved values for {{name}} placeholders; resolution precedence lives in the core. */
   variables?: Record<string, string>
 }

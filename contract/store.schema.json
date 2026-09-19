@@ -40,6 +40,7 @@
           "items": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/param" }
         },
         "body": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/body" },
+        "auth": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/auth" },
         "timeoutMs": { "type": "integer" },
         "redirects": { "enum": ["never", "normal", "always"] },
         "verifyTls": { "type": "boolean" },

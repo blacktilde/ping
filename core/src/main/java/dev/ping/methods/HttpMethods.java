@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.ping.auth.TokenCache;
 import dev.ping.http.HttpEngine;
 import dev.ping.http.RequestSpec;
 import dev.ping.rpc.RpcException;
@@ -26,7 +27,11 @@ public final class HttpMethods {
     }
 
     public static void registerOn(RpcServer server) {
-        HttpEngine engine = new HttpEngine();
+        registerOn(server, new TokenCache());
+    }
+
+    public static void registerOn(RpcServer server, TokenCache tokenCache) {
+        HttpEngine engine = new HttpEngine(tokenCache);
 
         server.register("http.send", params -> engine.send(parse(params), variables(params)));
         server.register("http.cancel", params -> {

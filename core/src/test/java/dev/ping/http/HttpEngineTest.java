@@ -15,6 +15,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -22,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.net.ssl.SSLHandshakeException;
@@ -335,6 +337,121 @@ class HttpEngineTest {
         assertEquals("{{missing}}", HttpEngine.interpolate("{{missing}}", Map.of("present", "x")));
         assertEquals("x/{{missing}}",
                 HttpEngine.interpolate("{{present}}/{{missing}}", Map.of("present", "x")));
+    }
+
+    @Test
+    void appliesBasicAuth() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        handleHeader("/basic", "Authorization", authorization);
+
+        engine.send(new RequestSpec.Builder(baseUrl + "/basic")
+                .auth(RequestSpec.Auth.basic("user", "pass"))
+                .build());
+
+        String expected = Base64.getEncoder().encodeToString("user:pass".getBytes(StandardCharsets.UTF_8));
+        assertEquals("Basic " + expected, authorization.get());
+    }
+
+    @Test
+    void appliesBearerAuthWithAnInterpolatedToken() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        handleHeader("/bearer", "Authorization", authorization);
+
+        engine.send(new RequestSpec.Builder(baseUrl + "/bearer")
+                .auth(RequestSpec.Auth.bearer("{{token}}"))
+                .build(), Map.of("token", "abc123"));
+
+        assertEquals("Bearer abc123", authorization.get());
+    }
+
+    @Test
+    void appliesApiKeyAsHeaderOrQuery() throws Exception {
+        AtomicReference<String> header = new AtomicReference<>();
+        AtomicReference<String> query = new AtomicReference<>();
+        server.createContext("/key", exchange -> {
+            try (exchange) {
+                header.set(exchange.getRequestHeaders().getFirst("X-Api-Key"));
+                query.set(exchange.getRequestURI().getRawQuery());
+                exchange.sendResponseHeaders(204, -1);
+            }
+        });
+
+        engine.send(new RequestSpec.Builder(baseUrl + "/key")
+                .auth(RequestSpec.Auth.apiKey("X-Api-Key", "k1", "header"))
+                .build());
+        assertEquals("k1", header.get());
+        assertNull(query.get());
+
+        engine.send(new RequestSpec.Builder(baseUrl + "/key")
+                .auth(RequestSpec.Auth.apiKey("api_key", "k1", "query"))
+                .build());
+        assertEquals("api_key=k1", query.get());
+    }
+
+    @Test
+    void fetchesAClientCredentialsTokenAndCachesIt() throws Exception {
+        AtomicInteger tokenCalls = new AtomicInteger();
+        AtomicReference<String> tokenForm = new AtomicReference<>();
+        AtomicReference<String> resourceAuth = new AtomicReference<>();
+
+        server.createContext("/token", exchange -> {
+            try (exchange) {
+                tokenCalls.incrementAndGet();
+                tokenForm.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                byte[] payload = "{\"access_token\":\"tok-123\",\"token_type\":\"Bearer\",\"expires_in\":3600}"
+                        .getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, payload.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(payload);
+                }
+            }
+        });
+        handleHeader("/resource", "Authorization", resourceAuth);
+
+        RequestSpec spec = new RequestSpec.Builder(baseUrl + "/resource")
+                .auth(RequestSpec.Auth.clientCredentials(baseUrl + "/token", "id", "secret", "read write"))
+                .build();
+        engine.send(spec);
+        engine.send(spec);
+
+        assertEquals("Bearer tok-123", resourceAuth.get());
+        assertEquals(1, tokenCalls.get(), "the second send must reuse the cached token");
+        assertTrue(tokenForm.get().contains("grant_type=client_credentials"), tokenForm.get());
+        assertTrue(tokenForm.get().contains("scope=read+write"), tokenForm.get());
+        assertTrue(tokenForm.get().contains("client_secret=secret"), tokenForm.get());
+    }
+
+    @Test
+    void reportsAFailedTokenExchangeAsAuthFailed() throws Exception {
+        server.createContext("/bad-token", exchange -> {
+            try (exchange) {
+                byte[] payload = "{\"error\":\"invalid_client\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(401, payload.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(payload);
+                }
+            }
+        });
+
+        RpcException thrown = assertThrows(RpcException.class,
+                () -> engine.send(new RequestSpec.Builder(baseUrl + "/resource")
+                        .auth(RequestSpec.Auth.clientCredentials(baseUrl + "/bad-token", "id", "nope", null))
+                        .build()));
+
+        assertEquals(RpcException.AUTH_FAILED, thrown.code());
+        assertTrue(thrown.getMessage().contains("invalid_client"), thrown.getMessage());
+    }
+
+    /** A context that records one request header and answers 204. */
+    private void handleHeader(String path, String name, AtomicReference<String> target) {
+        server.createContext(path, exchange -> {
+            try (exchange) {
+                target.set(exchange.getRequestHeaders().getFirst(name));
+                exchange.sendResponseHeaders(204, -1);
+            }
+        });
     }
 
     @Test

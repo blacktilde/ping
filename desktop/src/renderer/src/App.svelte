@@ -1,6 +1,6 @@
 <script lang="ts">
   import { call, CoreError, RpcError } from './lib/core'
-  import { cancelRequest, sendRequest, type HttpResponse } from './lib/http'
+  import { authToSpec, cancelRequest, sendRequest, type HttpResponse } from './lib/http'
   import { draft, loadDraft } from './lib/draft.svelte'
   import { enabledCount, METHODS, toRequestSpec } from './lib/request'
   import {
@@ -24,8 +24,10 @@
     persistVariables,
     variables
   } from './lib/vars.svelte'
+  import { loadSecretRows, persistSecretRows } from './lib/secrets.svelte'
   import KeyValueEditor from './components/KeyValueEditor.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
+  import AuthEditor from './components/AuthEditor.svelte'
   import ResponsePane from './components/ResponsePane.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import VariablesPanel from './components/VariablesPanel.svelte'
@@ -37,12 +39,13 @@
     nativeImage: boolean
   }
 
-  type Tab = 'params' | 'headers' | 'body'
+  type Tab = 'params' | 'headers' | 'body' | 'auth'
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'params', label: 'Params' },
     { id: 'headers', label: 'Headers' },
-    { id: 'body', label: 'Body' }
+    { id: 'body', label: 'Body' },
+    { id: 'auth', label: 'Auth' }
   ]
 
   let info = $state<CoreInfo | null>(null)
@@ -59,6 +62,7 @@
   let savedKey = $state<string | null>(null)
   let storeError = $state('')
   let showVariables = $state(false)
+  let authStatus = $state('')
 
   const queryCount = $derived(enabledCount(draft.query))
   const headerCount = $derived(enabledCount(draft.headers))
@@ -87,6 +91,24 @@
       return
     }
     void loadCollection(collection).catch((cause: Error) => (storeError = cause.message))
+  })
+
+  // Secret names are global; refresh them whenever the variables panel opens.
+  $effect(() => {
+    if (showVariables) {
+      void loadSecretRows().catch((cause: Error) => (storeError = cause.message))
+    }
+  })
+
+  // The core reports an interactive OAuth2 flow's outcome; main has already stored tokens.
+  $effect(() => {
+    return window.ping.onNotification((notification) => {
+      if (notification.method !== 'auth.completed') {
+        return
+      }
+      const params = notification.params as { error?: string } | null
+      authStatus = params?.error ? `Authorization failed: ${params.error}` : 'Authorized'
+    })
   })
 
   async function refresh(options: { autoOpen?: boolean } = {}): Promise<void> {
@@ -182,6 +204,18 @@
     }
   }
 
+  async function authorize(): Promise<void> {
+    try {
+      authStatus = 'Waiting for the browser…'
+      await call('auth.authorize', {
+        auth: authToSpec(draft.auth),
+        variables: { ...variables.resolved }
+      })
+    } catch (cause) {
+      authStatus = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
   async function onEnvironmentChange(path: string): Promise<void> {
     try {
       await loadEnvironment(path)
@@ -194,6 +228,7 @@
   async function onSaveVariables(): Promise<void> {
     try {
       await persistVariables()
+      await persistSecretRows()
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
@@ -287,7 +322,8 @@
   function tabBadge(id: Tab): string | null {
     if (id === 'params') return queryCount > 0 ? String(queryCount) : null
     if (id === 'headers') return headerCount > 0 ? String(headerCount) : null
-    return draft.body.type === 'none' ? null : '•'
+    if (id === 'body') return draft.body.type === 'none' ? null : '•'
+    return draft.auth.type === 'none' ? null : 'on'
   }
 </script>
 
@@ -490,8 +526,10 @@
               addLabel="Add header"
               emptyText="No headers yet."
             />
-          {:else}
+          {:else if tab === 'body'}
             <BodyEditor body={draft.body} />
+          {:else}
+            <AuthEditor auth={draft.auth} status={authStatus} onAuthorize={authorize} />
           {/if}
         </div>
       </section>

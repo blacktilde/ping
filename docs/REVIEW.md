@@ -200,6 +200,86 @@ for the case.
 
 Fold into: phase 8.
 
+### Typed credentials are written to collection files — blocking
+
+The auth editor tells the user, on screen, beside the fields:
+
+> Values may use `{{name}}`; secrets are stored by the shell, never in the file.
+
+They are written to the file. Driving the real UI — open a request, Auth tab, type a
+username and password, press Save — produces this on disk:
+
+```yaml
+auth:
+  type: basic
+  username: admin
+  password: hunter2-typed-by-user
+```
+
+`authToSpec` copies `password`, `token`, `value` and `clientSecret` verbatim into the spec
+and `store.write` serializes them. Collection files exist to be committed and shared, so
+this puts credentials into git history under a label promising it will not.
+
+The design around it is right, which is what makes the gap sharp: `SecretStore` encrypts
+with `safeStorage`, sends only names to the renderer, and merges values into the request in
+the main process. `{{secret}}` references work. Nothing routes the typed fields into it.
+
+One part is already correct: `authToSpec` does not copy `accessToken` or `refreshToken`, so
+OAuth tokens obtained by authorizing are not persisted to files by the UI path. The core
+will serialize them if asked, but the UI does not ask.
+
+Pick one and make it true: refuse to persist literal values in secret-bearing fields and
+offer to store them as a named secret, writing `{{name}}` to the file; or keep persisting
+them and change the label. The first matches the rule in `CLAUDE.md`.
+
+Fold into: phase 9.
+
+### OAuth tokens are broadcast to the renderer for no reason — medium
+
+`OAuthTokenStore` documents that a token is handed back on the next send "without the
+renderer ever holding it". The main process stores the tokens from the `auth.completed`
+notification and then forwards that notification, unmodified, to the renderer — access
+token, refresh token and expiry included.
+
+The renderer does not want them. `App.svelte` reads exactly one field, `error`; nothing in
+the renderer references `accessToken` or `refreshToken` at all. So the tokens cross into
+the least-trusted layer — the one that renders remote response bodies — purely as a
+leftover of forwarding every notification.
+
+Strip the token fields before the send, or forward `flowId` and `error` only.
+
+Fold into: phase 9.
+
+### `shell.openExternal` accepts any scheme — medium
+
+Neither call validates the URL. The authorize case matters most: `authorizeUrl` is built
+from the request's `authUrl`, which comes from a collection file that may have been cloned
+from someone else. Pressing Authorize hands whatever scheme it carries to the OS handler —
+on Linux, straight to `xdg-open`.
+
+`setWindowOpenHandler` has the same gap. It is harder to reach, since the renderer only
+loads our own page and the preview iframe is `sandbox=""`, but the fix is identical: allow
+`http:` and `https:` and drop everything else.
+
+Fold into: phase 9.
+
+### `configured: true` leaks into every saved auth block — low
+
+`RequestSpec.Auth.isConfigured()` reads to Jackson as a getter, so a derived value is
+serialized into the file:
+
+```yaml
+auth:
+  type: basic
+  configured: true
+```
+
+It is ignored on read and absent from `store.schema.json`, so it is noise rather than a
+defect — but it is noise in a hand-editable, git-tracked file, and it is contract drift.
+`@JsonIgnore` on the accessor removes it.
+
+Fold into: phase 9.
+
 ## Closed
 
 ### `make smoke` is stable and reaps its processes — phase 7

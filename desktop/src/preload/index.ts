@@ -41,6 +41,22 @@ const api = {
     return () => ipcRenderer.off('store:changed', handler)
   },
 
+  /**
+   * Secret values, kept in the main process. The renderer can list names and write values,
+   * but can never read one back: they are merged into requests on the way to the core.
+   */
+  secrets: {
+    list(): Promise<string[]> {
+      return ipcRenderer.invoke('secrets:list') as Promise<string[]>
+    },
+    set(name: string, value: string): Promise<void> {
+      return ipcRenderer.invoke('secrets:set', name, value) as Promise<void>
+    },
+    remove(name: string): Promise<void> {
+      return ipcRenderer.invoke('secrets:delete', name) as Promise<void>
+    }
+  },
+
   /** Subscribes to server-initiated core messages. Returns an unsubscribe function. */
   onNotification(listener: (notification: { method: string; params: unknown }) => void): () => void {
     const handler = (_event: IpcRendererEvent, notification: { method: string; params: unknown }) =>

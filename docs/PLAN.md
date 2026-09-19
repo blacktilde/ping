@@ -177,9 +177,35 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   `make native-test` passed all 52 tests. `make smoke` proves precedence end to end — an
   environment value overrides a collection one on the wire, and a collection-only value
   survives when the environment is cleared.
-- [ ] **8. Auth.** Basic, Bearer, API key, then OAuth2 client credentials, then auth code
+- [x] **8. Auth.** Basic, Bearer, API key, then OAuth2 client credentials, then auth code
   with PKCE — loopback listener in the core, browser via `shell.openExternal`, tokens in
   `safeStorage`.
+
+  **Outcome.** A request carries an `auth` block (in `http.send` and in the stored file).
+  Its values are interpolated after variables resolve, so a secret is just a variable whose
+  value the shell read from `safeStorage` — the file holds the `{{name}}` placeholder and
+  nothing else. The core attaches basic, bearer and API key (header or query); exchanges
+  client credentials for a token and caches it; and, for authorization code, uses a token
+  the interactive flow obtained or the shell restored.
+
+  **PKCE lives in the core.** `auth.authorize` opens a loopback listener, returns the
+  authorize URL for the shell to open, waits for the redirect, checks the state, exchanges
+  the code with its `S256` verifier, caches the token under the key the engine looks up by,
+  and emits `auth.completed`. The shell stores the tokens in `safeStorage` and restores them
+  onto later sends. **Secrets stay in the shell:** only names cross to the renderer, values
+  are merged into `http.send`/`auth.authorize` variables at runtime precedence, and the
+  secrets editor is write-only.
+
+  **Verified.** `make native-test` passes all 60 tests, including the token exchange and the
+  PKCE flow under the image. `make smoke` sends a bearer token that only the shell knew and
+  runs a client-credentials exchange end to end. `OAuth2FlowTest` plays the browser against
+  a mock identity provider, so the loopback listener, state check and code exchange are
+  covered without a real consent screen.
+
+  **Limitation.** Restored tokens are keyed by the grant the shell can rebuild from an
+  auth config's literal fields; if `tokenUrl`, `clientId` or `scopes` themselves use
+  `{{variables}}`, the shell cannot rebuild the key across a restart, though the core's
+  session cache still works. Revisit if that combination turns out to matter.
 - [ ] **9. Polish.** Command palette, keyboard-first navigation, themes, motion, empty states.
 - [ ] **10. Packaging.** `electron-builder`, native core as an `extraResource`, per-OS CI,
   signing, updater.

@@ -1,10 +1,14 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { CoreClient, CoreRpcError } from './core'
+import { OAuthTokenStore } from './oauth'
+import { SecretStore } from './secrets'
 import { Workspace } from './workspace'
 
 const core = new CoreClient()
 const workspace = new Workspace()
+const secrets = new SecretStore()
+const oauthTokens = new OAuthTokenStore()
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
@@ -94,6 +98,69 @@ function withWorkspaceRoot(
   return { params: safe }
 }
 
+/** Merges secret values into an outgoing request's variables; secrets always win. */
+function withSecrets(params: unknown): Record<string, unknown> {
+  const source = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
+  const variables =
+    source.variables && typeof source.variables === 'object' ? (source.variables as object) : {}
+  return { ...source, variables: { ...variables, ...secrets.all() } }
+}
+
+/**
+ * Restores a stored access token for an authorization-code request. The key is built the
+ * same way the core builds it, so a token survives an app restart.
+ */
+function withOAuthTokens(params: unknown): Record<string, unknown> {
+  const source = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
+  const auth =
+    source.auth && typeof source.auth === 'object' ? (source.auth as Record<string, unknown>) : null
+  if (!auth || auth.type !== 'oauth2-authorization-code') {
+    return source
+  }
+  const tokens = oauthTokens.get(oauthKey(auth))
+  if (!tokens) {
+    return source
+  }
+  return {
+    ...source,
+    auth: {
+      ...auth,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresAtMillis: tokens.expiresAtMillis
+    }
+  }
+}
+
+function oauthKey(auth: Record<string, unknown>): string {
+  const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+  const scopes = text(auth.scopes).trim().replace(/[,\s]+/g, ' ')
+  return `authorization-code|${text(auth.tokenUrl)}|${text(auth.clientId)}|${scopes}`
+}
+
+function authorizeUrl(value: unknown): string | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+  const url = (value as Record<string, unknown>).authorizeUrl
+  return typeof url === 'string' && url ? url : null
+}
+
+function storeOAuthTokens(params: unknown): void {
+  const payload = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
+  const key = typeof payload.grantKey === 'string' ? payload.grantKey : ''
+  const accessToken = typeof payload.accessToken === 'string' ? payload.accessToken : ''
+  if (!key || !accessToken) {
+    return
+  }
+  oauthTokens.set(key, {
+    accessToken,
+    refreshToken: typeof payload.refreshToken === 'string' ? payload.refreshToken : undefined,
+    expiresAtMillis:
+      typeof payload.expiresAtMillis === 'number' ? payload.expiresAtMillis : undefined
+  })
+}
+
 /**
  * The renderer never touches the core directly: it is sandboxed and has no process access.
  * Every call crosses this single choke point, which is also where argument validation and
@@ -108,6 +175,20 @@ function withWorkspaceRoot(
 function registerIpc(): void {
   ipcMain.handle('workspace:current', () => workspace.current())
   ipcMain.handle('workspace:choose', () => workspace.choose())
+
+  ipcMain.handle('secrets:list', () => secrets.names())
+  ipcMain.handle('secrets:set', (_event, name: unknown, value: unknown) => {
+    if (typeof name !== 'string' || typeof value !== 'string') {
+      throw new Error('secrets:set requires a name and a value')
+    }
+    secrets.set(name, value)
+  })
+  ipcMain.handle('secrets:delete', (_event, name: unknown) => {
+    if (typeof name !== 'string') {
+      throw new Error('secrets:delete requires a name')
+    }
+    secrets.delete(name)
+  })
 
   ipcMain.handle('core:request', async (_event, method: unknown, params: unknown) => {
     if (typeof method !== 'string') {
@@ -127,9 +208,25 @@ function registerIpc(): void {
       args = checked.params
     }
 
+    if (method === 'http.send' || method === 'auth.authorize') {
+      // Secret values are merged last, so they win over anything the files resolved. The
+      // renderer never sees them; it only ever sends the non-secret variable map.
+      args = withSecrets(args)
+    }
+    if (method === 'http.send') {
+      args = withOAuthTokens(args)
+    }
+
     try {
       await core.ready
-      return { ok: true, value: await core.request(method, args) }
+      const value = await core.request(method, args)
+      if (method === 'auth.authorize') {
+        const url = authorizeUrl(value)
+        if (url) {
+          void shell.openExternal(url)
+        }
+      }
+      return { ok: true, value }
     } catch (cause) {
       return failure(
         cause instanceof CoreRpcError ? cause.code : null,
@@ -141,6 +238,10 @@ function registerIpc(): void {
 
 app.whenReady().then(async () => {
   core.notifications((notification) => {
+    if (notification.method === 'auth.completed') {
+      // The shell owns token persistence; the core keeps its session cache.
+      storeOAuthTokens(notification.params)
+    }
     mainWindow?.webContents.send('core:notification', notification)
   })
   core.start()
@@ -148,6 +249,8 @@ app.whenReady().then(async () => {
   registerIpc()
   workspace.onChange(() => mainWindow?.webContents.send('store:changed'))
   await workspace.restore()
+  secrets.load()
+  oauthTokens.load()
   createWindow()
 
   app.on('activate', () => {

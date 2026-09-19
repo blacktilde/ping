@@ -19,6 +19,9 @@ public class RpcException extends RuntimeException {
     /** The collection store could not read, parse or write a file. */
     public static final int STORE_FAILED = -32003;
 
+    /** Authentication could not be applied: bad configuration or a failed token exchange. */
+    public static final int AUTH_FAILED = -32004;
+
     private final int code;
 
     public RpcException(int code, String message) {
@@ -49,5 +52,13 @@ public class RpcException extends RuntimeException {
 
     public static RpcException storeFailed(String detail, Throwable cause) {
         return new RpcException(STORE_FAILED, detail, cause);
+    }
+
+    public static RpcException authFailed(String detail) {
+        return new RpcException(AUTH_FAILED, detail);
+    }
+
+    public static RpcException authFailed(String detail, Throwable cause) {
+        return new RpcException(AUTH_FAILED, detail, cause);
     }
 }

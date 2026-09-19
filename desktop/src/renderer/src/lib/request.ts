@@ -14,6 +14,7 @@ import type {
   RequestBody,
   RequestDraft
 } from './http'
+import { authToSpec, newAuth } from './http'
 
 export const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
@@ -36,7 +37,8 @@ export function newDraft(): RequestDraft {
     url: 'https://jsonplaceholder.typicode.com/todos/1',
     query: [],
     headers: [],
-    body: { type: 'none', content: '', contentType: '', fields: [] }
+    body: { type: 'none', content: '', contentType: '', fields: [] },
+    auth: newAuth()
   }
 }
 
@@ -85,6 +87,9 @@ export function toRequestSpec(draft: RequestDraft, requestId: string): HttpReque
   if (draft.redirects != null) spec.redirects = draft.redirects
   if (draft.verifyTls != null) spec.verifyTls = draft.verifyTls
   if (draft.maxBodyBytes != null) spec.maxBodyBytes = draft.maxBodyBytes
+
+  const auth = authToSpec(draft.auth)
+  if (auth) spec.auth = auth
   return spec
 }
 

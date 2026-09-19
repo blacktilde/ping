@@ -23,6 +23,7 @@ export function loadDraft(next: RequestDraft): void {
   draft.query = next.query
   draft.headers = next.headers
   draft.body = next.body
+  draft.auth = next.auth
   draft.timeoutMs = next.timeoutMs
   draft.redirects = next.redirects
   draft.verifyTls = next.verifyTls

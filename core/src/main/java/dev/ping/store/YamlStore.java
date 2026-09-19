@@ -115,7 +115,7 @@ public final class YamlStore {
         Path file = unique(directory, slugify(name));
         StoredRequest request = new StoredRequest(name, "GET", "",
                 List.of(), List.of(), new RequestSpec.Body("none", null, null, null),
-                null, null, null, null);
+                null, null, null, null, null);
         write(base, relative(base, file), request);
         return relative(base, file);
     }

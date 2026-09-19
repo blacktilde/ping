@@ -32,7 +32,11 @@ export async function saveCollection(
   name: string,
   variables: Param[]
 ): Promise<void> {
-  await call<Record<string, never>>('vars.saveCollection', { collection, name, variables })
+  await call<Record<string, never>>('vars.saveCollection', {
+    collection,
+    name,
+    variables: plain(variables)
+  })
 }
 
 export async function saveEnvironment(
@@ -45,7 +49,7 @@ export async function saveEnvironment(
     collection,
     path: path || undefined,
     name,
-    variables
+    variables: plain(variables)
   })
   return result.path
 }
@@ -69,4 +73,12 @@ export function normalizeVariables(variables: Param[] | undefined): Param[] {
     value: variable.value ?? '',
     enabled: variable.enabled ?? true
   }))
+}
+
+/**
+ * Copies rows into plain objects. The editor's rows are Svelte `$state` proxies, and a proxy
+ * cannot be structured-cloned across the context bridge.
+ */
+function plain(variables: Param[]): Param[] {
+  return normalizeVariables(variables)
 }

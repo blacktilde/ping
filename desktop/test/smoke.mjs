@@ -25,6 +25,7 @@ const base = `http://127.0.0.1:${PORT}`
 // Set when the slow endpoint is reached, so the cancel step can click only once the request
 // has actually left the core. Clicking the instant the Cancel button appears races dispatch.
 let slowStarted = false
+let lastTokenForm = ''
 
 // Echoes what reached the server so the test can prove the editors are wired to the wire.
 const server = http.createServer(async (req, res) => {
@@ -34,6 +35,15 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/plain' })
       res.end('late')
     }, 30_000)
+    return
+  }
+
+  if (req.url.startsWith('/oauth/token')) {
+    const chunks = []
+    for await (const chunk of req) chunks.push(chunk)
+    lastTokenForm = Buffer.concat(chunks).toString('utf8')
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ access_token: 'smoke-token', token_type: 'Bearer', expires_in: 3600 }))
     return
   }
 
@@ -382,6 +392,48 @@ try {
     'the environment override'
   )
   check('environment overrides the collection', true)
+
+  console.log('--- 2c. bearer auth from a secret')
+  await evaluate(clickText('Variables'))
+  await wait(200)
+  await evaluate(clickText('+ Add secret'))
+  await evaluate(setInput('Secret name', 'smoke-token'))
+  await evaluate(setInput('Secret value', 'secret-value'))
+  await evaluate(clickText('Save variables'))
+  await wait(400)
+  await evaluate(`document.querySelector('[aria-label="Close variables"]')?.click()`)
+  await evaluate(clickTab('Auth'))
+  await evaluate(setSelect('Auth type', 'bearer'))
+  await evaluate(setInput('Bearer token', '{{smoke-token}}'))
+  await clickSend()
+  await waitFor(async () => (await snap()).body.includes('secret-value'), 5000, 'the bearer token')
+  const bearer = echo((await snap()).body)
+  check(
+    'sends a bearer token only the shell knew',
+    bearer?.headers?.authorization === 'Bearer secret-value',
+    bearer?.headers?.authorization ?? 'none'
+  )
+
+  console.log('--- 2d. OAuth2 client credentials')
+  await evaluate(setSelect('Auth type', 'oauth2-client-credentials'))
+  await evaluate(setInput('Token URL', `${base}/oauth/token`))
+  await evaluate(setInput('Client ID', 'smoke'))
+  await evaluate(setInput('Client secret', 'secret'))
+  await evaluate(setInput('Scopes', 'read'))
+  await clickSend()
+  await waitFor(async () => (await snap()).body.includes('smoke-token'), 5000, 'the exchanged token')
+  const oauth = echo((await snap()).body)
+  check(
+    'exchanges client credentials and attaches the token',
+    oauth?.headers?.authorization === 'Bearer smoke-token',
+    oauth?.headers?.authorization ?? 'none'
+  )
+  check(
+    'sends the client credentials grant',
+    lastTokenForm.includes('grant_type=client_credentials') && lastTokenForm.includes('scope=read'),
+    lastTokenForm
+  )
+  await evaluate(setSelect('Auth type', 'none'))
 
   console.log('--- 3. a form body reaches the server')
   await evaluate(clickTab('Body'))

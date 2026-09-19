@@ -55,7 +55,35 @@
           "type": "object",
           "additionalProperties": { "type": "string" },
           "description": "Resolved values for {{name}} placeholders in the url, query, headers and body. An unknown name is left exactly as written."
-        }
+        },
+        "auth": { "$ref": "#/$defs/auth" }
+      },
+      "additionalProperties": false
+    },
+
+    "auth": {
+      "type": "object",
+      "description": "How to authenticate the request. Values may contain {{variable}} placeholders, so secrets are resolved by the shell and never written to a collection file.",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["none", "basic", "bearer", "api-key", "oauth2-client-credentials", "oauth2-authorization-code"]
+        },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "token": { "type": "string", "description": "bearer: the token, literally or as a placeholder." },
+        "key": { "type": "string", "description": "api-key: header or query parameter name." },
+        "value": { "type": "string", "description": "api-key: the value." },
+        "in": { "enum": ["header", "query"], "default": "header" },
+        "tokenUrl": { "type": "string", "description": "oauth2: where the token is exchanged." },
+        "authUrl": { "type": "string", "description": "oauth2 authorization code: where the browser is sent." },
+        "clientId": { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "scopes": { "type": "string", "description": "Space, comma or whitespace delimited." },
+        "redirectUri": { "type": "string", "description": "oauth2 authorization code: loopback redirect; the core defaults it." },
+        "accessToken": { "type": "string", "description": "Resolved by the shell from safeStorage for oauth2-authorization-code; never written to a file." },
+        "refreshToken": { "type": "string", "description": "Resolved by the shell; lets an expired access token be refreshed." },
+        "expiresAtMillis": { "type": "integer", "description": "When the resolved access token expires, epoch millis." }
       },
       "additionalProperties": false
     },

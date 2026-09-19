@@ -6,7 +6,8 @@
  */
 
 import { call } from './core'
-import type { BodyMode, HttpMethod, Param, RedirectPolicy, RequestDraft } from './http'
+import { authToSpec, normalizeAuth } from './http'
+import type { AuthSpec, BodyMode, HttpMethod, Param, RedirectPolicy, RequestDraft } from './http'
 
 export type NodeType = 'collection' | 'folder' | 'request'
 
@@ -31,6 +32,7 @@ export interface StoredRequest {
     contentType?: string | null
     fields?: Param[]
   }
+  auth?: AuthSpec
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
@@ -95,6 +97,7 @@ export function storedToDraft(stored: StoredRequest): RequestDraft {
       contentType: stored.body?.contentType ?? '',
       fields: plainParams(stored.body?.fields)
     },
+    auth: normalizeAuth(stored.auth),
     timeoutMs: stored.timeoutMs,
     redirects: stored.redirects,
     verifyTls: stored.verifyTls,
@@ -115,6 +118,7 @@ export function draftToStored(draft: RequestDraft): StoredRequest {
       contentType: draft.body.contentType || undefined,
       fields: plainParams(draft.body.fields)
     },
+    auth: authToSpec(draft.auth),
     timeoutMs: draft.timeoutMs,
     redirects: draft.redirects,
     verifyTls: draft.verifyTls,

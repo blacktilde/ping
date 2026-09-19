@@ -1,5 +1,7 @@
 package dev.ping.http;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,6 +19,7 @@ public record RequestSpec(
         List<Param> query,
         List<Param> headers,
         Body body,
+        Auth auth,
         Integer timeoutMs,
         String redirects,
         Boolean verifyTls,
@@ -35,6 +38,79 @@ public record RequestSpec(
      * @param fields  the field list for {@code form} and {@code multipart}
      */
     public record Body(String type, String content, String contentType, List<Param> fields) {
+    }
+
+    /**
+     * How to authenticate one request.
+     *
+     * <p>Field values are interpolated like any other part of the request, so a secret is
+     * just a variable the shell resolved from `safeStorage`; nothing here has to know which
+     * values are sensitive. Only the fields a type uses are read.
+     *
+     * @param type         bearer, basic, api-key, oauth2-client-credentials,
+     *                     oauth2-authorization-code
+     * @param key          api-key: the header or query parameter name
+     * @param in           api-key: {@code header} or {@code query}
+     * @param tokenUrl     oauth2: where to exchange a grant for a token
+     * @param authUrl      oauth2 authorization code: where the browser is sent
+     * @param redirectUri  oauth2 authorization code: loopback redirect; the core defaults it
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public record Auth(
+            String type,
+            String username,
+            String password,
+            String token,
+            String key,
+            String value,
+            String in,
+            String tokenUrl,
+            String authUrl,
+            String clientId,
+            String clientSecret,
+            String scopes,
+            String redirectUri,
+            String accessToken,
+            String refreshToken,
+            Long expiresAtMillis) {
+
+        public boolean isConfigured() {
+            return type != null && !type.isBlank() && !type.equalsIgnoreCase("none");
+        }
+
+        public static Auth basic(String username, String password) {
+            return new Auth("basic", username, password, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null);
+        }
+
+        public static Auth bearer(String token) {
+            return new Auth("bearer", null, null, token, null, null, null,
+                    null, null, null, null, null, null, null, null, null);
+        }
+
+        public static Auth apiKey(String name, String value, String in) {
+            return new Auth("api-key", null, null, null, name, value, in,
+                    null, null, null, null, null, null, null, null, null);
+        }
+
+        public static Auth clientCredentials(
+                String tokenUrl, String clientId, String clientSecret, String scopes) {
+            return new Auth("oauth2-client-credentials", null, null, null, null, null, null,
+                    tokenUrl, null, clientId, clientSecret, scopes, null, null, null, null);
+        }
+
+        public static Auth authorizationCode(
+                String authUrl, String tokenUrl, String clientId, String clientSecret, String scopes) {
+            return new Auth("oauth2-authorization-code", null, null, null, null, null, null,
+                    tokenUrl, authUrl, clientId, clientSecret, scopes, null, null, null, null);
+        }
+
+        /** A copy carrying tokens the shell restored from `safeStorage`. */
+        public Auth withTokens(String accessToken, String refreshToken, Long expiresAtMillis) {
+            return new Auth(type, username, password, token, key, value, in, tokenUrl, authUrl,
+                    clientId, clientSecret, scopes, redirectUri, accessToken, refreshToken,
+                    expiresAtMillis);
+        }
     }
 
     public static final int DEFAULT_TIMEOUT_MS = 30_000;
@@ -75,6 +151,7 @@ public record RequestSpec(
         private String requestId;
         private String method = "GET";
         private Body body;
+        private Auth auth;
         private Integer timeoutMs;
         private String redirects;
         private Boolean verifyTls;
@@ -141,6 +218,11 @@ public record RequestSpec(
             return this;
         }
 
+        public Builder auth(Auth value) {
+            this.auth = value;
+            return this;
+        }
+
         public Builder timeoutMs(int value) {
             this.timeoutMs = value;
             return this;
@@ -162,7 +244,7 @@ public record RequestSpec(
         }
 
         public RequestSpec build() {
-            return new RequestSpec(requestId, method, url, query, headers, body,
+            return new RequestSpec(requestId, method, url, query, headers, body, auth,
                     timeoutMs, redirects, verifyTls, maxBodyBytes);
         }
     }
