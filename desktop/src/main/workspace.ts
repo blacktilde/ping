@@ -76,11 +76,10 @@ export class Workspace {
     }
 
     try {
-      this.watcher = watch(this.root, { recursive: true }, (_event, filename) => {
-        // Store writes rename a temp file into place; that churn is our own, not an edit.
-        if (filename && String(filename).includes('.ping-')) {
-          return
-        }
+      this.watcher = watch(this.root, { recursive: true }, () => {
+        // A save is an atomic rename of a temp file into place, so every event here — even
+        // the temp file's own — means a file under the root changed. The debounce coalesces
+        // the create/write/rename/chmod burst into one refresh, so nothing needs filtering.
         this.notify()
       })
     } catch (error) {

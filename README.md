@@ -23,6 +23,10 @@ tab. It lives in the app's `userData`, not in the open folder, so it follows the
 than the workspace and is never committed with a collection. Credential-bearing auth fields
 are blanked before an entry is recorded.
 
+Each open request is a tab, so several can be edited — and left in flight — at once. A tab
+owns its own draft, response and error state; the file it is bound to is the durable part,
+and tabs last for the session.
+
 ## Requirements
 
 - **Java 25** to build the core. [GraalVM](https://www.graalvm.org/) 25 is additionally
