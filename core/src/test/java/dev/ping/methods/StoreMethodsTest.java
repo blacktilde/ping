@@ -116,6 +116,35 @@ class StoreMethodsTest {
     }
 
     @Test
+    void sortsRequestsByDisplayNameNotFileName() throws Exception {
+        // File names are slugs that do not follow the display names, so a path sort would
+        // put them out of order: z-first.yaml is "Alpha" and a-first.yaml is "Zulu".
+        Files.createDirectories(workspace.resolve("api"));
+        Files.writeString(workspace.resolve("api/z-first.yaml"), """
+                name: Alpha
+                method: GET
+                url: https://example.com/a
+                """);
+        Files.writeString(workspace.resolve("api/a-first.yaml"), """
+                name: Zulu
+                method: GET
+                url: https://example.com/z
+                """);
+        Files.writeString(workspace.resolve("api/m-middle.yaml"), """
+                name: Mike
+                method: GET
+                url: https://example.com/m
+                """);
+
+        JsonNode children = call("store.scan", Map.of("root", workspace.toString()))
+                .path("result").path("collections").get(0).path("children");
+
+        assertEquals("Alpha", children.get(0).path("name").asText());
+        assertEquals("Mike", children.get(1).path("name").asText());
+        assertEquals("Zulu", children.get(2).path("name").asText());
+    }
+
+    @Test
     void readsARequestFile() throws Exception {
         Files.createDirectories(workspace.resolve("api"));
         Files.writeString(workspace.resolve("api/create.yaml"), """
