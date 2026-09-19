@@ -92,7 +92,7 @@
   <header class="flex items-baseline justify-between border-b border-line pb-3">
     <div>
       <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-      <p class="text-sm text-neutral-500">Phase 4 — request editors</p>
+      <p class="text-sm text-neutral-500">Phase 5 — response viewer</p>
     </div>
 
     {#if info}

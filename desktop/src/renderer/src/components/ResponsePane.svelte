@@ -1,29 +1,34 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
+  import { formatBytes, formatDuration, statusTone, versionLabel } from '../lib/format'
+  import { parseCookies } from '../lib/response'
+  import ResponseBody from './ResponseBody.svelte'
+  import ResponseCookies from './ResponseCookies.svelte'
+  import ResponseHeaders from './ResponseHeaders.svelte'
+  import ResponseTiming from './ResponseTiming.svelte'
 
   interface Props {
     response: HttpResponse | null
     inFlight: boolean
   }
 
+  type Tab = 'body' | 'headers' | 'cookies' | 'timing'
+
   let { response, inFlight }: Props = $props()
 
-  function statusTone(status: number): string {
-    if (status >= 200 && status < 300) return 'text-emerald-400'
-    if (status >= 300 && status < 400) return 'text-amber-400'
-    if (status >= 400) return 'text-red-400'
-    return 'text-neutral-300'
-  }
+  let tab = $state<Tab>('body')
 
-  function versionLabel(version: string): string {
-    return version === 'HTTP_2' ? 'HTTP/2' : 'HTTP/1.1'
-  }
-
-  function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+  const cookies = $derived(response ? parseCookies(response.headers) : [])
+  const tabs: { id: Tab; label: string; badge: string | null }[] = $derived([
+    { id: 'body', label: 'Body', badge: null },
+    {
+      id: 'headers',
+      label: 'Headers',
+      badge: response && response.headers.length > 0 ? String(response.headers.length) : null
+    },
+    { id: 'cookies', label: 'Cookies', badge: cookies.length > 0 ? String(cookies.length) : null },
+    { id: 'timing', label: 'Timing', badge: null }
+  ])
 </script>
 
 <section
@@ -38,6 +43,7 @@
       </span>
       <span class="text-neutral-500">{versionLabel(response.httpVersion)}</span>
       <span class="text-neutral-500">{formatBytes(response.body.bytes)}</span>
+      <span class="text-neutral-500">{formatDuration(response.timing.totalMs)}</span>
       {#if response.redirects.length > 0}
         <span class="text-neutral-500">
           followed {response.redirects.length}
@@ -49,21 +55,41 @@
       {/if}
     </header>
 
-    {#if response.body.truncated}
-      <p class="border-b border-amber-900/50 bg-amber-950/30 px-4 py-2 text-xs text-amber-300">
-        Response is larger than the display cap; only the beginning is shown.
-      </p>
-    {/if}
+    <div role="tablist" class="flex items-center gap-1 border-b border-line px-2">
+      {#each tabs as entry (entry.id)}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === entry.id}
+          onclick={() => (tab = entry.id)}
+          class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition
+                 {tab === entry.id
+            ? 'border-accent text-neutral-100'
+            : 'border-transparent text-neutral-500 hover:text-neutral-300'}"
+        >
+          {entry.label}
+          {#if entry.badge}
+            <span class="rounded-full bg-line px-1.5 text-[10px] text-neutral-400">
+              {entry.badge}
+            </span>
+          {/if}
+        </button>
+      {/each}
+    </div>
 
-    {#if response.body.textual}
-      <pre
-        class="flex-1 overflow-auto p-4 font-mono text-sm leading-relaxed text-neutral-300">{response.body.content ||
-          '(empty body)'}</pre>
-    {:else}
-      <div class="flex flex-1 items-center justify-center text-sm text-neutral-600">
-        Binary response — {formatBytes(response.body.bytes)} not displayed
-      </div>
-    {/if}
+    <div class="min-h-0 flex-1">
+      {#if tab === 'body'}
+        {#key response}
+          <ResponseBody {response} />
+        {/key}
+      {:else if tab === 'headers'}
+        <ResponseHeaders headers={response.headers} />
+      {:else if tab === 'cookies'}
+        <ResponseCookies {cookies} />
+      {:else}
+        <ResponseTiming timing={response.timing} bytes={response.body.bytes} />
+      {/if}
+    </div>
   {:else}
     <div class="flex flex-1 items-center justify-center text-sm text-neutral-600">
       {inFlight ? 'Sending request…' : 'Send a request to see the response.'}

@@ -29,10 +29,22 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  if (req.url.startsWith('/html')) {
+    res.writeHead(200, {
+      'Content-Type': 'text/html',
+      'Set-Cookie': 'smoke=yes; Path=/; HttpOnly'
+    })
+    res.end('<!doctype html><h1>preview me</h1>')
+    return
+  }
+
   const chunks = []
   for await (const chunk of req) chunks.push(chunk)
 
-  res.writeHead(200, { 'Content-Type': 'application/json' })
+  res.writeHead(200, {
+    'Content-Type': 'application/json',
+    'Set-Cookie': 'smoke=yes; Path=/; HttpOnly'
+  })
   res.end(
     JSON.stringify({
       from: 'local test server',
@@ -144,14 +156,35 @@ try {
     const error = document.querySelector('[data-role="error"]');
     const cancelled = document.querySelector('[data-role="cancelled"]');
     const submit = document.querySelector('button[type=submit]');
+    const body = pane?.querySelector('.cm-content')?.textContent
+      ?? pane?.querySelector('iframe')?.getAttribute('srcdoc')
+      ?? pane?.querySelector('pre')?.textContent
+      ?? '';
     return {
       status: pane?.querySelector('header span')?.textContent.trim() ?? null,
-      body: (pane?.querySelector('pre')?.textContent ?? '').slice(0, 8000),
+      body: body.slice(0, 8000),
+      paneText: (pane?.textContent ?? '').slice(0, 8000),
       error: error ? error.textContent.trim() : null,
       cancelled: cancelled ? cancelled.textContent.trim() : null,
       sendLabel: submit ? submit.textContent.trim() : null,
       cancelVisible: [...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Cancel'),
     };
+  })()`
+
+  const clickResponseTab = (label) => `(() => {
+    const root = document.querySelector('[data-role="response"]');
+    const tab = root && [...root.querySelectorAll('[role=tab]')].find(t => t.textContent.trim().startsWith(${JSON.stringify(label)}));
+    if (!tab) return false;
+    tab.click();
+    return true;
+  })()`
+
+  const clickResponseView = (label) => `(() => {
+    const root = document.querySelector('[data-role="response"]');
+    const button = root && [...root.querySelectorAll('button')].find(b => b.textContent.trim().toLowerCase() === ${JSON.stringify(label)});
+    if (!button) return false;
+    button.click();
+    return true;
   })()`
 
   const snap = () => evaluate(snapshot)
@@ -212,7 +245,31 @@ try {
   check('sends the method', posted?.method === 'POST', posted?.method ?? 'none')
   check('sends the form body', posted?.body === 'a=1', posted?.body ?? 'none')
 
-  console.log('--- 4. exchange over real HTTPS')
+  console.log('--- 4. response viewer')
+  await evaluate(clickResponseTab('Body'))
+  check('pretty-prints JSON by default', (await snap()).body.includes('"from": "'), 'pretty')
+  await evaluate(clickResponseView('raw'))
+  check('raw view keeps the original spacing', (await snap()).body.includes('"from":"'), 'raw')
+  await evaluate(clickResponseTab('Headers'))
+  check('lists response headers', (await snap()).paneText.includes('content-type'), 'headers')
+  await evaluate(clickResponseTab('Cookies'))
+  const cookieText = (await snap()).paneText
+  check('shows a Set-Cookie', cookieText.includes('smoke'), cookieText.slice(0, 80))
+  check('shows cookie flags', cookieText.includes('HttpOnly'))
+  await evaluate(clickResponseTab('Timing'))
+  const timingText = (await snap()).paneText
+  check('shows the timing breakdown', timingText.includes('DNS') && timingText.includes('Total'))
+  await evaluate(clickResponseTab('Body'))
+
+  console.log('--- 5. HTML preview')
+  await evaluate(setUrl(`${base}/html`))
+  await clickSend()
+  await waitFor(async () => (await snap()).paneText.includes('text/html'), 5000, 'the HTML response')
+  await evaluate(clickResponseTab('Body'))
+  await evaluate(clickResponseView('preview'))
+  check('renders HTML in a sandboxed frame', (await snap()).body.includes('preview me'), 'preview')
+
+  console.log('--- 6. exchange over real HTTPS')
   if (process.env.PING_SMOKE_OFFLINE === '1') {
     console.log('    skipped: PING_SMOKE_OFFLINE is set')
   } else {
@@ -229,7 +286,7 @@ try {
     check('renders the HTTPS status', secure.status === '200', secure.status ?? 'none')
   }
 
-  console.log('--- 5. cancel an in-flight request')
+  console.log('--- 7. cancel an in-flight request')
   await waitFor(async () => (await snap()).sendLabel === 'Send', 3000, 'the idle send button')
   await evaluate(setUrl(`${base}/slow`))
   await clickSend()
@@ -246,7 +303,7 @@ try {
   check('does not render cancellation as an error', after.error === null, after.error ?? '')
   check('restores the send button', after.sendLabel === 'Send', after.sendLabel ?? 'none')
 
-  console.log('--- 6. unreachable host')
+  console.log('--- 8. unreachable host')
   await evaluate(setUrl('http://127.0.0.1:1/nope'))
   await clickSend()
   await waitFor(async () => (await snap()).error !== null, 5000, 'the error banner')

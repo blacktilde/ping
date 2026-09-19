@@ -44,7 +44,7 @@ before the harness exits, and give each run a temporary `--user-data-dir`.
 Inherited from phase 3, when the harness was written, but phase 4 promoted it to the CI
 gate.
 
-Fold into: phase 5.
+Fold into: phase 6. **Was tagged phase 5 and not picked up.**
 
 ### Multipart and the CodeMirror body are untested — medium
 
@@ -63,19 +63,22 @@ Multipart deserves a Java test, where a delimiter or CRLF slip would live. CodeM
 cannot be reached by the smoke test's existing helpers; it needs CDP `Input.insertText`
 after focusing `.cm-content`.
 
-Fold into: phase 5.
+Fold into: phase 6. **Was tagged phase 5 and not picked up.**
 
-### The tab pattern is half-implemented — low
+### The tab pattern is half-implemented, and now duplicated — low
 
 The request panel has `role="tablist"`, `role="tab"` and `aria-selected`, but no
 `role="tabpanel"`, no `aria-controls`/`id` pairing, and no roving tabindex or arrow-key
 handling. An incomplete tab pattern is worse than none: a screen reader announces
 "tab, 1 of 3" and then has no panel to move to.
 
-Worth doing before phase 5 rather than after, since the response viewer adds a second
-tabbed surface (pretty / raw / preview) and would otherwise copy the broken pattern.
+This was raised for phase 5 specifically so the response viewer would not copy it. It did.
+There are now three tabbed surfaces in two patterns, none complete: `role="tab"` without a
+panel in both `App.svelte` and `ResponsePane.svelte`, and `aria-pressed` buttons for
+pretty / raw / preview in `ResponseBody.svelte`. Fixing it once, as a shared component, is
+now worth more than it was.
 
-Fold into: phase 5.
+Fold into: phase 6. **Was tagged phase 5 and not picked up.**
 
 ### Small corrections — low
 
@@ -88,7 +91,41 @@ Fold into: phase 5.
   accepts" but omits `timeoutMs`, `redirects`, `verifyTls` and `maxBodyBytes`, whose
   defaults are applied in the core. It is a subset, and the comment should say so.
 
-Fold into: phase 5.
+Fold into: phase 6. **Was tagged phase 5 and not picked up.**
+
+### The response view resets on every request — low
+
+`ResponsePane.svelte` wraps `ResponseBody` in `{#key response}`, so a new response remounts
+it and the body view returns to `pretty`. Choosing `raw`, sending again, and landing back on
+`pretty` is a papercut for the send-tweak-send loop this app exists for; Postman keeps the
+selection. Verified against the running app.
+
+Fold into: phase 6.
+
+### Nothing explains why "pretty" is not pretty — low
+
+`prettyJson` returns null when `JSON.parse` fails and the pretty view silently falls back to
+the raw text. For a `text/plain` response that is right. For an `application/json` response
+that is malformed it is confusing: the tab says pretty and shows unformatted text with no
+reason given.
+
+The JSON linter does not fill the gap. `linter(jsonParseLinter())` is attached in the
+response path too, but in a read-only editor the document never changes after creation, so
+it never reports: a non-JSON body renders with zero lint marks and zero gutter markers
+(verified). Either drop the linter from the response path as dead weight, or say "not valid
+JSON" next to the view buttons.
+
+Fold into: phase 6.
+
+### The preview smoke check asserts the attribute, not the render — low
+
+`check('renders HTML in a sandboxed frame', ...)` reads the iframe's `srcdoc` attribute
+through the snapshot's fallback chain. That passes whether or not the frame rendered
+anything — it would still pass if CSP blocked the frame outright. The sandboxing itself is
+sound (verified separately: `sandbox=""`, an inline `<script>` in the payload does not run,
+no CSP violations logged), so this is a mislabelled assertion rather than a broken feature.
+
+Fold into: phase 6.
 
 ## Closed
 

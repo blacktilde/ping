@@ -116,16 +116,24 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   objects — the first editor value that reached `http.send` failed with "an object could not
   be cloned" until it did. `make check` stays clean and `make smoke` now drives a query
   parameter, a header and a form body to the local server and asserts they arrive.
-- [ ] **5. Response viewer.** Pretty/raw/preview, headers, cookies, timing breakdown, size,
+- [x] **5. Response viewer.** Pretty/raw/preview, headers, cookies, timing breakdown, size,
   search, virtualized for large payloads.
 
-  **Open decision.** `java.net.http` reports DNS, TTFB, download and total, but exposes no
-  TCP-connect or TLS-handshake split, so the waterfall will be coarser than Postman's.
-  Getting the full breakdown means moving the engine to OkHttp, whose `EventListener` has
-  per-stage callbacks. That is a contained change — it sits behind `HttpEngine` and the RPC
-  contract does not move — but it adds a dependency that must then be proven under
-  `native-image`. Decide when building the viewer, once it is clear whether the missing
-  split is actually felt.
+  **Outcome.** The response pane is tabbed (Body / Headers / Cookies / Timing) with count
+  badges, off the `Response` record the core already returned — no core or contract change.
+  Pretty and raw both render in a read-only CodeMirror, which supplies search (Ctrl-F) and
+  viewport rendering for large bodies for free; preview renders HTML in a fully sandboxed
+  `<iframe sandbox="">`, so no script or remote resource in a payload can run. Cookies are
+  parsed from `Set-Cookie` in the renderer. `make smoke` now asserts the pretty/raw
+  difference, the headers list, a parsed cookie, the timing breakdown and the HTML preview.
+
+  **Open decision, resolved — stay on `java.net.http`.** The waterfall shows DNS, a single
+  "Waiting" stage and download; it does not split TCP-connect from TLS-handshake. OkHttp's
+  `EventListener` would give that, but it is a new dependency that must then be proven under
+  `native-image` — the project's largest technical risk — to sharpen one bar in a secondary
+  panel. The coarse split is stated in the UI itself, so it cannot be mistaken for the whole
+  story. Revisit if the missing split is actually felt; the change stays behind `HttpEngine`
+  and does not move the RPC contract.
 - [ ] **6. File store.** YAML schema in the core, sidebar tree, filesystem watching, dirty state.
 - [ ] **7. Variables and environments.** Precedence rules. Must land before auth, which depends on it.
 - [ ] **8. Auth.** Basic, Bearer, API key, then OAuth2 client credentials, then auth code

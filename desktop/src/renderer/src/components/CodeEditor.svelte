@@ -11,9 +11,15 @@
     value?: string
     language?: 'json' | 'plain'
     label?: string
+    readonly?: boolean
   }
 
-  let { value = $bindable(''), language = 'plain', label = 'Request body' }: Props = $props()
+  let {
+    value = $bindable(''),
+    language = 'plain',
+    label = 'Request body',
+    readonly = false
+  }: Props = $props()
 
   let host: HTMLDivElement
   let view: EditorView | undefined
@@ -44,6 +50,9 @@
     ]
     if (language === 'json') {
       list.push(json(), linter(jsonParseLinter()))
+    }
+    if (readonly) {
+      list.push(EditorState.readOnly.of(true))
     }
     return list
   }
