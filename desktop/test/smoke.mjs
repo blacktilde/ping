@@ -888,9 +888,15 @@ try {
     await evaluate(`!!document.querySelector('[data-role="dirty"]')`)
   )
 
-  // Saving the renamed tab writes the new name to the file; the watcher then refreshes the
-  // sidebar, so the collection tree shows it too.
+  // Saving the renamed tab writes the new name to the file and rescans the tree directly, so
+  // the collection shows it without waiting on the filesystem watcher.
   await evaluate(`document.querySelector('[data-role="save"]').click()`)
+  await waitFor(
+    async () => readFileSync(savedRequest, 'utf8').includes('name: Renamed by smoke'),
+    5000,
+    'the rename to reach the file'
+  )
+  check('writes the new name to disk', readFileSync(savedRequest, 'utf8').includes('name: Renamed by smoke'))
   await waitFor(
     async () => (await sidebarText()).includes('Renamed by smoke'),
     8000,

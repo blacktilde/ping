@@ -259,6 +259,10 @@
       await protectAuthSecrets(active)
       await writeRequest(active.path, draftToStored(active.draft))
       active.savedKey = draftKey(active.draft)
+      // Rescan here rather than waiting for the file watcher to report the write we just
+      // made: a rename changes the tree's label, and depending on a filesystem event to
+      // show our own save is a race the watcher does not always win.
+      nodes = await scanStore()
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
