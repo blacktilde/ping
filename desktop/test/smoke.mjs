@@ -150,7 +150,9 @@ const app = spawn(
     stdio: ['ignore', 'pipe', 'pipe'],
     // Own process group, so teardown can signal Electron, its helpers and the core at once.
     detached: true,
-    env: { ...process.env, PING_WORKSPACE: workspaceDir }
+    // The fake updater drives the same state machine without a network, so the in-app flow
+    // is covered even though a source build is not `isPackaged`.
+    env: { ...process.env, PING_WORKSPACE: workspaceDir, PING_FAKE_UPDATE: '1' }
   }
 )
 app.stderr.on('data', (chunk) => {
@@ -985,6 +987,30 @@ try {
     newest.trim()
   )
 
+  // Search narrows the list to name/method/URL matches; clearing it restores every entry.
+  const allEntries = await historyCount()
+  const searchUrl = await evaluate(
+    `document.querySelector('[data-role="history-entry"]').dataset.url`
+  )
+  const needle = searchUrl.replace(/^https?:\/\//, '').split(/[?#]/)[0]
+  await evaluate(setInput('Search history', needle))
+  await wait(100)
+  const matched = await historyCount()
+  check(
+    'filters history by search text',
+    matched >= 1 &&
+      matched <= allEntries &&
+      (await evaluate(
+        `[...document.querySelectorAll('[data-role="history-entry"]')].every(
+          e => e.dataset.url.includes(${JSON.stringify(needle)})
+        )`
+      )),
+    `${matched}/${allEntries} match ${needle}`
+  )
+  await evaluate(setInput('Search history', ''))
+  await wait(100)
+  check('clearing search restores history', (await historyCount()) === allEntries)
+
   // The list is shell-local; the file lives in the throwaway profile, so its presence
   // proves the main process persisted it rather than the renderer holding state only.
   const persisted = JSON.parse(readFileSync(join(userDataDir, 'history.json'), 'utf8'))
@@ -1008,6 +1034,105 @@ try {
       restoreUrl,
     restoreUrl ?? 'none'
   )
+
+  console.log('--- 15. copy as cURL')
+  // Build a request that exercises every part a curl command has to carry.
+  await evaluate(setMethod('POST'))
+  await evaluate(setUrl(`${base}/curl?existing=1`))
+  await evaluate(clickTab('Params'))
+  await evaluate(clickText('+ Add parameter'))
+  await evaluate(setInput('Query parameter', 'from'))
+  await evaluate(setInput('Query value', 'curl'))
+  await evaluate(clickTab('Headers'))
+  await evaluate(clickText('+ Add header'))
+  await evaluate(setInput('Header name', 'X-Curl'))
+  await evaluate(setInput('Header value', 'yes'))
+  await evaluate(clickTab('Body'))
+  await evaluate(setSelect('Body mode', 'form'))
+  await evaluate(clickText('+ Add field'))
+  await evaluate(setInput('Field name', 'a'))
+  await evaluate(setInput('Field value', '1'))
+  await wait(150)
+
+  const curl = await evaluate(
+    `document.querySelector('[data-role="copy-curl"]')?.dataset.curl ?? ''`
+  )
+  check('offers a copy-as-cURL control', curl.length > 0, curl.slice(0, 40))
+  check(
+    'renders the method, URL and query string',
+    curl.startsWith(`curl -X POST '`) && curl.includes(`/curl?existing=1&from=curl'`),
+    curl.split('\n')[0]
+  )
+  check('renders the header', curl.includes(`-H 'X-Curl: yes'`), curl)
+  check('renders the form body', curl.includes(`--data-urlencode 'a=1'`), curl)
+
+  await evaluate(`document.querySelector('[data-role="copy-curl"]').click()`)
+  await waitFor(
+    async () =>
+      (
+        await evaluate(`document.querySelector('[data-role="curl-status"]')?.textContent ?? ''`)
+      ).includes('copied'),
+    3000,
+    'the copy confirmation'
+  )
+  check('confirms the copy', true)
+
+  console.log('--- 16. in-app update flow')
+  await evaluate(pressCtrlK)
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="palette"]')`),
+    2000,
+    'the command palette'
+  )
+  await evaluate(typeInPalette('updates'))
+  const updateOption =
+    `[...document.querySelectorAll('[data-role="palette"] [role="option"]')]` +
+    `.find(o => o.textContent.includes('Check for updates'))`
+  await waitFor(async () => await evaluate(`!!${updateOption}`), 2000, 'the update command')
+  check('offers a check-for-updates command', true)
+  await evaluate(`${updateOption}?.click()`)
+
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'available'`
+      ),
+    3000,
+    'the update offer'
+  )
+  const offer = await evaluate(`document.querySelector('[data-role="update-banner"]').textContent`)
+  check('shows the offered version', offer.includes('99.0.0'), offer.trim())
+
+  await evaluate(`document.querySelector('[data-role="update-download"]').click()`)
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'downloading'`
+      ),
+    2000,
+    'the download to start'
+  )
+  check('downloads only after the user asks', true)
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'downloaded'`
+      ),
+    5000,
+    'the download to finish'
+  )
+  check('reports the update ready to install', true)
+
+  await evaluate(`document.querySelector('[data-role="update-install"]').click()`)
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'installing'`
+      ),
+    3000,
+    'the install to start'
+  )
+  check('installs only after the user asks', true)
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)

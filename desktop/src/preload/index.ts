@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { HistoryEntry } from '../shared/history'
+import type { UpdateState } from '../shared/updates'
 
 /** A core failure in transit. `code` is null when the failure was not a JSON-RPC error. */
 export interface CoreRpcError {
@@ -60,6 +61,30 @@ const api = {
     },
     remove(name: string): Promise<void> {
       return ipcRenderer.invoke('secrets:delete', name) as Promise<void>
+    }
+  },
+
+  /**
+   * The updater, owned by the shell. The renderer reads its state, asks for the next step,
+   * and subscribes to changes; it can never download or install on its own.
+   */
+  updates: {
+    state(): Promise<UpdateState> {
+      return ipcRenderer.invoke('updates:state') as Promise<UpdateState>
+    },
+    check(): Promise<UpdateState> {
+      return ipcRenderer.invoke('updates:check') as Promise<UpdateState>
+    },
+    download(): Promise<UpdateState> {
+      return ipcRenderer.invoke('updates:download') as Promise<UpdateState>
+    },
+    install(): Promise<UpdateState> {
+      return ipcRenderer.invoke('updates:install') as Promise<UpdateState>
+    },
+    onState(listener: (state: UpdateState) => void): () => void {
+      const handler = (_event: IpcRendererEvent, state: UpdateState): void => listener(state)
+      ipcRenderer.on('updates:state', handler)
+      return () => ipcRenderer.off('updates:state', handler)
     }
   },
 

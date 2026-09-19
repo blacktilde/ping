@@ -246,10 +246,15 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   packages are downloadable. The version comes from the tag, keeping installer names and the
   `latest*.yml` update metadata in step. `publish` points at the public `dbohry/ping`
   repository, which is what makes electron-builder emit that metadata and the `app-update.yml`
-  electron-updater reads. The app checks once in a packaged build and **asks before doing
-  anything**: `autoDownload` is false, and a dialog offers Download, then Restart. The feed
-  must stay a public repository this project controls — a wrong or private owner is a silent
-  404 at best, and a stranger choosing what every install runs at worst.
+   electron-updater reads. The app checks once in a packaged build and **asks before doing
+   anything**: `autoDownload` is false, and a styled in-app banner — not an OS dialog — offers
+   Download, then Restart and install. The shell owns the updater state machine (`checking` /
+   `available` / `downloading` with progress / `downloaded` / `installing` / `up-to-date` /
+   `error`) and pushes it to the renderer over the preload bridge, which can only ask for the
+   next step; a "Check for updates" command re-runs it. `PING_FAKE_UPDATE=1` drives the same
+   machine on timers, so `make smoke` covers the flow in an unpackaged build. The feed must
+   stay a public repository this project controls — a wrong or private owner is a silent 404
+   at best, and a stranger choosing what every install runs at worst.
 
   **CI, split in two.** `ci.yml` runs on every push and pull request and builds nothing
   shippable. A pull request gets the JVM suite on Linux, `nativeTest` on Linux for the

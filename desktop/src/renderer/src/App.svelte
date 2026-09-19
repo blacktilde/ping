@@ -1,6 +1,9 @@
 <script lang="ts">
   import { call, CoreError, RpcError } from './lib/core'
   import { authToSpec, cancelRequest, sendRequest, type RequestDraft } from './lib/http'
+  import { copyText } from './lib/clipboard'
+  import { toCurl } from './lib/curl'
+  import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { enabledCount, METHODS, toRequestSpec } from './lib/request'
   import {
@@ -51,6 +54,7 @@
   import Tabs from './components/Tabs.svelte'
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
+  import UpdateBanner from './components/UpdateBanner.svelte'
   import appIcon from '../../../build/icon.png'
   import type { HistoryEntry } from '../../shared/history'
 
@@ -74,6 +78,7 @@
   let workspaceRoot = $state<string | null>(null)
   let sidebarCollapsed = $state(readSidebarCollapsed())
   let sidebarPanel = $state<'collections' | 'history'>('collections')
+  let curlStatus = $state('')
 
   // The tab the editor is showing. Every per-request value lives on it, so switching tabs
   // swaps the whole editor and response state at once.
@@ -84,8 +89,16 @@
   const dirty = $derived(
     active.savedKey !== null && draftKey(active.draft) !== active.savedKey
   )
+  // Installing restarts the app, so any tab with unsaved changes is at risk.
+  const anyDirty = $derived(
+    tabs.list.some((tab) => tab.savedKey !== null && draftKey(tab.draft) !== tab.savedKey)
+  )
   // A collection is always the first path segment; requests can nest below it.
   const activeCollection = $derived(active.path ? active.path.split('/')[0] : '')
+
+  // The exported command tracks the editor; a secret resolved only in the shell stays a
+  // `{{name}}` placeholder because secret values never reach the renderer.
+  const curlCommand = $derived(toCurl(active.draft, { variables: variables.resolved }))
 
   const requestTabs = $derived([
     { id: 'params', label: 'Params', badge: queryCount > 0 ? String(queryCount) : null },
@@ -111,6 +124,12 @@
   // the mutation calls themselves.
   $effect(() => {
     void loadHistory().catch((cause: Error) => (storeError = cause.message))
+  })
+
+  // The updater lives in the shell; the renderer reflects its state and follows changes.
+  $effect(() => {
+    void loadUpdateState().catch(() => {})
+    return watchUpdates()
   })
 
   // Variables follow the collection of the active tab, not the workspace.
@@ -267,6 +286,20 @@
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
     }
+  }
+
+  let curlStatusTimer: number | undefined
+
+  /** Puts the generated curl on the clipboard and confirms it briefly. */
+  async function copyAsCurl(): Promise<void> {
+    try {
+      await copyText(curlCommand)
+      curlStatus = 'cURL copied'
+    } catch {
+      curlStatus = 'Could not copy'
+    }
+    window.clearTimeout(curlStatusTimer)
+    curlStatusTimer = window.setTimeout(() => (curlStatus = ''), 2000)
   }
 
   /**
@@ -510,6 +543,7 @@
     const commands: { id: string; label: string; hint?: string; run: () => void }[] = [
       { id: 'send', label: 'Send request', hint: '⌘↵', run: () => void send() },
       { id: 'save', label: 'Save request', hint: '⌘S', run: () => void save() },
+      { id: 'curl', label: 'Copy as cURL', run: () => void copyAsCurl() },
       { id: 'new-tab', label: 'New request tab', hint: '⌘T', run: newTab },
       { id: 'close-tab', label: 'Close request tab', hint: '⌘W', run: () => closeRequestTab(active.id) },
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
@@ -544,6 +578,13 @@
       { id: 'env-none', label: 'Environment: none', run: () => void onEnvironmentChange('') }
     ]
 
+    if (updates.state.enabled) {
+      commands.push({
+        id: 'check-updates',
+        label: 'Check for updates',
+        run: () => void checkForUpdates()
+      })
+    }
     if (activeCollection) {
       commands.push({ id: 'new', label: 'New request', run: () => void createIn(activeCollection) })
     }
@@ -625,6 +666,12 @@
             Variables
           </button>
 
+          {#if curlStatus}
+            <span role="status" data-role="curl-status" class="text-xs text-fg-muted">
+              {curlStatus}
+            </span>
+          {/if}
+
           {#if info}
             <dl class="ml-2 flex gap-5 text-xs text-fg-muted">
               <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
@@ -639,6 +686,8 @@
           {/if}
         </div>
       </header>
+
+      <UpdateBanner hasUnsaved={anyDirty} />
 
     <RequestTabs
       tabs={tabs.list}
@@ -683,6 +732,29 @@
                    text-sm outline-none transition focus:border-accent"
           />
           <div class="absolute inset-y-0 right-1.5 flex items-center gap-1">
+            <button
+              data-role="copy-curl"
+              data-curl={curlCommand}
+              type="button"
+              onclick={() => void copyAsCurl()}
+              aria-label="Copy as cURL"
+              title="Copy as cURL"
+              class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </button>
             {#if dirty}
               <span
                 data-role="dirty"
