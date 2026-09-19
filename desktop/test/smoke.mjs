@@ -1032,6 +1032,48 @@ try {
       restoreUrl,
     restoreUrl ?? 'none'
   )
+
+  console.log('--- 15. copy as cURL')
+  // Build a request that exercises every part a curl command has to carry.
+  await evaluate(setMethod('POST'))
+  await evaluate(setUrl(`${base}/curl?existing=1`))
+  await evaluate(clickTab('Params'))
+  await evaluate(clickText('+ Add parameter'))
+  await evaluate(setInput('Query parameter', 'from'))
+  await evaluate(setInput('Query value', 'curl'))
+  await evaluate(clickTab('Headers'))
+  await evaluate(clickText('+ Add header'))
+  await evaluate(setInput('Header name', 'X-Curl'))
+  await evaluate(setInput('Header value', 'yes'))
+  await evaluate(clickTab('Body'))
+  await evaluate(setSelect('Body mode', 'form'))
+  await evaluate(clickText('+ Add field'))
+  await evaluate(setInput('Field name', 'a'))
+  await evaluate(setInput('Field value', '1'))
+  await wait(150)
+
+  const curl = await evaluate(
+    `document.querySelector('[data-role="copy-curl"]')?.dataset.curl ?? ''`
+  )
+  check('offers a copy-as-cURL control', curl.length > 0, curl.slice(0, 40))
+  check(
+    'renders the method, URL and query string',
+    curl.startsWith(`curl -X POST '`) && curl.includes(`/curl?existing=1&from=curl'`),
+    curl.split('\n')[0]
+  )
+  check('renders the header', curl.includes(`-H 'X-Curl: yes'`), curl)
+  check('renders the form body', curl.includes(`--data-urlencode 'a=1'`), curl)
+
+  await evaluate(`document.querySelector('[data-role="copy-curl"]').click()`)
+  await waitFor(
+    async () =>
+      (
+        await evaluate(`document.querySelector('[data-role="curl-status"]')?.textContent ?? ''`)
+      ).includes('copied'),
+    3000,
+    'the copy confirmation'
+  )
+  check('confirms the copy', true)
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)
