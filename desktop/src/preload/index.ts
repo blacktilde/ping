@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import type { HistoryEntry } from '../shared/history'
 
 /** A core failure in transit. `code` is null when the failure was not a JSON-RPC error. */
 export interface CoreRpcError {
@@ -68,6 +69,22 @@ const api = {
       listener(notification)
     ipcRenderer.on('core:notification', handler)
     return () => ipcRenderer.off('core:notification', handler)
+  },
+
+  /**
+   * Executed requests, kept by the shell in `userData` so they survive a restart and
+   * follow the user rather than the open folder. Recording is opt-in from the renderer.
+   */
+  history: {
+    list(): Promise<HistoryEntry[]> {
+      return ipcRenderer.invoke('history:list') as Promise<HistoryEntry[]>
+    },
+    add(entry: HistoryEntry): Promise<HistoryEntry[]> {
+      return ipcRenderer.invoke('history:add', entry) as Promise<HistoryEntry[]>
+    },
+    clear(): Promise<void> {
+      return ipcRenderer.invoke('history:clear') as Promise<void>
+    }
   }
 }
 

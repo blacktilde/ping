@@ -319,7 +319,11 @@ public final class YamlStore {
             throw RpcException.storeFailed("Could not read " + directory, e);
         }
 
-        // Folders before requests reads like a file tree.
+        // Folders before requests reads like a file tree. Within each group the order is
+        // alphabetical by the name shown, not the file name: a request's display name comes
+        // from its YAML and can differ from its slug, so sorting by path would look random.
+        folders.sort(byDisplayName());
+        requests.sort(byDisplayName());
         folders.addAll(requests);
         return folders;
     }
@@ -466,6 +470,10 @@ public final class YamlStore {
 
     private static Comparator<Path> byName() {
         return Comparator.comparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
+    }
+
+    private static Comparator<CollectionNode> byDisplayName() {
+        return Comparator.comparing(node -> node.name().toLowerCase(Locale.ROOT));
     }
 
     private static boolean hidden(Path path) {

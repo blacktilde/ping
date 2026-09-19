@@ -1,8 +1,18 @@
 <script lang="ts">
   import { call, CoreError, RpcError } from './lib/core'
-  import { authToSpec, cancelRequest, sendRequest, type HttpResponse } from './lib/http'
-  import { draft, loadDraft } from './lib/draft.svelte'
+  import { authToSpec, cancelRequest, sendRequest, type RequestDraft } from './lib/http'
+  import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { enabledCount, METHODS, toRequestSpec } from './lib/request'
+  import {
+    activeTab,
+    activateTab,
+    closeTab,
+    closeTabsUnder,
+    ensureTab,
+    newTab,
+    openTab,
+    tabs
+  } from './lib/tabs.svelte'
   import {
     chooseWorkspace,
     createRequest,
@@ -17,7 +27,8 @@
     scanStore,
     storedToDraft,
     writeRequest,
-    type StoreNode
+    type StoreNode,
+    type StoredRequest
   } from './lib/store'
   import {
     addEnvironment,
@@ -36,9 +47,12 @@
   import ResponsePane from './components/ResponsePane.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import VariablesPanel from './components/VariablesPanel.svelte'
+  import RequestTabs from './components/RequestTabs.svelte'
   import Tabs from './components/Tabs.svelte'
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
+  import appIcon from '../../../build/icon.png'
+  import type { HistoryEntry } from '../../shared/history'
 
   interface CoreInfo {
     coreVersion: string
@@ -47,35 +61,37 @@
     nativeImage: boolean
   }
 
+  // There is always at least one tab, so `active` is never undefined.
+  ensureTab()
+
   let info = $state<CoreInfo | null>(null)
   let bootError = $state('')
-  let tab = $state('params')
-  let response = $state<HttpResponse | null>(null)
-  let error = $state('')
-  let cancelled = $state(false)
-  let inFlight = $state(false)
-  let activeRequestId = $state('')
 
   let nodes = $state<StoreNode[]>([])
-  let activePath = $state<string | null>(null)
-  let savedKey = $state<string | null>(null)
   let storeError = $state('')
   let showVariables = $state(false)
-  let authStatus = $state('')
   let paletteOpen = $state(false)
   let workspaceRoot = $state<string | null>(null)
+  let sidebarCollapsed = $state(readSidebarCollapsed())
+  let sidebarPanel = $state<'collections' | 'history'>('collections')
 
-  const queryCount = $derived(enabledCount(draft.query))
-  const headerCount = $derived(enabledCount(draft.headers))
-  const dirty = $derived(savedKey !== null && draftKey(draft) !== savedKey)
+  // The tab the editor is showing. Every per-request value lives on it, so switching tabs
+  // swaps the whole editor and response state at once.
+  const active = $derived(activeTab())
+
+  const queryCount = $derived(enabledCount(active.draft.query))
+  const headerCount = $derived(enabledCount(active.draft.headers))
+  const dirty = $derived(
+    active.savedKey !== null && draftKey(active.draft) !== active.savedKey
+  )
   // A collection is always the first path segment; requests can nest below it.
-  const activeCollection = $derived(activePath ? activePath.split('/')[0] : '')
+  const activeCollection = $derived(active.path ? active.path.split('/')[0] : '')
 
   const requestTabs = $derived([
     { id: 'params', label: 'Params', badge: queryCount > 0 ? String(queryCount) : null },
     { id: 'headers', label: 'Headers', badge: headerCount > 0 ? String(headerCount) : null },
-    { id: 'body', label: 'Body', badge: draft.body.type === 'none' ? null : '•' },
-    { id: 'auth', label: 'Auth', badge: draft.auth.type === 'none' ? null : 'on' }
+    { id: 'body', label: 'Body', badge: active.draft.body.type === 'none' ? null : '•' },
+    { id: 'auth', label: 'Auth', badge: active.draft.auth.type === 'none' ? null : 'on' }
   ])
 
   // Proves the whole chain on startup: renderer, preload, main, core process.
@@ -91,7 +107,13 @@
     return onStoreChanged(() => void refresh())
   })
 
-  // Variables follow the collection of the open request, not the workspace.
+  // History follows the user, not the open folder, so it loads once and is kept in sync by
+  // the mutation calls themselves.
+  $effect(() => {
+    void loadHistory().catch((cause: Error) => (storeError = cause.message))
+  })
+
+  // Variables follow the collection of the active tab, not the workspace.
   $effect(() => {
     const collection = activeCollection
     if (!collection) {
@@ -115,7 +137,9 @@
         return
       }
       const params = notification.params as { error?: string } | null
-      authStatus = params?.error ? `Authorization failed: ${params.error}` : 'Authorized'
+      active.authStatus = params?.error
+        ? `Authorization failed: ${params.error}`
+        : 'Authorized'
     })
   })
 
@@ -128,7 +152,7 @@
         return
       }
       nodes = await scanStore()
-      if (options.autoOpen && activePath === null) {
+      if (options.autoOpen && !active.path) {
         const first = firstRequest(nodes)
         if (first) {
           await openRequest(first)
@@ -147,8 +171,8 @@
         return
       }
       workspaceRoot = workspace.root
-      activePath = null
-      savedKey = null
+      // Tabs point at paths in the old workspace, so they cannot survive the switch.
+      closeAllTabs()
       nodes = await scanStore()
       const first = firstRequest(nodes)
       if (first) {
@@ -162,9 +186,6 @@
 
   // The only way to make a request saveable when the open folder has no collection yet.
   async function newCollection(name: string): Promise<void> {
-    if (dirty && !confirm('Discard unsaved changes?')) {
-      return
-    }
     try {
       await scaffoldCollection(name)
       nodes = await scanStore()
@@ -190,19 +211,9 @@
   async function deleteNode(node: StoreNode): Promise<void> {
     try {
       await deleteEntry(node.path)
-      const removedActive =
-        activePath === node.path || (activePath?.startsWith(`${node.path}/`) ?? false)
-      if (removedActive) {
-        activePath = null
-        savedKey = null
-      }
+      // Any tab editing the deleted file (or something under it) has nothing left to save.
+      closeTabsUnder(node.path)
       nodes = await scanStore()
-      if (removedActive) {
-        const first = firstRequest(nodes)
-        if (first) {
-          await openRequest(first)
-        }
-      }
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
@@ -211,12 +222,8 @@
 
   async function openRequest(node: StoreNode): Promise<void> {
     try {
-      loadDraft(storedToDraft(await readRequest(node.path)))
-      activePath = node.path
-      savedKey = draftKey(draft)
-      response = null
-      error = ''
-      cancelled = false
+      const next = storedToDraft(await readRequest(node.path))
+      openTab({ draft: next, path: node.path })
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
@@ -224,19 +231,13 @@
   }
 
   function selectNode(node: StoreNode): void {
-    if (node.path === activePath) {
-      return
-    }
-    if (dirty && !confirm('Discard unsaved changes?')) {
+    if (node.path === active.path) {
       return
     }
     void openRequest(node)
   }
 
   async function createIn(collectionPath: string): Promise<void> {
-    if (dirty && !confirm('Discard unsaved changes?')) {
-      return
-    }
     try {
       const path = await createRequest(collectionPath, 'New request')
       nodes = await scanStore()
@@ -251,17 +252,62 @@
   }
 
   async function save(): Promise<void> {
-    if (!activePath) {
+    if (!active.path) {
       return
     }
     try {
-      await protectAuthSecrets()
-      await writeRequest(activePath, draftToStored(draft))
-      savedKey = draftKey(draft)
+      await protectAuthSecrets(active)
+      await writeRequest(active.path, draftToStored(active.draft))
+      active.savedKey = draftKey(active.draft)
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
     }
+  }
+
+  /**
+   * Reopens a request from history in a new tab. The entry carries the request as it was
+   * sent, so the draft is restored directly and has no file behind it until the user saves
+   * it into a collection.
+   */
+  function selectHistory(entry: HistoryEntry): void {
+    openTab({ draft: storedToDraft(entry.request as StoredRequest) })
+  }
+
+  async function clearHistoryEntries(): Promise<void> {
+    try {
+      await clearHistory()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /** Closes a tab, cancelling its exchange and confirming before discarding unsaved work. */
+  function closeRequestTab(id: string): void {
+    const tab = tabs.list.find((candidate) => candidate.id === id)
+    if (!tab) {
+      return
+    }
+    const unsaved = tab.savedKey !== null && draftKey(tab.draft) !== tab.savedKey
+    if (unsaved && !confirm('Discard unsaved changes?')) {
+      return
+    }
+    if (tab.requestId) {
+      void cancelRequest(tab.requestId).catch(() => {})
+    }
+    closeTab(id)
+  }
+
+  function closeAllTabs(): void {
+    for (const tab of tabs.list) {
+      if (tab.requestId) {
+        void cancelRequest(tab.requestId).catch(() => {})
+      }
+    }
+    tabs.list = []
+    tabs.activeId = ''
+    newTab()
   }
 
   const SECRET_FIELDS = ['password', 'token', 'value', 'clientSecret'] as const
@@ -271,20 +317,20 @@
    * into is stored in the shell and replaced with a {{name}} reference, so a collection
    * that is committed and shared never carries the value.
    */
-  async function protectAuthSecrets(): Promise<void> {
+  async function protectAuthSecrets(tab: (typeof tabs.list)[number]): Promise<void> {
     for (const field of SECRET_FIELDS) {
-      const value = draft.auth[field]
+      const value = tab.draft.auth[field]
       if (!value || value.includes('{{')) {
         continue
       }
-      const name = secretNameFor(field)
+      const name = secretNameFor(field, tab)
       await setSecret(name, value)
-      draft.auth[field] = `{{${name}}}`
+      tab.draft.auth[field] = `{{${name}}}`
     }
   }
 
-  function secretNameFor(field: string): string {
-    const seed = activePath ?? draft.name ?? 'request'
+  function secretNameFor(field: string, tab: (typeof tabs.list)[number]): string {
+    const seed = tab.path ?? tab.draft.name ?? 'request'
     return `auth-${field}-${shortHash(seed)}`
   }
 
@@ -298,13 +344,13 @@
 
   async function authorize(): Promise<void> {
     try {
-      authStatus = 'Waiting for the browser…'
+      active.authStatus = 'Waiting for the browser…'
       await call('auth.authorize', {
-        auth: authToSpec(draft.auth),
+        auth: authToSpec(active.draft.auth),
         variables: { ...variables.resolved }
       })
     } catch (cause) {
-      authStatus = cause instanceof Error ? cause.message : String(cause)
+      active.authStatus = cause instanceof Error ? cause.message : String(cause)
     }
   }
 
@@ -352,9 +398,35 @@
     } else if (key === 's') {
       event.preventDefault()
       void save()
+    } else if (key === 'b') {
+      event.preventDefault()
+      toggleSidebar()
+    } else if (key === 't') {
+      event.preventDefault()
+      newTab()
+    } else if (key === 'w') {
+      event.preventDefault()
+      closeRequestTab(active.id)
     } else if (event.key === 'Enter') {
       event.preventDefault()
       void send()
+    }
+  }
+
+  function readSidebarCollapsed(): boolean {
+    try {
+      return localStorage.getItem('ping.sidebar.collapsed') === 'true'
+    } catch {
+      return false
+    }
+  }
+
+  function toggleSidebar(): void {
+    sidebarCollapsed = !sidebarCollapsed
+    try {
+      localStorage.setItem('ping.sidebar.collapsed', String(sidebarCollapsed))
+    } catch {
+      // A locked-down profile just means the choice is not remembered.
     }
   }
 
@@ -377,47 +449,56 @@
   }
 
   async function send(): Promise<void> {
-    const target = draft.url.trim()
-    if (inFlight || target.length === 0) {
+    // Capture the tab: the user can switch tabs while this exchange is in flight, and the
+    // response belongs to the tab that sent it, not whichever is on screen when it lands.
+    const tab = active
+    const target = tab.draft.url.trim()
+    if (tab.inFlight || target.length === 0) {
       return
     }
 
     const requestId = crypto.randomUUID()
-    activeRequestId = requestId
-    inFlight = true
-    error = ''
-    cancelled = false
+    tab.requestId = requestId
+    tab.inFlight = true
+    tab.error = ''
+    tab.cancelled = false
+    // Snapshot the draft now: the user can edit it while the request is in flight, and the
+    // history entry should describe what was actually sent.
+    const sent = $state.snapshot(tab.draft) as RequestDraft
     // The previous response stays on screen while the next is in flight, as Postman does.
     // The pane is aria-busy so the staleness is announced rather than hidden.
 
     try {
-      const spec = toRequestSpec(draft, requestId)
+      const spec = toRequestSpec(tab.draft, requestId)
       if (Object.keys(variables.resolved).length > 0) {
         // A spread unwraps the reactive proxy, which cannot cross the context bridge.
         spec.variables = { ...variables.resolved }
       }
-      response = await sendRequest(spec)
+      tab.response = await sendRequest(spec)
     } catch (cause) {
-      response = null
+      tab.response = null
       if (cause instanceof CoreError && cause.code === RpcError.requestCancelled) {
-        cancelled = true
+        tab.cancelled = true
       } else {
-        error = cause instanceof Error ? cause.message : String(cause)
+        tab.error = cause instanceof Error ? cause.message : String(cause)
       }
     } finally {
-      inFlight = false
-      activeRequestId = ''
+      tab.inFlight = false
+      tab.requestId = ''
+      const outcome = tab.cancelled ? 'cancelled' : tab.error ? 'error' : 'ok'
+      // History is a convenience; a write failure must not surface as a request failure.
+      void recordHistory({ draft: sent, response: tab.response, outcome }).catch(() => {})
     }
   }
 
   async function cancel(): Promise<void> {
-    if (!activeRequestId) {
+    if (!active.requestId) {
       return
     }
     try {
-      await cancelRequest(activeRequestId)
+      await cancelRequest(active.requestId)
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : String(cause)
+      active.error = cause instanceof Error ? cause.message : String(cause)
     }
   }
 
@@ -425,7 +506,23 @@
     const commands: { id: string; label: string; hint?: string; run: () => void }[] = [
       { id: 'send', label: 'Send request', hint: '⌘↵', run: () => void send() },
       { id: 'save', label: 'Save request', hint: '⌘S', run: () => void save() },
+      { id: 'new-tab', label: 'New request tab', hint: '⌘T', run: newTab },
+      { id: 'close-tab', label: 'Close request tab', hint: '⌘W', run: () => closeRequestTab(active.id) },
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
+      {
+        id: 'sidebar',
+        label: sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar',
+        hint: '⌘B',
+        run: toggleSidebar
+      },
+      {
+        id: 'history-panel',
+        label: 'Show request history',
+        run: () => {
+          sidebarCollapsed = false
+          sidebarPanel = 'history'
+        }
+      },
       {
         id: 'variables',
         label: 'Toggle variables panel',
@@ -436,17 +533,17 @@
         label: theme.resolved === 'dark' ? 'Theme: light' : 'Theme: dark',
         run: cycleTheme
       },
-      { id: 'tab-params', label: 'Go to Params', run: () => (tab = 'params') },
-      { id: 'tab-headers', label: 'Go to Headers', run: () => (tab = 'headers') },
-      { id: 'tab-body', label: 'Go to Body', run: () => (tab = 'body') },
-      { id: 'tab-auth', label: 'Go to Auth', run: () => (tab = 'auth') },
+      { id: 'tab-params', label: 'Go to Params', run: () => (active.editorTab = 'params') },
+      { id: 'tab-headers', label: 'Go to Headers', run: () => (active.editorTab = 'headers') },
+      { id: 'tab-body', label: 'Go to Body', run: () => (active.editorTab = 'body') },
+      { id: 'tab-auth', label: 'Go to Auth', run: () => (active.editorTab = 'auth') },
       { id: 'env-none', label: 'Environment: none', run: () => void onEnvironmentChange('') }
     ]
 
     if (activeCollection) {
       commands.push({ id: 'new', label: 'New request', run: () => void createIn(activeCollection) })
     }
-    if (draft.auth.type === 'oauth2-authorization-code') {
+    if (active.draft.auth.type === 'oauth2-authorization-code') {
       commands.push({ id: 'authorize', label: 'Authorize (OAuth2)', run: () => void authorize() })
     }
     for (const environment of variables.environments) {
@@ -463,68 +560,51 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="flex h-full">
-  <SplitPane
-    direction="horizontal"
-    unit="pixels"
-    storageKey="ping.split.sidebar"
-    label="Resize sidebar"
-  >
-    {#snippet first()}
-      <Sidebar
-        {nodes}
-        {activePath}
-        {workspaceRoot}
-        onSelect={selectNode}
-        onCreate={createIn}
-        onDelete={deleteNode}
-        onOpenLocation={openLocation}
-        onNewCollection={newCollection}
-        onOpenFolder={openFolder}
-      />
-    {/snippet}
-
-    {#snippet second()}
-      <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
-        <header class="flex items-baseline justify-between border-b border-line pb-3">
+  {#snippet mainContent()}
+    <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
+      <header class="flex items-center justify-between gap-4 border-b border-line pb-3">
+        <div class="flex items-center gap-2.5">
+          <button
+            type="button"
+            onclick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar'}
+            title={sidebarCollapsed
+              ? 'Show collections sidebar (⌘B)'
+              : 'Hide collections sidebar (⌘B)'}
+            class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              {#if sidebarCollapsed}
+                <line x1="9" y1="4" x2="9" y2="20" />
+                <path d="M14 9l3 3-3 3" />
+              {:else}
+                <line x1="9" y1="4" x2="9" y2="20" />
+              {/if}
+            </svg>
+          </button>
+          <img src={appIcon} alt="" class="h-8 w-8 shrink-0 rounded-lg" />
           <div>
             <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-            <p class="text-sm text-fg-muted">A desktop REST client</p>
           </div>
+        </div>
 
-          {#if info}
-            <dl class="flex gap-5 text-xs text-fg-muted">
-              <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
-              <div><dt class="inline text-fg-faint">java</dt> <dd class="inline">{info.javaVersion}</dd></div>
-              <div>
-                <dt class="inline text-fg-faint">mode</dt>
-                <dd class="inline">{info.nativeImage ? 'native-image' : 'jvm'}</dd>
-              </div>
-            </dl>
-          {:else if !bootError}
-            <span class="text-xs text-fg-faint">connecting to core…</span>
-          {/if}
-        </header>
-
-        <div class="flex items-center gap-3">
-          <input
-            bind:value={draft.name}
-            aria-label="Request name"
-            class="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm
-                   text-fg outline-none transition focus:border-accent"
-          />
-          {#if dirty}
-            <span
-              data-role="dirty"
-              title="Unsaved changes"
-              class="h-2.5 w-2.5 shrink-0 rounded-full bg-accent"
-            ></span>
-          {/if}
+        <div class="flex items-center gap-2">
           <select
             value={variables.environment}
             onchange={(event) => void onEnvironmentChange(event.currentTarget.value)}
             aria-label="Environment"
-            class="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg
-                   outline-none transition focus:border-accent"
+            class="rounded-md border border-line bg-panel px-2 py-1 text-xs text-fg-muted
+                   outline-none transition hover:text-fg focus:border-accent"
           >
             <option value="">No environment</option>
             {#each variables.environments as environment (environment.path)}
@@ -535,148 +615,238 @@
             type="button"
             onclick={() => (showVariables = !showVariables)}
             aria-pressed={showVariables}
-            class="rounded-lg border border-line px-4 py-2 text-sm text-fg transition
-                   hover:border-accent"
+            class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                   hover:text-fg"
           >
             Variables
           </button>
-          <button
-            data-role="save"
-            type="button"
-            onclick={save}
-            disabled={!activePath || !dirty}
-            title={activePath
-              ? 'Save changes'
-              : 'Open a request from a collection, or create a collection first'}
-            class="rounded-lg border border-line px-4 py-2 text-sm text-fg-muted transition
-                   hover:border-accent disabled:opacity-40"
-          >
-            Save
-          </button>
+
+          {#if info}
+            <dl class="ml-2 flex gap-5 text-xs text-fg-muted">
+              <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
+              <div><dt class="inline text-fg-faint">java</dt> <dd class="inline">{info.javaVersion}</dd></div>
+              <div>
+                <dt class="inline text-fg-faint">mode</dt>
+                <dd class="inline">{info.nativeImage ? 'native-image' : 'jvm'}</dd>
+              </div>
+            </dl>
+          {:else if !bootError}
+            <span class="ml-2 text-xs text-fg-faint">connecting to core…</span>
+          {/if}
         </div>
+      </header>
 
-        <form
-          class="flex gap-2"
-          onsubmit={(event) => {
-            event.preventDefault()
-            void send()
-          }}
+    <RequestTabs
+      tabs={tabs.list}
+      activeId={tabs.activeId}
+      onActivate={activateTab}
+      onClose={closeRequestTab}
+      onNew={newTab}
+    />
+
+    <div
+      id="request-tabpanel"
+      role="tabpanel"
+      aria-labelledby={`request-tab-${tabs.activeId}`}
+      class="flex min-h-0 flex-1 flex-col gap-3"
+    >
+      <form
+        class="flex gap-2"
+        onsubmit={(event) => {
+          event.preventDefault()
+          void send()
+        }}
+      >
+        <select
+          bind:value={active.draft.method}
+          aria-label="HTTP method"
+          class="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm font-medium outline-none
+                 transition focus:border-accent"
         >
-          <select
-            bind:value={draft.method}
-            aria-label="HTTP method"
-            class="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm font-medium outline-none
-                   transition focus:border-accent"
-          >
-            {#each METHODS as verb (verb)}
-              <option value={verb}>{verb}</option>
-            {/each}
-          </select>
+          {#each METHODS as verb (verb)}
+            <option value={verb}>{verb}</option>
+          {/each}
+        </select>
 
+        <div class="relative flex-1">
           <input
-            bind:value={draft.url}
+            bind:value={active.draft.url}
             aria-label="Request URL"
             spellcheck="false"
             autocomplete="off"
             placeholder="https://api.example.com/resource"
-            class="flex-1 rounded-lg border border-line bg-panel px-4 py-2.5 font-mono text-sm
-                   outline-none transition focus:border-accent"
+            class="w-full rounded-lg border border-line bg-panel py-2.5 pl-4 pr-16 font-mono
+                   text-sm outline-none transition focus:border-accent"
           />
-
-          <button
-            type="submit"
-            disabled={inFlight}
-            class="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white
-                   transition hover:brightness-110 disabled:opacity-40"
-          >
-            {inFlight ? 'Sending…' : 'Send'}
-          </button>
-
-          {#if inFlight}
+          <div class="absolute inset-y-0 right-1.5 flex items-center gap-1">
+            {#if dirty}
+              <span
+                data-role="dirty"
+                title="Unsaved changes"
+                class="h-2 w-2 shrink-0 rounded-full bg-accent"
+              ></span>
+            {/if}
             <button
+              data-role="save"
               type="button"
-              onclick={cancel}
-              class="rounded-lg border border-line px-4 py-2.5 text-sm text-fg
-                     transition hover:border-fg-muted"
+              onclick={save}
+              disabled={!active.path || !dirty}
+              aria-label="Save request"
+              title={active.path
+                ? 'Save changes'
+                : 'Open a request from a collection, or create a collection first'}
+              class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg
+                     disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-fg-faint"
             >
-              Cancel
-            </button>
-          {/if}
-        </form>
-
-        {#if storeError}
-          <p
-            data-role="store-error"
-            role="alert"
-            class="rounded-lg border border-amber-900/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-300"
-          >
-            {storeError}
-          </p>
-        {/if}
-
-        {#if error || bootError}
-          <p
-            data-role="error"
-            role="alert"
-            class="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300"
-          >
-            {error || bootError}
-          </p>
-        {:else if cancelled}
-          <p
-            data-role="cancelled"
-            class="rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
-          >
-            Request cancelled.
-          </p>
-        {/if}
-
-        <SplitPane storageKey="ping.split.request" label="Resize request and response">
-          {#snippet first()}
-            <section
-              data-role="request"
-              class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
-            >
-              <Tabs tabs={requestTabs} bind:active={tab} idPrefix="request" />
-
-              <div
-                id="request-panel"
-                role="tabpanel"
-                aria-labelledby={`request-tab-${tab}`}
-                class="min-h-0 flex-1"
+              <svg
+                viewBox="0 0 24 24"
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
               >
-                {#if tab === 'params'}
-                  <KeyValueEditor
-                    items={draft.query}
-                    nameLabel="Query parameter"
-                    valueLabel="Query value"
-                    addLabel="Add parameter"
-                    emptyText="No query parameters yet."
-                  />
-                {:else if tab === 'headers'}
-                  <KeyValueEditor
-                    items={draft.headers}
-                    nameLabel="Header name"
-                    valueLabel="Header value"
-                    addLabel="Add header"
-                    emptyText="No headers yet."
-                  />
-                {:else if tab === 'body'}
-                  <BodyEditor body={draft.body} />
-                {:else}
-                  <AuthEditor auth={draft.auth} status={authStatus} onAuthorize={authorize} />
-                {/if}
-              </div>
-            </section>
-          {/snippet}
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            </button>
+          </div>
+        </div>
 
-          {#snippet second()}
-            <ResponsePane {response} {inFlight} />
-          {/snippet}
-        </SplitPane>
-      </main>
-    {/snippet}
-  </SplitPane>
+        <button
+          type="submit"
+          disabled={active.inFlight}
+          class="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white
+                 transition hover:brightness-110 disabled:opacity-40"
+        >
+          {active.inFlight ? 'Sending…' : 'Send'}
+        </button>
+
+        {#if active.inFlight}
+          <button
+            type="button"
+            onclick={cancel}
+            class="rounded-lg border border-line px-4 py-2.5 text-sm text-fg
+                   transition hover:border-fg-muted"
+          >
+            Cancel
+          </button>
+        {/if}
+      </form>
+
+      {#if storeError}
+        <p
+          data-role="store-error"
+          role="alert"
+          class="rounded-lg border border-amber-900/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-300"
+        >
+          {storeError}
+        </p>
+      {/if}
+
+      {#if active.error || bootError}
+        <p
+          data-role="error"
+          role="alert"
+          class="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300"
+        >
+          {active.error || bootError}
+        </p>
+      {:else if active.cancelled}
+        <p
+          data-role="cancelled"
+          class="rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
+        >
+          Request cancelled.
+        </p>
+      {/if}
+
+      <SplitPane storageKey="ping.split.request" label="Resize request and response">
+        {#snippet first()}
+          <section
+            data-role="request"
+            class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
+          >
+            <Tabs tabs={requestTabs} bind:active={active.editorTab} idPrefix="request" />
+
+            <div
+              id="request-panel"
+              role="tabpanel"
+              aria-labelledby={`request-tab-${active.editorTab}`}
+              class="min-h-0 flex-1"
+            >
+              {#if active.editorTab === 'params'}
+                <KeyValueEditor
+                  items={active.draft.query}
+                  nameLabel="Query parameter"
+                  valueLabel="Query value"
+                  addLabel="Add parameter"
+                  emptyText="No query parameters yet."
+                />
+              {:else if active.editorTab === 'headers'}
+                <KeyValueEditor
+                  items={active.draft.headers}
+                  nameLabel="Header name"
+                  valueLabel="Header value"
+                  addLabel="Add header"
+                  emptyText="No headers yet."
+                />
+              {:else if active.editorTab === 'body'}
+                <BodyEditor body={active.draft.body} />
+              {:else}
+                <AuthEditor
+                  auth={active.draft.auth}
+                  status={active.authStatus}
+                  onAuthorize={authorize}
+                />
+              {/if}
+            </div>
+          </section>
+        {/snippet}
+
+        {#snippet second()}
+          <ResponsePane response={active.response} inFlight={active.inFlight} />
+        {/snippet}
+      </SplitPane>
+    </div>
+    </main>
+  {/snippet}
+
+  {#if sidebarCollapsed}
+    {@render mainContent()}
+  {:else}
+    <SplitPane
+      direction="horizontal"
+      unit="pixels"
+      storageKey="ping.split.sidebar"
+      label="Resize sidebar"
+    >
+      {#snippet first()}
+        <Sidebar
+          {nodes}
+          activePath={active.path}
+          {workspaceRoot}
+          history={history.entries}
+          bind:panel={sidebarPanel}
+          onSelect={selectNode}
+          onCreate={createIn}
+          onDelete={deleteNode}
+          onOpenLocation={openLocation}
+          onNewCollection={newCollection}
+          onOpenFolder={openFolder}
+          onSelectHistory={selectHistory}
+          onClearHistory={clearHistoryEntries}
+        />
+      {/snippet}
+
+      {#snippet second()}
+        {@render mainContent()}
+      {/snippet}
+    </SplitPane>
+  {/if}
 
   {#if showVariables}
     <VariablesPanel

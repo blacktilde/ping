@@ -1,7 +1,6 @@
 # Ping
 
-A desktop REST client in the spirit of Postman, Bruno and Yaak: git-friendly collections, a
-polished UI, and an engine that is fast because the work never happens in JavaScript.
+A lightweight, privacy-focused HTTP client that runs entirely on your local machine.
 
 ## How it fits together
 
@@ -18,6 +17,15 @@ Three layers, talking over newline-delimited JSON-RPC 2.0 on stdio:
 
 Collections are a folder per collection and a YAML file per request. Secrets never touch
 them: they live in Electron `safeStorage`, and the files hold only the `{{name}}` reference.
+
+Executed requests are kept in a shell-local history, newest first, in the sidebar's History
+tab. It lives in the app's `userData`, not in the open folder, so it follows the user rather
+than the workspace and is never committed with a collection. Credential-bearing auth fields
+are blanked before an entry is recorded.
+
+Each open request is a tab, so several can be edited — and left in flight — at once. A tab
+owns its own draft, response and error state; the file it is bound to is the durable part,
+and tabs last for the session.
 
 ## Requirements
 

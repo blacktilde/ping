@@ -1,6 +1,7 @@
 import { join, resolve, sep } from 'node:path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { CoreClient, CoreRpcError } from './core'
+import { HistoryStore } from './history'
 import { OAuthTokenStore } from './oauth'
 import { SecretStore } from './secrets'
 import { startUpdater } from './updater'
@@ -9,6 +10,7 @@ import { Workspace } from './workspace'
 const core = new CoreClient()
 const workspace = new Workspace()
 const secrets = new SecretStore()
+const history = new HistoryStore()
 const oauthTokens = new OAuthTokenStore()
 let mainWindow: BrowserWindow | null = null
 
@@ -238,6 +240,14 @@ function registerIpc(): void {
     secrets.delete(name)
   })
 
+  // History is shell-local: the renderer records a finished exchange and reads the list
+  // back, but the request payload is opaque here and is returned to the renderer unchanged.
+  ipcMain.handle('history:list', () => history.list())
+  ipcMain.handle('history:add', (_event, entry: unknown) => history.add(entry))
+  ipcMain.handle('history:clear', () => {
+    history.clear()
+  })
+
   ipcMain.handle('core:request', async (_event, method: unknown, params: unknown) => {
     if (typeof method !== 'string') {
       return failure(null, 'core:request requires a method name')
@@ -323,6 +333,7 @@ app.whenReady().then(async () => {
     await seedWorkspace()
   }
   secrets.load()
+  history.load()
   oauthTokens.load()
   createWindow()
   startUpdater()
