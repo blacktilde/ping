@@ -73,6 +73,19 @@ export async function createRequest(collection: string, name: string): Promise<s
   return result.path
 }
 
+/**
+ * Creates a collection folder with a starter request under the open workspace. The core
+ * owns the layout; this just names it. Idempotent, so naming an existing collection is safe.
+ */
+export async function scaffoldCollection(name: string): Promise<void> {
+  await call<{ collection: string }>('store.scaffold', { collection: name })
+}
+
+/** Deletes a request file, or a collection/folder and everything under it. */
+export async function deleteEntry(path: string): Promise<void> {
+  await call<Record<string, never>>('store.delete', { path })
+}
+
 // --- draft mapping -------------------------------------------------------------------------
 
 /** Fixed key order, so two drafts that mean the same thing fingerprint the same. */

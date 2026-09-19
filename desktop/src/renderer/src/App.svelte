@@ -7,10 +7,12 @@
     chooseWorkspace,
     createRequest,
     currentWorkspace,
+    deleteEntry,
     draftKey,
     draftToStored,
     onStoreChanged,
     readRequest,
+    scaffoldCollection,
     scanStore,
     storedToDraft,
     writeRequest,
@@ -59,6 +61,7 @@
   let showVariables = $state(false)
   let authStatus = $state('')
   let paletteOpen = $state(false)
+  let workspaceRoot = $state<string | null>(null)
 
   const queryCount = $derived(enabledCount(draft.query))
   const headerCount = $derived(enabledCount(draft.headers))
@@ -117,6 +120,7 @@
   async function refresh(options: { autoOpen?: boolean } = {}): Promise<void> {
     try {
       const workspace = await currentWorkspace()
+      workspaceRoot = workspace?.root ?? null
       if (!workspace) {
         nodes = []
         return
@@ -140,12 +144,53 @@
       if (!workspace) {
         return
       }
+      workspaceRoot = workspace.root
       activePath = null
       savedKey = null
       nodes = await scanStore()
       const first = firstRequest(nodes)
       if (first) {
         await openRequest(first)
+      }
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  // The only way to make a request saveable when the open folder has no collection yet.
+  async function newCollection(name: string): Promise<void> {
+    if (dirty && !confirm('Discard unsaved changes?')) {
+      return
+    }
+    try {
+      await scaffoldCollection(name)
+      nodes = await scanStore()
+      const first = firstRequest(nodes)
+      if (first) {
+        await openRequest(first)
+      }
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function deleteNode(node: StoreNode): Promise<void> {
+    try {
+      await deleteEntry(node.path)
+      const removedActive =
+        activePath === node.path || (activePath?.startsWith(`${node.path}/`) ?? false)
+      if (removedActive) {
+        activePath = null
+        savedKey = null
+      }
+      nodes = await scanStore()
+      if (removedActive) {
+        const first = firstRequest(nodes)
+        if (first) {
+          await openRequest(first)
+        }
       }
       storeError = ''
     } catch (cause) {
@@ -410,8 +455,11 @@
   <Sidebar
     {nodes}
     {activePath}
+    {workspaceRoot}
     onSelect={selectNode}
     onCreate={createIn}
+    onDelete={deleteNode}
+    onNewCollection={newCollection}
     onOpenFolder={openFolder}
   />
 
@@ -476,7 +524,10 @@
         type="button"
         onclick={save}
         disabled={!activePath || !dirty}
-        class="rounded-lg border border-line px-4 py-2 text-sm text-fg transition
+        title={activePath
+          ? 'Save changes'
+          : 'Open a request from a collection, or create a collection first'}
+        class="rounded-lg border border-line px-4 py-2 text-sm text-fg-muted transition
                hover:border-accent disabled:opacity-40"
       >
         Save

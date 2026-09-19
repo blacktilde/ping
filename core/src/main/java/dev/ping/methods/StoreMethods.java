@@ -43,6 +43,16 @@ public final class StoreMethods {
                 Map.of("path", store.create(root(params),
                         params.path("collection").asText(""),
                         requiredText(params, "name"))));
+
+        // Used once on first run; safe to call again, it never overwrites.
+        server.register("store.scaffold", params -> Map.of(
+                "collection", store.scaffold(root(params),
+                        params.path("collection").asText("My Collection"))));
+
+        server.register("store.delete", params -> {
+            store.delete(root(params), requiredText(params, "path"));
+            return Map.of();
+        });
     }
 
     private static Path root(JsonNode params) {

@@ -85,7 +85,16 @@ export class CoreClient {
   }
 
   start(): void {
-    const binary = resolveCoreBinary()
+    // A missing core must not stop the window from opening: fail `ready`, so every call
+    // reports it and the renderer shows the error, rather than rejecting unhandled.
+    let binary: string
+    try {
+      binary = resolveCoreBinary()
+    } catch (error) {
+      this.fail(error instanceof Error ? error : new Error(String(error)))
+      return
+    }
+
     const child = spawn(binary, [], { stdio: ['pipe', 'pipe', 'pipe'] })
     this.child = child
 

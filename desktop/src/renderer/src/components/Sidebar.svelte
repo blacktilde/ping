@@ -4,17 +4,60 @@
   interface Props {
     nodes: StoreNode[]
     activePath: string | null
+    workspaceRoot: string | null
     onSelect: (node: StoreNode) => void
     onCreate: (collectionPath: string) => void
+    onDelete: (node: StoreNode) => void
+    onNewCollection: (name: string) => void
     onOpenFolder: () => void
   }
 
-  let { nodes, activePath, onSelect, onCreate, onOpenFolder }: Props = $props()
+  let {
+    nodes,
+    activePath,
+    workspaceRoot,
+    onSelect,
+    onCreate,
+    onDelete,
+    onNewCollection,
+    onOpenFolder
+  }: Props = $props()
 
   let expanded = $state<string[]>([])
+  let confirming = $state<string | null>(null)
+  // Folders already seen. Used so a newly discovered folder opens once, while a folder the
+  // user deliberately collapsed is not re-opened on the next rescan.
+  const seen = new Set<string>()
+  let naming = $state(false)
+  let name = $state('My Collection')
+  let collectionInput = $state<HTMLInputElement>()
 
-  // Folders are open by default. Newly discovered ones join the set without re-opening
-  // anything the user deliberately closed.
+  const folderName = $derived(
+    workspaceRoot ? (workspaceRoot.split(/[\\/]/).filter(Boolean).pop() ?? workspaceRoot) : null
+  )
+
+  function startNaming(): void {
+    naming = true
+    name = 'My Collection'
+  }
+
+  function submitCollection(event: SubmitEvent): void {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      return
+    }
+    naming = false
+    onNewCollection(trimmed)
+  }
+
+  $effect(() => {
+    if (naming) {
+      queueMicrotask(() => collectionInput?.focus())
+    }
+  })
+
+  // Open folders the first time they appear; leave collapse decisions alone afterwards.
   $effect(() => {
     const folders: string[] = []
     const collect = (list: StoreNode[]): void => {
@@ -27,9 +70,12 @@
     }
     collect(nodes)
 
-    const missing = folders.filter((path) => !expanded.includes(path))
-    if (missing.length > 0) {
-      expanded = [...expanded, ...missing]
+    const fresh = folders.filter((path) => !seen.has(path))
+    if (fresh.length > 0) {
+      for (const path of fresh) {
+        seen.add(path)
+      }
+      expanded = [...expanded, ...fresh]
     }
   })
 
@@ -59,29 +105,73 @@
   data-role="sidebar"
   class="flex h-full w-64 shrink-0 flex-col border-r border-line bg-panel"
 >
-  <div class="flex items-center justify-between border-b border-line px-3 py-2">
-    <span class="text-xs font-medium uppercase tracking-wide text-fg-muted">Collections</span>
-    <button
-      type="button"
-      onclick={onOpenFolder}
-      class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60 hover:text-fg"
-    >
-      Open folder
-    </button>
+  <div class="flex flex-col gap-1 border-b border-line px-3 py-2">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-medium uppercase tracking-wide text-fg-muted">Collections</span>
+      <div class="flex items-center gap-1">
+        {#if workspaceRoot}
+          <button
+            type="button"
+            onclick={startNaming}
+            class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                   hover:text-fg"
+          >
+            New
+          </button>
+        {/if}
+        <button
+          type="button"
+          onclick={onOpenFolder}
+          class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                 hover:text-fg"
+        >
+          Open folder
+        </button>
+      </div>
+    </div>
+
+    {#if folderName}
+      <span class="truncate text-xs text-fg-faint" title={workspaceRoot ?? ''}>{folderName}</span>
+    {/if}
+
+    {#if naming}
+      <form class="mt-1 flex items-center gap-1" onsubmit={submitCollection}>
+        <input
+          bind:this={collectionInput}
+          bind:value={name}
+          aria-label="Collection name"
+          class="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1 text-sm
+                 outline-none transition focus:border-accent"
+        />
+        <button type="submit" class="rounded-md px-2 py-1 text-xs text-accent">Create</button>
+      </form>
+    {/if}
   </div>
 
   <div class="flex-1 overflow-auto py-1">
     {#if rows.length === 0}
       <div class="flex flex-col items-start gap-2 px-3 py-6">
-        <p class="text-sm text-fg-faint">No collections yet.</p>
-        <button
-          type="button"
-          onclick={onOpenFolder}
-          class="rounded-md border border-line px-3 py-1.5 text-sm text-fg-muted transition
-                 hover:border-accent hover:text-fg"
-        >
-          Open a folder
-        </button>
+        {#if workspaceRoot}
+          <p class="text-sm text-fg-faint">This folder has no collections yet.</p>
+          <button
+            type="button"
+            onclick={startNaming}
+            class="rounded-md border border-line px-3 py-1.5 text-sm text-fg-muted transition
+                   hover:border-accent hover:text-fg"
+          >
+            New collection
+          </button>
+        {:else}
+          <p class="text-sm text-fg-faint">No folder open.</p>
+          <button
+            type="button"
+            onclick={onOpenFolder}
+            class="rounded-md border border-line px-3 py-1.5 text-sm text-fg-muted transition
+                   hover:border-accent hover:text-fg"
+          >
+            Open a folder
+          </button>
+        {/if}
       </div>
     {/if}
 
@@ -120,15 +210,45 @@
             </span>
             <span class="truncate">{node.name}</span>
           </button>
-          <button
-            type="button"
-            onclick={() => onCreate(node.path)}
-            aria-label="New request in {node.name}"
-            class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
-                   group-hover:opacity-100 hover:text-accent"
-          >
-            +
-          </button>
+          {#if confirming === node.path}
+            <button
+              type="button"
+              onclick={() => {
+                confirming = null
+                onDelete(node)
+              }}
+              class="mr-1 rounded px-1.5 text-xs font-medium text-red-400 transition
+                     hover:bg-line/60"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              onclick={() => (confirming = null)}
+              class="mr-1 rounded px-1.5 text-xs text-fg-muted transition hover:bg-line/60"
+            >
+              Cancel
+            </button>
+          {:else}
+            <button
+              type="button"
+              onclick={() => onCreate(node.path)}
+              aria-label="New request in {node.name}"
+              class="rounded px-1.5 text-fg-faint opacity-0 transition group-hover:opacity-100
+                     hover:text-accent"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onclick={() => (confirming = node.path)}
+              aria-label="Delete {node.name}"
+              class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
+                     group-hover:opacity-100 hover:text-red-400"
+            >
+              ×
+            </button>
+          {/if}
         {/if}
       </div>
     {/each}

@@ -222,6 +222,47 @@ class StoreMethodsTest {
     }
 
     @Test
+    void scaffoldsAStarterCollectionOnce() throws Exception {
+        JsonNode first = call("store.scaffold",
+                Map.of("root", workspace.toString(), "collection", "My Collection"));
+
+        assertEquals("My Collection", first.path("result").path("collection").asText());
+        Path collection = workspace.resolve("My Collection");
+        assertTrue(Files.isRegularFile(collection.resolve("collection.yaml")));
+        Path starter = collection.resolve("get-started.yaml");
+        assertTrue(Files.isRegularFile(starter));
+
+        // A second run must leave whatever the user has since written alone.
+        Files.writeString(starter, "name: Mine\nmethod: POST\nurl: https://example.com\n");
+        call("store.scaffold", Map.of("root", workspace.toString(), "collection", "My Collection"));
+        assertTrue(Files.readString(starter).contains("name: Mine"),
+                "scaffolding must not overwrite an existing collection");
+    }
+
+    @Test
+    void deletesACollectionRecursively() throws Exception {
+        Files.createDirectories(workspace.resolve("col/users"));
+        Files.writeString(workspace.resolve("col/a.yaml"), "name: a\n");
+        Files.writeString(workspace.resolve("col/users/b.yaml"), "name: b\n");
+
+        JsonNode response = call("store.delete",
+                Map.of("root", workspace.toString(), "path", "col"));
+
+        assertFalse(response.has("error"), response.toString());
+        assertFalse(Files.exists(workspace.resolve("col")), "the whole collection should be gone");
+    }
+
+    @Test
+    void refusesToDeleteTheRootOrEscape() throws Exception {
+        JsonNode root = call("store.delete", Map.of("root", workspace.toString(), "path", "."));
+        assertEquals(RpcException.INVALID_PARAMS, root.path("error").path("code").asInt());
+
+        JsonNode escape = call("store.delete",
+                Map.of("root", workspace.toString(), "path", "../x"));
+        assertEquals(RpcException.INVALID_PARAMS, escape.path("error").path("code").asInt());
+    }
+
+    @Test
     void refusesSymlinksThatLeaveTheWorkspace() throws Exception {
         Path outside = Files.createTempDirectory("ping-outside");
         try {

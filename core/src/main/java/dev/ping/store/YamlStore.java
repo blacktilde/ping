@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -123,6 +124,48 @@ public final class YamlStore {
         return relative(base, file);
     }
 
+    /**
+     * Creates a starter collection, so the first run is not an empty sidebar.
+     *
+     * <p>Idempotent: an existing collection directory, metadata file or request is left
+     * alone, so running it again never overwrites anything the user wrote.
+     *
+     * @return the collection path relative to the workspace root
+     */
+    public String scaffold(Path root, String collectionName) {
+        Path base = root.toAbsolutePath().normalize();
+        String name = collectionName == null || collectionName.isBlank()
+                ? "My Collection"
+                : collectionName.trim();
+        Path collection = base.resolve(name);
+
+        try {
+            Files.createDirectories(collection);
+
+            Path metadata = collection.resolve(COLLECTION_FILE);
+            if (!Files.exists(metadata)) {
+                writeValue(metadata, new CollectionDoc(name, List.of()));
+            }
+
+            boolean hasRequest;
+            try (Stream<Path> entries = Files.list(collection)) {
+                hasRequest = entries.anyMatch(entry -> isYaml(entry)
+                        && !entry.getFileName().toString().equals(COLLECTION_FILE));
+            }
+            if (!hasRequest) {
+                StoredRequest starter = new StoredRequest("Get started", "GET",
+                        "https://jsonplaceholder.typicode.com/todos/1",
+                        List.of(), List.of(), new RequestSpec.Body("none", null, null, null),
+                        null, null, null, null, null);
+                writeValue(collection.resolve("get-started.yaml"), starter);
+            }
+            return relative(base, collection);
+        } catch (IOException e) {
+            throw RpcException.storeFailed(
+                    "Could not create the starter collection: " + e.getMessage(), e);
+        }
+    }
+
     // --- collection metadata and environments ---------------------------------------------
 
     /** The collection's name and variables, defaulting to the folder name with none. */
@@ -218,6 +261,34 @@ public final class YamlStore {
         }
         writeValue(file, doc);
         return relative(base, file);
+    }
+
+    /**
+     * Deletes a request file, or a collection or folder and everything under it.
+     *
+     * <p>Symlinks are removed as links and never followed, so a link cannot make this reach
+     * outside the workspace; the root itself is rejected by {@link #resolve}.
+     */
+    public void delete(Path root, String relativePath) {
+        Path target = resolve(root, relativePath);
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw RpcException.storeFailed("No such path: " + relativePath);
+        }
+
+        try {
+            if (Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS)) {
+                try (Stream<Path> paths = Files.walk(target)) {
+                    for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                        Files.deleteIfExists(path);
+                    }
+                }
+            } else {
+                Files.deleteIfExists(target);
+            }
+        } catch (IOException e) {
+            throw RpcException.storeFailed(
+                    "Could not delete " + relativePath + ": " + e.getMessage(), e);
+        }
     }
 
     // --- tree building -------------------------------------------------------------------

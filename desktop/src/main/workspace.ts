@@ -25,6 +25,11 @@ export class Workspace {
     return this.root ? { root: this.root } : null
   }
 
+  /** Adopts a folder the shell chose itself, such as the first-run default. */
+  adopt(root: string): void {
+    this.setRoot(root, true)
+  }
+
   async restore(): Promise<void> {
     // A test or a power user can point the app at a folder without a dialog.
     const override = process.env.PING_WORKSPACE

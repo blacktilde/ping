@@ -37,6 +37,8 @@ A request without an `id` is a notification: the core runs it and answers nothin
 | `store.read`  | `{ root, path }`          | `StoredRequest`                                     |
 | `store.write` | `{ root, path, request }` | `{ path: string }`                                  |
 | `store.create`| `{ root, collection?, name }` | `{ path: string }`                              |
+| `store.scaffold`| `{ root, collection? }` | `{ collection: string }`                          |
+| `store.delete`| `{ root, path }`          | `{}`                                                |
 | `vars.catalog`| `{ root, collection }`    | `{ name, variables, environments }`                 |
 | `vars.environment`| `{ root, path }`      | `EnvironmentDoc`                                    |
 | `vars.saveCollection`| `{ root, collection, name?, variables? }` | `{}`                     |
@@ -75,7 +77,8 @@ it, and the core checks again.
 request node names come from the file's `name`, not its filename. `storedRequest` fields
 mirror the `http.send` params (see `store.schema.json`), with `name` added and empty fields
 omitted. Writes go through a temp file and a rename, so a crash cannot leave a half-written
-request. `store.create` derives a unique filename from the request name.
+request. `store.create` derives a unique filename from the request name, and `store.scaffold`
+creates a starter collection on first run without ever overwriting an existing one.
 
 ### vars.*
 

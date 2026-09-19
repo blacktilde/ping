@@ -262,6 +262,22 @@ function registerIpc(): void {
   })
 }
 
+/**
+ * First run: hand the user a folder and a starter collection instead of an empty sidebar.
+ * The core owns the YAML, so the shell only chooses the location and remembers it.
+ */
+async function seedWorkspace(): Promise<void> {
+  const root = join(app.getPath('home'), 'Ping')
+  try {
+    await core.ready
+    await core.request('store.scaffold', { root, collection: 'My Collection' })
+    workspace.adopt(root)
+  } catch (error) {
+    // Not fatal: the sidebar still offers "Open a folder".
+    process.stderr.write(`[workspace] could not create a starter collection: ${String(error)}\n`)
+  }
+}
+
 app.whenReady().then(async () => {
   core.notifications((notification) => {
     if (notification.method === 'auth.completed') {
@@ -281,6 +297,9 @@ app.whenReady().then(async () => {
   registerIpc()
   workspace.onChange(() => mainWindow?.webContents.send('store:changed'))
   await workspace.restore()
+  if (!workspace.current()) {
+    await seedWorkspace()
+  }
   secrets.load()
   oauthTokens.load()
   createWindow()

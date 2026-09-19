@@ -121,6 +121,45 @@
         "path": { "type": "string", "description": "Where the new request was written; unique even for repeated names." }
       },
       "additionalProperties": false
-    }
+    },
+
+    "store.scaffold.params": {
+      "type": "object",
+      "required": ["root"],
+      "properties": {
+        "root": { "type": "string" },
+        "collection": {
+          "type": "string",
+          "default": "My Collection",
+          "description": "Folder name of the starter collection."
+        }
+      },
+      "additionalProperties": false
+    },
+    "store.scaffold.result": {
+      "type": "object",
+      "required": ["collection"],
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The starter collection's path relative to the workspace root."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "store.delete.params": {
+      "type": "object",
+      "required": ["root", "path"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": {
+          "type": "string",
+          "description": "Relative path of a request, or of a collection or folder, which is removed recursively. The workspace root cannot be deleted."
+        }
+      },
+      "additionalProperties": false
+    },
+    "store.delete.result": { "type": "object", "additionalProperties": false }
   }
 }
