@@ -18,6 +18,11 @@ Three layers, talking over newline-delimited JSON-RPC 2.0 on stdio:
 Collections are a folder per collection and a YAML file per request. Secrets never touch
 them: they live in Electron `safeStorage`, and the files hold only the `{{name}}` reference.
 
+Executed requests are kept in a shell-local history, newest first, in the sidebar's History
+tab. It lives in the app's `userData`, not in the open folder, so it follows the user rather
+than the workspace and is never committed with a collection. Credential-bearing auth fields
+are blanked before an entry is recorded.
+
 ## Requirements
 
 - **Java 25** to build the core. [GraalVM](https://www.graalvm.org/) 25 is additionally

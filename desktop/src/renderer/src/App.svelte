@@ -1,7 +1,8 @@
 <script lang="ts">
   import { call, CoreError, RpcError } from './lib/core'
-  import { authToSpec, cancelRequest, sendRequest, type HttpResponse } from './lib/http'
+  import { authToSpec, cancelRequest, sendRequest, type HttpResponse, type RequestDraft } from './lib/http'
   import { draft, loadDraft } from './lib/draft.svelte'
+  import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { enabledCount, METHODS, toRequestSpec } from './lib/request'
   import {
     chooseWorkspace,
@@ -17,7 +18,8 @@
     scanStore,
     storedToDraft,
     writeRequest,
-    type StoreNode
+    type StoreNode,
+    type StoredRequest
   } from './lib/store'
   import {
     addEnvironment,
@@ -40,6 +42,7 @@
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
   import appIcon from '../../../build/icon.png'
+  import type { HistoryEntry } from '../../shared/history'
 
   interface CoreInfo {
     coreVersion: string
@@ -66,6 +69,7 @@
   let paletteOpen = $state(false)
   let workspaceRoot = $state<string | null>(null)
   let sidebarCollapsed = $state(readSidebarCollapsed())
+  let sidebarPanel = $state<'collections' | 'history'>('collections')
 
   const queryCount = $derived(enabledCount(draft.query))
   const headerCount = $derived(enabledCount(draft.headers))
@@ -91,6 +95,12 @@
   $effect(() => {
     void refresh({ autoOpen: true })
     return onStoreChanged(() => void refresh())
+  })
+
+  // History follows the user, not the open folder, so it loads once and is kept in sync by
+  // the mutation calls themselves.
+  $effect(() => {
+    void loadHistory().catch((cause: Error) => (storeError = cause.message))
   })
 
   // Variables follow the collection of the open request, not the workspace.
@@ -266,6 +276,33 @@
     }
   }
 
+  /**
+   * Reopens a request from history. The entry carries the request as it was sent, so the
+   * draft is restored directly; `activePath` is cleared because a history entry is not a
+   * saved file, and saving it would have nowhere to go until the user picks a collection.
+   */
+  function selectHistory(entry: HistoryEntry): void {
+    if (dirty && !confirm('Discard unsaved changes?')) {
+      return
+    }
+    loadDraft(storedToDraft(entry.request as StoredRequest))
+    activePath = null
+    savedKey = null
+    response = null
+    error = ''
+    cancelled = false
+    storeError = ''
+  }
+
+  async function clearHistoryEntries(): Promise<void> {
+    try {
+      await clearHistory()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
   const SECRET_FIELDS = ['password', 'token', 'value', 'clientSecret'] as const
 
   /**
@@ -409,6 +446,9 @@
     inFlight = true
     error = ''
     cancelled = false
+    // Snapshot the draft now: the user can edit it while the request is in flight, and the
+    // history entry should describe what was actually sent.
+    const sent = $state.snapshot(draft) as RequestDraft
     // The previous response stays on screen while the next is in flight, as Postman does.
     // The pane is aria-busy so the staleness is announced rather than hidden.
 
@@ -429,6 +469,9 @@
     } finally {
       inFlight = false
       activeRequestId = ''
+      const outcome = cancelled ? 'cancelled' : error ? 'error' : 'ok'
+      // History is a convenience; a write failure must not surface as a request failure.
+      void recordHistory({ draft: sent, response, outcome }).catch(() => {})
     }
   }
 
@@ -453,6 +496,14 @@
         label: sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar',
         hint: '⌘B',
         run: toggleSidebar
+      },
+      {
+        id: 'history-panel',
+        label: 'Show request history',
+        run: () => {
+          sidebarCollapsed = false
+          sidebarPanel = 'history'
+        }
       },
       {
         id: 'variables',
@@ -729,12 +780,16 @@
           {nodes}
           {activePath}
           {workspaceRoot}
+          history={history.entries}
+          bind:panel={sidebarPanel}
           onSelect={selectNode}
           onCreate={createIn}
           onDelete={deleteNode}
           onOpenLocation={openLocation}
           onNewCollection={newCollection}
           onOpenFolder={openFolder}
+          onSelectHistory={selectHistory}
+          onClearHistory={clearHistoryEntries}
         />
       {/snippet}
 

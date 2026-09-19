@@ -815,6 +815,47 @@ try {
     return Number(handle.getAttribute('aria-valuenow'));
   })()`)
   check('the response pane can still be grown', grown < layout.value, `${layout.value} -> ${grown}`)
+
+  console.log('--- 13. request history')
+  const historyCount = async () =>
+    await evaluate(`document.querySelectorAll('[data-role="history-entry"]').length`)
+  // Every send above recorded an entry, so the tab has content before this step runs.
+  check(
+    'the sidebar offers a history tab',
+    await evaluate(
+      `[...document.querySelectorAll('[role=tab]')].some(t => t.textContent.trim() === 'History')`
+    )
+  )
+  await evaluate(clickText('History'))
+  await waitFor(async () => (await historyCount()) > 0, 3000, 'a recorded entry')
+  check('lists executed requests', (await historyCount()) > 0, String(await historyCount()))
+
+  const newest = await evaluate(`document.querySelector('[data-role="history-entry"]').textContent`)
+  check('shows the method, name and status', /GET/.test(newest) && /200/.test(newest), newest.trim())
+
+  // The list is shell-local; the file lives in the throwaway profile, so its presence
+  // proves the main process persisted it rather than the renderer holding state only.
+  const persisted = JSON.parse(readFileSync(join(userDataDir, 'history.json'), 'utf8'))
+  check('persists history in userData', Array.isArray(persisted) && persisted.length > 0)
+  check(
+    'never records a literal credential',
+    !JSON.stringify(persisted).includes('typed-secret') &&
+      !JSON.stringify(persisted).includes('secret-value'),
+    'checked for smoke secrets'
+  )
+
+  // Selecting an entry restores it. The draft is dirty from earlier steps, so accept the
+  // discard prompt the same way a person would.
+  await evaluate(`window.confirm = () => true`)
+  const restoreUrl = await evaluate(`document.querySelector('[data-role="history-entry"]').dataset.url`)
+  await evaluate(`document.querySelector('[data-role="history-entry"]').click()`)
+  await wait(300)
+  check(
+    'restores a request into the editor',
+    (await evaluate(`document.querySelector('input[aria-label="Request URL"]')?.value`)) ===
+      restoreUrl,
+    restoreUrl ?? 'none'
+  )
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)
