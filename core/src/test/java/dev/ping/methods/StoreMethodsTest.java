@@ -160,6 +160,10 @@ class StoreMethodsTest {
                 body:
                   type: json
                   content: '{"a":1}'
+                auth:
+                  type: basic
+                  username: alice
+                  password: hunter2
                 timeoutMs: 1234
                 """);
 
@@ -172,6 +176,8 @@ class StoreMethodsTest {
         assertEquals("X-Token", result.path("headers").get(0).path("name").asText());
         assertEquals("json", result.path("body").path("type").asText());
         assertEquals("{\"a\":1}", result.path("body").path("content").asText());
+        assertEquals("basic", result.path("auth").path("type").asText());
+        assertEquals("alice", result.path("auth").path("username").asText());
         assertEquals(1234, result.path("timeoutMs").asInt());
     }
 
@@ -182,7 +188,8 @@ class StoreMethodsTest {
                 "method", "PUT",
                 "url", "https://example.com/x",
                 "query", List.of(Map.of("name", "a", "value", "b", "enabled", true)),
-                "body", Map.of("type", "raw", "content", "hello", "contentType", "text/plain"));
+                "body", Map.of("type", "raw", "content", "hello", "contentType", "text/plain"),
+                "auth", Map.of("type", "bearer", "token", "s3cret"));
 
         JsonNode response = call("store.write", Map.of(
                 "root", workspace.toString(),
@@ -203,6 +210,8 @@ class StoreMethodsTest {
         assertEquals("PUT", readBack.path("method").asText());
         assertEquals("hello", readBack.path("body").path("content").asText());
         assertEquals("a", readBack.path("query").get(0).path("name").asText());
+        assertEquals("bearer", readBack.path("auth").path("type").asText());
+        assertEquals("s3cret", readBack.path("auth").path("token").asText());
     }
 
     @Test

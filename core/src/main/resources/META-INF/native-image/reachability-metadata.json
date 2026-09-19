@@ -103,7 +103,94 @@
       ]
     },
     {
-      "type": "dev.ping.http.RequestSpec$Auth"
+      "type": "dev.ping.http.RequestSpec$Auth",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.Long"
+          ]
+        },
+        {
+          "name": "accessToken",
+          "parameterTypes": []
+        },
+        {
+          "name": "authUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "clientId",
+          "parameterTypes": []
+        },
+        {
+          "name": "clientSecret",
+          "parameterTypes": []
+        },
+        {
+          "name": "expiresAtMillis",
+          "parameterTypes": []
+        },
+        {
+          "name": "in",
+          "parameterTypes": []
+        },
+        {
+          "name": "key",
+          "parameterTypes": []
+        },
+        {
+          "name": "password",
+          "parameterTypes": []
+        },
+        {
+          "name": "redirectUri",
+          "parameterTypes": []
+        },
+        {
+          "name": "refreshToken",
+          "parameterTypes": []
+        },
+        {
+          "name": "scopes",
+          "parameterTypes": []
+        },
+        {
+          "name": "token",
+          "parameterTypes": []
+        },
+        {
+          "name": "tokenUrl",
+          "parameterTypes": []
+        },
+        {
+          "name": "type",
+          "parameterTypes": []
+        },
+        {
+          "name": "username",
+          "parameterTypes": []
+        },
+        {
+          "name": "value",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "dev.ping.http.RequestSpec$Body",
