@@ -91,7 +91,18 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   real loopback server. The binary is 33 MB and reaches `core.ready` in ~2 ms against
   ~93 ms for the JVM build — a 46x startup difference, which is the whole reason for
   choosing GraalVM over a bundled JRE. Compiling takes ~21 s today and will grow.
-- [ ] **3. Vertical slice.** URL bar, Send, raw response pane, against a real API.
+- [x] **3. Vertical slice.** URL bar, Send, raw response pane, against a real API.
+
+  **Outcome: the RPC contract carried it unchanged; the Electron IPC layer did not.** No
+  core method or schema moved. But the first real error path exposed that flattening a
+  JSON-RPC error into a string at the `core:request` boundary loses its code, so a user
+  pressing Cancel and an unreachable host arrived looking identical, with Electron's own
+  "Error invoking remote method" prefix on top. Errors now cross as a structured envelope
+  and are rethrown as a typed `CoreError` in the renderer — the value that `HttpEngine`'s
+  cancellation `AtomicBoolean` was built to preserve. `requestId` was already in
+  `http.send`, so Cancel used the existing `http.cancel`. Verified against a live HTTPS
+  endpoint (200, HTTP/2) and by `make smoke`, a CDP-driven test over send, cancel and
+  connection failure. Headers, cookies and the timing breakdown are left to phase 5.
 - [ ] **4. Request editors.** Params and headers tables, body modes (json, raw,
   form-urlencoded, multipart), CodeMirror with JSON linting.
 - [ ] **5. Response viewer.** Pretty/raw/preview, headers, cookies, timing breakdown, size,

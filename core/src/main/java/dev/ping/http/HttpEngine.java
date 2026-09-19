@@ -3,18 +3,23 @@ package dev.ping.http;
 import dev.ping.rpc.RpcException;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
@@ -392,11 +397,33 @@ public final class HttpEngine {
         return (System.nanoTime() - startedAtNanos) / 1_000_000;
     }
 
-    /** Network failures arrive as bare exception classes; give the UI something readable. */
+    /**
+     * Turns a transport failure into something worth showing a user.
+     *
+     * <p>Exception class names are a debugging aid, not a product surface: "Connection
+     * refused" is the same information as "ConnectException: Connection refused" without
+     * the Java. Messages that are useless on their own (a bare hostname, a missing
+     * timeout detail) are rewritten; the rest pass through untouched.
+     */
     private static String describe(Throwable cause) {
+        if (cause instanceof UnknownHostException) {
+            return "Unknown host: " + cause.getMessage();
+        }
+        if (cause instanceof HttpTimeoutException || cause instanceof SocketTimeoutException) {
+            return "Request timed out";
+        }
+        if (cause instanceof SSLException) {
+            String message = cause.getMessage();
+            return message == null || message.isBlank()
+                    ? "TLS handshake failed"
+                    : "TLS handshake failed: " + message;
+        }
+
         String message = cause.getMessage();
-        String type = cause.getClass().getSimpleName();
-        return message == null || message.isBlank() ? type : type + ": " + message;
+        if (message != null && !message.isBlank()) {
+            return message;
+        }
+        return cause instanceof ConnectException ? "Connection refused" : "The request failed";
     }
 
     private static SSLContext trustAllContext() {

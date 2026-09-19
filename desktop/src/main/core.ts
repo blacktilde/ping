@@ -9,6 +9,22 @@ export interface CoreNotification {
   params: unknown
 }
 
+/**
+ * A JSON-RPC error from the core.
+ *
+ * The code is kept as a field rather than folded into the message so callers can branch on
+ * it: cancellation and a dead network both surface as failures, but only one is a problem.
+ */
+export class CoreRpcError extends Error {
+  readonly code: number
+
+  constructor(code: number, message: string) {
+    super(message)
+    this.name = 'CoreRpcError'
+    this.code = code
+  }
+}
+
 interface PendingCall {
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
@@ -148,7 +164,7 @@ export class CoreClient {
     this.pending.delete(message.id)
 
     if (message.error) {
-      call.reject(new Error(`${message.error.message} (code ${message.error.code})`))
+      call.reject(new CoreRpcError(message.error.code, message.error.message))
     } else {
       call.resolve(message.result)
     }

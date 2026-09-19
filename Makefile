@@ -5,7 +5,7 @@
 GRAALVM_HOME ?= $(lastword $(sort $(wildcard $(HOME)/.sdkman/candidates/java/*-graalce)))
 export GRAALVM_HOME
 
-.PHONY: help setup core test dev build clean native native-test agent
+.PHONY: help setup core test dev build check smoke clean native native-test agent
 
 help:
 	@echo "setup  Install desktop dependencies and build the core"
@@ -13,6 +13,8 @@ help:
 	@echo "test   Run the core test suite on the JVM"
 	@echo "dev    Build the core, then start Electron with hot reload"
 	@echo "build  Production build of core and desktop"
+	@echo "check  Type-check the desktop shell with svelte-check"
+	@echo "smoke  Build the desktop and drive the UI over CDP"
 	@echo "clean  Remove all build output"
 	@echo ""
 	@echo "native       Compile the core to a GraalVM native image (minutes, needs GraalVM)"
@@ -35,6 +37,13 @@ dev: core
 
 build: core
 	cd desktop && npm run build
+
+check:
+	cd desktop && npm run check
+
+# Builds first: the smoke test drives the packaged renderer, not the dev server.
+smoke: core
+	cd desktop && npm run build && npm run smoke
 
 native: require-graalvm
 	./gradlew :core:nativeCompile

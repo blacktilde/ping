@@ -16,6 +16,8 @@ current checkboxes. `contract/README.md` describes the RPC protocol.
 | `make core` | Rebuild the core after changing Java sources         |
 | `make test` | Run the core test suite                              |
 | `make build`| Production build                                     |
+| `make check`| Type-check the desktop shell with svelte-check       |
+| `make smoke`| Build the desktop and drive the UI over CDP          |
 | `make native`| Compile the core to a native image (minutes)        |
 | `make native-test`| Run the suite compiled as a native image       |
 | `make agent`| Regenerate native-image reachability metadata        |

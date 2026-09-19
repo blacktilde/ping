@@ -1,5 +1,18 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 
+/** A core failure in transit. `code` is null when the failure was not a JSON-RPC error. */
+export interface CoreRpcError {
+  code: number | null
+  message: string
+}
+
+/**
+ * Why calls return a result rather than rejecting: contextBridge does not carry custom
+ * Error properties, so a rejection cannot preserve the JSON-RPC code. An envelope does.
+ * Renderer code unwraps it through `call` in `lib/core.ts`, which throws a real error.
+ */
+export type CoreResult<T> = { ok: true; value: T } | { ok: false; error: CoreRpcError }
+
 /**
  * The renderer's entire view of the outside world.
  *
@@ -7,8 +20,8 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
  * filesystem, or the core process on its own.
  */
 const api = {
-  request<T = unknown>(method: string, params?: unknown): Promise<T> {
-    return ipcRenderer.invoke('core:request', method, params) as Promise<T>
+  request<T = unknown>(method: string, params?: unknown): Promise<CoreResult<T>> {
+    return ipcRenderer.invoke('core:request', method, params) as Promise<CoreResult<T>>
   },
 
   /** Subscribes to server-initiated core messages. Returns an unsubscribe function. */

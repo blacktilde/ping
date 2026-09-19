@@ -12,7 +12,7 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "noEmit": true,
-    "types": ["node", "svelte"]
+    "types": ["node", "svelte", "vite/client"]
   },
   "include": [
     "src/**/*.ts",

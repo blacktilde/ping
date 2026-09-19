@@ -60,5 +60,10 @@ jobs:
       - run: npm ci
         working-directory: desktop
 
+      # esbuild strips types without checking them, so this is the only gate on the
+      # renderer's TypeScript and Svelte components.
+      - run: npm run check
+        working-directory: desktop
+
       - run: npm run build
         working-directory: desktop

@@ -339,6 +339,8 @@ class HttpEngineTest {
                         .timeoutMs(2000).build()));
 
         assertEquals(RpcException.REQUEST_FAILED, thrown.code());
+        assertFalse(thrown.getMessage().contains("Exception"),
+                "raw exception class names must not reach the user: " + thrown.getMessage());
     }
 
     // --- helpers ---------------------------------------------------------------------------

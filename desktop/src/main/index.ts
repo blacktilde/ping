@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { CoreClient } from './core'
+import { CoreClient, CoreRpcError } from './core'
 
 const core = new CoreClient()
 let mainWindow: BrowserWindow | null = null
@@ -60,14 +60,30 @@ function createWindow(): void {
  * The renderer never touches the core directly: it is sandboxed and has no process access.
  * Every call crosses this single choke point, which is also where argument validation and
  * secret resolution will live once auth lands.
+ *
+ * Errors travel as data rather than as a rejected promise. `ipcRenderer.invoke` prefixes a
+ * rejection with "Error invoking remote method ..." and contextBridge strips custom
+ * properties, so a thrown {@link CoreRpcError} would reach the renderer as an anonymous
+ * string. Returning an envelope keeps the code intact; the renderer rethrows a typed error
+ * once the value is back in its own realm.
  */
 function registerIpc(): void {
   ipcMain.handle('core:request', async (_event, method: unknown, params: unknown) => {
     if (typeof method !== 'string') {
-      throw new Error('core:request requires a method name')
+      return { ok: false, error: { code: null, message: 'core:request requires a method name' } }
     }
-    await core.ready
-    return core.request(method, params)
+    try {
+      await core.ready
+      return { ok: true, value: await core.request(method, params) }
+    } catch (cause) {
+      return {
+        ok: false,
+        error: {
+          code: cause instanceof CoreRpcError ? cause.code : null,
+          message: cause instanceof Error ? cause.message : String(cause)
+        }
+      }
+    }
   })
 }
 
