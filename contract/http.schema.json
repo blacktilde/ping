@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/http.schema.json",
+  "title": "Ping core RPC — HTTP",
+  "$defs": {
+    "param": {
+      "type": "object",
+      "description": "A name/value pair the user can disable without deleting it.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "type": "string" },
+        "enabled": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+
+    "http.send.params": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "description": "Opaque id the caller chooses, so http.cancel can abort this exchange."
+        },
+        "method": { "type": "string", "default": "GET" },
+        "url": {
+          "type": "string",
+          "description": "Absolute, with scheme and host. Any existing query string is preserved."
+        },
+        "query": { "type": "array", "items": { "$ref": "#/$defs/param" } },
+        "headers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/param" },
+          "description": "Connection, Content-Length, Expect, Host and Upgrade are owned by the client and ignored here."
+        },
+        "body": { "$ref": "#/$defs/body" },
+        "timeoutMs": { "type": "integer", "default": 30000 },
+        "redirects": {
+          "enum": ["never", "normal", "always"],
+          "default": "normal",
+          "description": "normal follows redirects but not from HTTPS down to HTTP."
+        },
+        "verifyTls": {
+          "type": "boolean",
+          "default": true,
+          "description": "False disables certificate and hostname checks, for self-signed development servers."
+        },
+        "maxBodyBytes": {
+          "type": "integer",
+          "default": 10485760,
+          "description": "Bodies past this are counted but not buffered."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "body": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["none", "json", "raw", "form", "multipart"] },
+        "content": {
+          "type": "string",
+          "description": "The literal payload for json and raw."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Overrides the type implied by the body mode. An explicit Content-Type header wins over both."
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/param" },
+          "description": "Fields for form and multipart."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "http.send.result": {
+      "type": "object",
+      "required": ["status", "httpVersion", "headers", "body", "timing", "redirects"],
+      "properties": {
+        "status": { "type": "integer" },
+        "httpVersion": { "enum": ["HTTP_1_1", "HTTP_2"] },
+        "headers": {
+          "type": "array",
+          "description": "Sorted by name. A header sent more than once appears more than once.",
+          "items": {
+            "type": "object",
+            "required": ["name", "value"],
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "body": {
+          "type": "object",
+          "required": ["truncated", "bytes", "textual"],
+          "properties": {
+            "content": {
+              "type": ["string", "null"],
+              "description": "Decoded text, or null when the payload is not textual."
+            },
+            "truncated": { "type": "boolean" },
+            "bytes": {
+              "type": "integer",
+              "description": "Total bytes received, whether or not they were kept."
+            },
+            "textual": { "type": "boolean" },
+            "contentType": { "type": ["string", "null"] },
+            "charset": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "timing": {
+          "type": "object",
+          "required": ["ttfbMs", "downloadMs", "totalMs"],
+          "properties": {
+            "dnsMs": {
+              "type": ["integer", "null"],
+              "description": "Host resolution, measured immediately before dispatch. Null when resolution failed or the host was an address."
+            },
+            "ttfbMs": { "type": "integer", "description": "Dispatch until response headers." },
+            "downloadMs": { "type": "integer", "description": "Headers until the body is fully read." },
+            "totalMs": { "type": "integer" }
+          },
+          "additionalProperties": false
+        },
+        "redirects": {
+          "type": "array",
+          "description": "Hops followed, oldest first. Empty when nothing was followed.",
+          "items": {
+            "type": "object",
+            "required": ["status", "url"],
+            "properties": {
+              "status": { "type": "integer" },
+              "url": { "type": "string" },
+              "location": { "type": ["string", "null"] }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "http.cancel.params": {
+      "type": "object",
+      "required": ["requestId"],
+      "properties": { "requestId": { "type": "string" } },
+      "additionalProperties": false
+    },
+
+    "http.cancel.result": {
+      "type": "object",
+      "required": ["cancelled"],
+      "properties": {
+        "cancelled": {
+          "type": "boolean",
+          "description": "True when a request was in flight under this id and has been asked to stop."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

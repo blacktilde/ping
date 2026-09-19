@@ -80,17 +80,26 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
 
 - [x] **0. Contract and skeleton.** RPC methods defined in JSON Schema, core echoes a
   ping, Electron spawns it. *Gate: a Svelte button reaches the core and renders the reply.*
-- [ ] **1. HTTP engine**, on the JVM for fast iteration. Method, URL, query, headers, body,
+- [x] **1. HTTP engine**, on the JVM for fast iteration. Method, URL, query, headers, body,
   timeout, redirect policy, cancellation, timing. *Gate: JUnit suite green against a mock server.*
 - [ ] **2. native-image build — early, not last.** Tracing agent over the test suite to
   generate reflection config, then a CI matrix for Linux/macOS/Windows. *Gate: the native
-  binary passes the same suite.* This is the project's largest technical risk; finding an
+  binary passes the same suite.* This on the JVM for fast iteration. Method, URL, query, headers, body,
+  timeout, redirect policy, cancellation, timing. *Gate: JUnit suite green against a mock server.*is the project's largest technical risk; finding an
   incompatibility here is cheap, finding it in phase 9 is not.
 - [ ] **3. Vertical slice.** URL bar, Send, raw response pane, against a real API.
 - [ ] **4. Request editors.** Params and headers tables, body modes (json, raw,
   form-urlencoded, multipart), CodeMirror with JSON linting.
 - [ ] **5. Response viewer.** Pretty/raw/preview, headers, cookies, timing breakdown, size,
   search, virtualized for large payloads.
+
+  **Open decision.** `java.net.http` reports DNS, TTFB, download and total, but exposes no
+  TCP-connect or TLS-handshake split, so the waterfall will be coarser than Postman's.
+  Getting the full breakdown means moving the engine to OkHttp, whose `EventListener` has
+  per-stage callbacks. That is a contained change — it sits behind `HttpEngine` and the RPC
+  contract does not move — but it adds a dependency that must then be proven under
+  `native-image`. Decide when building the viewer, once it is clear whether the missing
+  split is actually felt.
 - [ ] **6. File store.** YAML schema in the core, sidebar tree, filesystem watching, dirty state.
 - [ ] **7. Variables and environments.** Precedence rules. Must land before auth, which depends on it.
 - [ ] **8. Auth.** Basic, Bearer, API key, then OAuth2 client credentials, then auth code
@@ -99,6 +108,16 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
 - [ ] **9. Polish.** Command palette, keyboard-first navigation, themes, motion, empty states.
 - [ ] **10. Packaging.** `electron-builder`, native core as an `extraResource`, per-OS CI,
   signing, updater.
+
+## Protocol notes
+
+RPC handlers run on virtual threads rather than inline on the read loop. A blocking
+`http.send` would otherwise make the `http.cancel` for that same request unreadable.
+
+The engine tracks cancellation intent in an `AtomicBoolean` rather than inferring it from
+the exception type, because an aborted exchange surfaces as `CancellationException` or as
+a wrapped I/O failure depending on how far it had progressed. Only the caller knows the
+difference between a broken network and a user pressing stop.
 
 ## Conventions
 

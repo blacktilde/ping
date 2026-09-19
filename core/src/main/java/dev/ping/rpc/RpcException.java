@@ -10,6 +10,12 @@ public class RpcException extends RuntimeException {
     public static final int INVALID_PARAMS = -32602;
     public static final int INTERNAL_ERROR = -32603;
 
+    /** The caller aborted this request through {@code http.cancel}. */
+    public static final int REQUEST_CANCELLED = -32001;
+
+    /** The request was well formed but the exchange failed: DNS, connect, TLS or timeout. */
+    public static final int REQUEST_FAILED = -32002;
+
     private final int code;
 
     public RpcException(int code, String message) {

@@ -13,6 +13,9 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Newline-delimited JSON-RPC 2.0 over a byte stream, normally the core's stdin/stdout.
@@ -22,6 +25,9 @@ import java.util.Map;
  *
  * <p><strong>stdout carries protocol traffic only.</strong> Anything else written there
  * corrupts the stream and desynchronizes the client. Log to stderr.
+ *
+ * <p>Handlers run on virtual threads rather than inline. A long request must not block the
+ * read loop, or the cancellation for that very request could never be read.
  */
 public final class RpcServer {
 
@@ -29,6 +35,7 @@ public final class RpcServer {
     private final Map<String, MethodHandler> methods = new HashMap<>();
     private final BufferedReader in;
     private final PrintWriter out;
+    private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
 
     public RpcServer(InputStream in, OutputStream out) {
         this.in = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
@@ -50,6 +57,17 @@ public final class RpcServer {
                 continue;
             }
             handleLine(line);
+        }
+
+        // Stdin closed: the parent is gone. Let in-flight work finish before the process exits.
+        workers.shutdown();
+        try {
+            if (!workers.awaitTermination(30, TimeUnit.SECONDS)) {
+                workers.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            workers.shutdownNow();
         }
     }
 
@@ -76,8 +94,13 @@ public final class RpcServer {
             return;
         }
 
+        JsonNode params = request.get("params");
+        workers.execute(() -> invoke(handler, params, idNode));
+    }
+
+    private void invoke(MethodHandler handler, JsonNode params, JsonNode idNode) {
         try {
-            Object result = handler.handle(request.get("params"));
+            Object result = handler.handle(params);
             // A request without an id is a notification: run it, answer nothing.
             if (idNode != null && !idNode.isNull()) {
                 writeResult(idNode, result);
