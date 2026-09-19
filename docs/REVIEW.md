@@ -20,14 +20,40 @@ numbering of the files they describe.
 
 ## Open
 
-> Items marked **Carried from** were raised for an earlier phase and not picked up.
-> Skipping is a fair call, but silently is what turns a backlog into landfill: close an item
-> with a reason, or say the tags are not being used and they will stop being written.
-
-
 _None._
 
 ## Closed
+
+### The update feed and updater are removed until there is a real one — phase 10
+
+`anomalyco` is confirmed third party: not the author's account, not one of their
+organizations. The `publish` block and `desktop/src/main/updater.ts` are both gone,
+`electron-updater` is off the dependency list, and `electron-builder.yml` carries a comment
+saying what has to exist before either comes back — a **public** repository the project
+controls, because electron-updater fetches release assets with no credentials and a private
+repository yields silent 404s.
+
+Verified in a rebuilt artifact: no `app-update.yml` under `resources/`, no `electron-updater`
+in the built main bundle, and `anomalyco` appears nowhere in the tree. `package.json`
+`homepage` and `repository` now point at `dbohry/ping`, which also matters because
+electron-builder infers a publish target from `repository` when no `publish` block is set.
+
+Nothing had been distributed: no commits pushed, no releases, `dist/` git-ignored.
+
+### The hardened runtime keeps only what V8 needs — phase 10
+
+`com.apple.security.cs.disable-library-validation` is gone from
+`build/entitlements.mac.plist`; only `allow-jit` and `allow-unsigned-executable-memory`
+remain, which V8 genuinely requires. Still unexercised until someone signs a build with a
+real certificate — the check then is that the bundled core still launches as a child.
+
+### The packaged app describes itself — phase 10
+
+The header reads "A desktop REST client" instead of the stale phase label. Confirmed in a
+rebuilt AppImage, which also reported `mode native-image` and completed a live HTTPS request.
+`desktopName` and `syncDesktopName` are set, so electron-builder no longer warns about
+window association.
+
 
 ### Symlinks cannot escape the workspace — phase 9
 

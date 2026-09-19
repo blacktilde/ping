@@ -33,6 +33,12 @@ Signing switches on from environment alone — `CSC_LINK`/`CSC_KEY_PASSWORD` for
 macOS, `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` for notarization — and an
 unsigned CI build sets `CSC_IDENTITY_AUTO_DISCOVERY=false` instead.
 
+**There is no auto-update feed.** electron-updater fetches release assets over public HTTPS
+with no credentials, so the feed has to be a public repository this project controls. Do not
+add a `publish` block, an `electron-updater` dependency, or a `repository` field that a
+GitHub provider can be inferred from until that repository exists; a wrong or private owner
+means a silent 404 at best, and a stranger choosing what every install runs at worst.
+
 ## Rules
 
 **stdout in the core is protocol traffic only.** A stray `System.out.println` corrupts the

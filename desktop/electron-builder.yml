@@ -46,12 +46,17 @@ linux:
   executableName: ping
   category: Development
   maintainer: Ping contributors
+  # Match the installed .desktop filename to Electron's app_id/WM_CLASS (package.json
+  # `desktopName`), so a desktop environment links the running window to its launcher entry.
+  syncDesktopName: true
   target:
     - AppImage
     - deb
 
-# Release feeds electron-updater; the shell only checks when packaged.
-publish:
-  provider: github
-  owner: anomalyco
-  repo: ping
+# No update feed on purpose. electron-updater reads release assets over plain HTTPS with no
+# credentials, so the feed has to be a public repository this project controls; a wrong or
+# private owner means silent 404s, or worse, letting someone else choose what every install
+# downloads. `publish: null` stops electron-builder inferring one from `repository`.
+# Remove it and add `publish: { provider: github, owner: <owner>, repo: <repo> }` plus an
+# updater in the main process only once that public release repository exists.
+publish: null

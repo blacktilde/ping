@@ -419,7 +419,7 @@
     <header class="flex items-baseline justify-between border-b border-line pb-3">
       <div>
         <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-        <p class="text-sm text-fg-muted">Phase 6 — collections on disk</p>
+        <p class="text-sm text-fg-muted">A desktop REST client</p>
       </div>
 
       {#if info}
