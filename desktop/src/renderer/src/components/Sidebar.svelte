@@ -8,6 +8,7 @@
     onSelect: (node: StoreNode) => void
     onCreate: (collectionPath: string) => void
     onDelete: (node: StoreNode) => void
+    onOpenLocation: (node: StoreNode) => void
     onNewCollection: (name: string) => void
     onOpenFolder: () => void
   }
@@ -19,6 +20,7 @@
     onSelect,
     onCreate,
     onDelete,
+    onOpenLocation,
     onNewCollection,
     onOpenFolder
   }: Props = $props()
@@ -230,6 +232,26 @@
               Cancel
             </button>
           {:else}
+            <button
+              type="button"
+              onclick={() => onOpenLocation(node)}
+              aria-label="Open {node.name} in the file manager"
+              class="rounded px-1.5 text-fg-faint opacity-0 transition group-hover:opacity-100
+                     hover:text-accent"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+            </button>
             <button
               type="button"
               onclick={() => onCreate(node.path)}

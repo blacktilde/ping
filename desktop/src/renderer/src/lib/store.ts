@@ -86,6 +86,11 @@ export async function deleteEntry(path: string): Promise<void> {
   await call<Record<string, never>>('store.delete', { path })
 }
 
+/** Opens a collection or folder in the OS file manager. */
+export function openInFileManager(path: string): Promise<void> {
+  return window.ping.openInFileManager(path)
+}
+
 // --- draft mapping -------------------------------------------------------------------------
 
 /** Fixed key order, so two drafts that mean the same thing fingerprint the same. */

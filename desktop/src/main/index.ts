@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { CoreClient, CoreRpcError } from './core'
 import { OAuthTokenStore } from './oauth'
@@ -201,6 +201,27 @@ function storeOAuthTokens(params: unknown): void {
 function registerIpc(): void {
   ipcMain.handle('workspace:current', () => workspace.current())
   ipcMain.handle('workspace:choose', () => workspace.choose())
+
+  // Opens a collection or folder in the OS file manager. The renderer sends a path relative
+  // to the workspace; main resolves and re-checks it so it cannot reach outside the root.
+  ipcMain.handle('workspace:open', async (_event, path: unknown) => {
+    const current = workspace.current()
+    if (!current) {
+      throw new Error('No collection folder is open')
+    }
+    if (typeof path !== 'string' || !isRelativePath(path)) {
+      throw new Error(`Unsafe path: ${String(path)}`)
+    }
+    const root = resolve(current.root)
+    const target = resolve(root, path)
+    if (target !== root && !target.startsWith(root + sep)) {
+      throw new Error(`Unsafe path: ${path}`)
+    }
+    const error = await shell.openPath(target)
+    if (error) {
+      throw new Error(error)
+    }
+  })
 
   ipcMain.handle('secrets:list', () => secrets.names())
   ipcMain.handle('secrets:set', (_event, name: unknown, value: unknown) => {

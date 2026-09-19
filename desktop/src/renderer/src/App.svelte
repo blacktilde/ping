@@ -11,6 +11,7 @@
     draftKey,
     draftToStored,
     onStoreChanged,
+    openInFileManager,
     readRequest,
     scaffoldCollection,
     scanStore,
@@ -170,6 +171,15 @@
       if (first) {
         await openRequest(first)
       }
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function openLocation(node: StoreNode): Promise<void> {
+    try {
+      await openInFileManager(node.path)
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
@@ -459,6 +469,7 @@
     onSelect={selectNode}
     onCreate={createIn}
     onDelete={deleteNode}
+    onOpenLocation={openLocation}
     onNewCollection={newCollection}
     onOpenFolder={openFolder}
   />

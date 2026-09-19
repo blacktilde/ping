@@ -34,6 +34,11 @@ const api = {
     return ipcRenderer.invoke('workspace:choose') as Promise<{ root: string } | null>
   },
 
+  /** Opens a collection or folder, named relative to the workspace, in the OS file manager. */
+  openInFileManager(path: string): Promise<void> {
+    return ipcRenderer.invoke('workspace:open', path) as Promise<void>
+  },
+
   /** Fires when the open folder changes on disk, so the tree can be rescanned. */
   onStoreChanged(listener: () => void): () => void {
     const handler = (): void => listener()
