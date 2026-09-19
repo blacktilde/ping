@@ -1,6 +1,6 @@
 {
   "name": "ping-desktop",
-  "version": "0.1.0",
+  "version": "0.0.3",
   "description": "Ping desktop shell: Electron main process and Svelte UI.",
   "author": "Ping contributors",
   "desktopName": "ping",

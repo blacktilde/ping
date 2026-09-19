@@ -39,6 +39,7 @@
   import Tabs from './components/Tabs.svelte'
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
+  import appIcon from '../../../build/icon.png'
 
   interface CoreInfo {
     coreVersion: string
@@ -486,9 +487,11 @@
     {#snippet second()}
       <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
         <header class="flex items-baseline justify-between border-b border-line pb-3">
-          <div>
-            <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-            <p class="text-sm text-fg-muted">A desktop REST client</p>
+          <div class="flex items-center gap-2.5">
+            <img src={appIcon} alt="" class="h-8 w-8 shrink-0 rounded-lg" />
+            <div>
+              <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
+            </div>
           </div>
 
           {#if info}

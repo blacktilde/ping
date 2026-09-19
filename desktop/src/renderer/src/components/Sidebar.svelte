@@ -34,10 +34,6 @@
   let name = $state('My Collection')
   let collectionInput = $state<HTMLInputElement>()
 
-  const folderName = $derived(
-    workspaceRoot ? (workspaceRoot.split(/[\\/]/).filter(Boolean).pop() ?? workspaceRoot) : null
-  )
-
   function startNaming(): void {
     naming = true
     name = 'My Collection'
@@ -131,10 +127,6 @@
         </button>
       </div>
     </div>
-
-    {#if folderName}
-      <span class="truncate text-xs text-fg-faint" title={workspaceRoot ?? ''}>{folderName}</span>
-    {/if}
 
     {#if naming}
       <form class="mt-1 flex items-center gap-1" onsubmit={submitCollection}>
