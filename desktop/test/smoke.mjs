@@ -22,9 +22,14 @@ const DEBUG_PORT = 9225
 const root = new URL('..', import.meta.url)
 const base = `http://127.0.0.1:${PORT}`
 
+// Set when the slow endpoint is reached, so the cancel step can click only once the request
+// has actually left the core. Clicking the instant the Cancel button appears races dispatch.
+let slowStarted = false
+
 // Echoes what reached the server so the test can prove the editors are wired to the wire.
 const server = http.createServer(async (req, res) => {
   if (req.url.startsWith('/slow')) {
+    slowStarted = true
     setTimeout(() => {
       res.writeHead(200, { 'Content-Type': 'text/plain' })
       res.end('late')
@@ -64,16 +69,68 @@ await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
 // folder dialog. The shell takes its workspace from PING_WORKSPACE, which is also how CI
 // runs headless.
 const workspaceDir = mkdtempSync(join(tmpdir(), 'ping-smoke-'))
-mkdirSync(join(workspaceDir, 'demo'), { recursive: true })
+mkdirSync(join(workspaceDir, 'demo', 'environments'), { recursive: true })
 const savedRequest = join(workspaceDir, 'demo', 'get.yaml')
-writeFileSync(savedRequest, `name: Smoke get\nmethod: GET\nurl: ${base}/data\n`)
+writeFileSync(
+  savedRequest,
+  [
+    'name: Smoke get',
+    'method: GET',
+    "url: '{{base}}/data'",
+    'query:',
+    '  - name: q',
+    "    value: '{{token}}'",
+    'headers:',
+    '  - name: X-Only',
+    "    value: '{{only}}'",
+    ''
+  ].join('\n')
+)
+writeFileSync(
+  join(workspaceDir, 'demo', 'collection.yaml'),
+  [
+    'name: Demo',
+    'variables:',
+    '  - name: base',
+    '    value: http://127.0.0.1:1',
+    '  - name: token',
+    '    value: collection-token',
+    '  - name: only',
+    '    value: collection-only',
+    ''
+  ].join('\n')
+)
+writeFileSync(
+  join(workspaceDir, 'demo', 'environments', 'dev.yaml'),
+  [
+    'name: Dev',
+    'variables:',
+    '  - name: base',
+    `    value: ${base}`,
+    '  - name: token',
+    '    value: environment-token',
+    ''
+  ].join('\n')
+)
+
+const userDataDir = mkdtempSync(join(tmpdir(), 'ping-smoke-userdata-'))
 
 const app = spawn(
   electron,
-  ['.', `--remote-debugging-port=${DEBUG_PORT}`, '--disable-gpu', '--no-sandbox'],
+  [
+    '.',
+    `--remote-debugging-port=${DEBUG_PORT}`,
+    '--disable-gpu',
+    '--no-sandbox',
+    // Never touch the real profile: a leaked instance would hold the Chromium profile lock
+    // and the next run would fail with "renderer never appeared".
+    `--user-data-dir=${userDataDir}`
+  ],
   {
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Own process group, so teardown can signal Electron, its helpers and the core at once.
+    detached: true,
     env: { ...process.env, PING_WORKSPACE: workspaceDir }
   }
 )
@@ -94,8 +151,8 @@ let socket
 try {
   const page = await findPage()
   if (!page) {
-    console.error('FAIL: renderer never appeared')
-    process.exit(1)
+    // Throw rather than exit: process.exit skips the finally that reaps the app.
+    throw new Error('renderer never appeared')
   }
 
   socket = new WebSocket(page.webSocketDebuggerUrl)
@@ -132,7 +189,8 @@ try {
   await cdp('Runtime.enable')
 
   const setInput = (label, value) => `(() => {
-    const input = document.querySelector('input[aria-label="${label}"]');
+    const inputs = document.querySelectorAll('input[aria-label="${label}"]');
+    const input = inputs[inputs.length - 1];
     if (!input) return null;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     setter.call(input, ${JSON.stringify(value)});
@@ -238,7 +296,7 @@ try {
   check(
     'loads the request from disk',
     (await evaluate(`document.querySelector('input[aria-label="Request URL"]')?.value`)) ===
-      `${base}/data`
+      '{{base}}/data'
   )
   check('starts clean', !(await evaluate(`!!document.querySelector('[data-role="dirty"]')`)))
 
@@ -291,8 +349,39 @@ try {
   await clickSend()
   await waitFor(async () => (await snap()).body.includes('x-smoke'), 5000, 'the echoed header')
   const withRows = echo((await snap()).body)
-  check('sends the query parameter', withRows?.url === '/data?smoke=1', withRows?.url ?? 'none')
-  check('sends the header', withRows?.headers?.['x-smoke'] === 'yes', withRows?.headers?.['x-smoke'] ?? 'none')
+  check('sends the added query parameter', withRows?.url?.includes('smoke=1'), withRows?.url ?? 'none')
+  check('sends the added header', withRows?.headers?.['x-smoke'] === 'yes', withRows?.headers?.['x-smoke'] ?? 'none')
+  check(
+    'resolves an environment variable',
+    withRows?.url?.includes('q=environment-token'),
+    withRows?.url ?? 'none'
+  )
+  check(
+    'resolves a collection-only variable',
+    withRows?.headers?.['x-only'] === 'collection-only',
+    withRows?.headers?.['x-only'] ?? 'none'
+  )
+
+  console.log('--- 2b. environment precedence')
+  await evaluate(setSelect('Environment', ''))
+  await wait(600)
+  await clickSend()
+  await waitFor(
+    async () => (await snap()).body.includes('q=collection-token'),
+    5000,
+    'the collection fallback'
+  )
+  check('collection value applies with no environment', true)
+
+  await evaluate(setSelect('Environment', 'demo/environments/dev.yaml'))
+  await wait(600)
+  await clickSend()
+  await waitFor(
+    async () => (await snap()).body.includes('q=environment-token'),
+    5000,
+    'the environment override'
+  )
+  check('environment overrides the collection', true)
 
   console.log('--- 3. a form body reaches the server')
   await evaluate(clickTab('Body'))
@@ -306,6 +395,28 @@ try {
   const posted = echo((await snap()).body)
   check('sends the method', posted?.method === 'POST', posted?.method ?? 'none')
   check('sends the form body', posted?.body === 'a=1', posted?.body ?? 'none')
+
+  console.log('--- 3b. a JSON body typed into CodeMirror')
+  // A plain value setter cannot reach CodeMirror, so type through the DevTools input domain
+  // after focusing the editor. This is the one path the smoke test cannot drive otherwise.
+  await evaluate(setSelect('Body mode', 'json'))
+  await wait(200)
+  await evaluate(`document.querySelector('[data-role="request"] .cm-content')?.focus()`)
+  await cdp('Input.insertText', { text: '{"code":"mirror"}' })
+  await wait(300)
+  await clickSend()
+  await waitFor(async () => (await snap()).body.includes('mirror'), 5000, 'the JSON body')
+  const jsonPosted = echo((await snap()).body)
+  check(
+    'sends the JSON body from the editor',
+    jsonPosted?.body === '{"code":"mirror"}',
+    jsonPosted?.body ?? 'none'
+  )
+  check(
+    'sets the JSON content type',
+    (jsonPosted?.headers?.['content-type'] ?? '').startsWith('application/json'),
+    jsonPosted?.headers?.['content-type'] ?? 'none'
+  )
 
   console.log('--- 4. response viewer')
   await evaluate(clickResponseTab('Body'))
@@ -350,16 +461,20 @@ try {
 
   console.log('--- 7. cancel an in-flight request')
   await waitFor(async () => (await snap()).sendLabel === 'Send', 3000, 'the idle send button')
+  slowStarted = false
   await evaluate(setUrl(`${base}/slow`))
   await clickSend()
   await waitFor(async () => (await snap()).cancelVisible, 3000, 'the cancel button')
+  // Only cancel once the request has genuinely reached the server, so the core has it
+  // registered. This is what a person does anyway: see it hanging, then click.
+  await waitFor(() => slowStarted, 5000, 'the slow request to reach the server')
   const during = await snap()
   check('reports the request in flight', during.sendLabel === 'Sending…', during.sendLabel ?? 'none')
   check('offers cancellation', during.cancelVisible)
   await evaluate(
     `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Cancel').click()`
   )
-  await waitFor(async () => (await snap()).cancelled !== null, 3000, 'the cancelled state')
+  await waitFor(async () => (await snap()).cancelled !== null, 6000, 'the cancelled state')
   const after = await snap()
   check('renders a neutral cancelled state', after.cancelled === 'Request cancelled.', after.cancelled ?? 'none')
   check('does not render cancellation as an error', after.error === null, after.error ?? '')
@@ -382,13 +497,40 @@ try {
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)
 } finally {
   socket?.close()
-  app.kill()
+  await stopApp()
+  server.closeAllConnections?.()
   server.close()
   rmSync(workspaceDir, { recursive: true, force: true })
+  rmSync(userDataDir, { recursive: true, force: true })
 }
 
 console.log(failures === 0 ? '\nAll smoke checks passed.' : `\n${failures} smoke check(s) failed.`)
 process.exit(failures === 0 ? 0 : 1)
+
+/** Signals the whole process group; SIGKILL after a grace period so nothing survives. */
+function signalGroup(signal) {
+  if (process.platform === 'win32') {
+    app.kill(signal)
+    return
+  }
+  try {
+    process.kill(-app.pid, signal)
+  } catch {
+    // The group is already gone.
+  }
+}
+
+/** Terminates the app's process group, escalating to SIGKILL if it does not exit promptly. */
+async function stopApp() {
+  if (!app.pid || app.exitCode !== null || app.signalCode !== null) {
+    return
+  }
+  const exited = new Promise((resolve) => app.once('exit', resolve))
+  signalGroup('SIGTERM')
+  const force = setTimeout(() => signalGroup('SIGKILL'), 3000)
+  await exited
+  clearTimeout(force)
+}
 
 async function findPage() {
   for (let attempt = 0; attempt < 60; attempt++) {

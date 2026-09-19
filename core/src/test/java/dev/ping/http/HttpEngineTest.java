@@ -15,6 +15,8 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -290,6 +292,88 @@ class HttpEngineTest {
 
         assertEquals(RpcException.REQUEST_FAILED, thrown.code());
         assertEquals("Request timed out", thrown.getMessage());
+    }
+
+    @Test
+    void substitutesVariablesAcrossTheRequest() throws Exception {
+        AtomicReference<String> path = new AtomicReference<>();
+        AtomicReference<String> query = new AtomicReference<>();
+        AtomicReference<String> header = new AtomicReference<>();
+        AtomicReference<String> body = new AtomicReference<>();
+
+        server.createContext("/v", exchange -> {
+            try (exchange) {
+                path.set(exchange.getRequestURI().getPath());
+                query.set(exchange.getRequestURI().getRawQuery());
+                header.set(exchange.getRequestHeaders().getFirst("X-Token"));
+                body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                exchange.sendResponseHeaders(200, -1);
+            }
+        });
+
+        RequestSpec spec = new RequestSpec.Builder("{{base}}/v")
+                .query("q", "{{value}}")
+                .header("X-Token", "{{token}}")
+                .jsonBody("{\"who\":\"{{who}}\"}")
+                .build();
+        Map<String, String> variables = Map.of(
+                "base", baseUrl,
+                "value", "a b",
+                "token", "secret",
+                "who", "ping");
+
+        engine.send(spec, variables);
+
+        assertEquals("/v", path.get());
+        assertEquals("q=a+b", query.get(), "the value is substituted before it is url-encoded");
+        assertEquals("secret", header.get());
+        assertEquals("{\"who\":\"ping\"}", body.get());
+    }
+
+    @Test
+    void leavesUnknownPlaceholdersIntact() {
+        assertEquals("{{missing}}", HttpEngine.interpolate("{{missing}}", Map.of("present", "x")));
+        assertEquals("x/{{missing}}",
+                HttpEngine.interpolate("{{present}}/{{missing}}", Map.of("present", "x")));
+    }
+
+    @Test
+    void framesMultipartFieldsWithABoundary() throws Exception {
+        AtomicReference<String> contentType = new AtomicReference<>();
+        AtomicReference<String> contentLength = new AtomicReference<>();
+        AtomicReference<byte[]> received = new AtomicReference<>();
+
+        server.createContext("/upload", exchange -> {
+            try (exchange) {
+                contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
+                contentLength.set(exchange.getRequestHeaders().getFirst("Content-Length"));
+                received.set(exchange.getRequestBody().readAllBytes());
+                exchange.sendResponseHeaders(204, -1);
+            }
+        });
+
+        engine.send(new RequestSpec.Builder(baseUrl + "/upload")
+                .method("POST")
+                .multipartBody(List.of(
+                        new RequestSpec.Param("a", "1", true),
+                        new RequestSpec.Param("skip", "x", false),
+                        new RequestSpec.Param("b", "two words", true)))
+                .build());
+
+        String header = contentType.get();
+        assertTrue(header != null && header.startsWith("multipart/form-data; boundary="),
+                "a boundary is declared: " + header);
+        String boundary = header.substring("multipart/form-data; boundary=".length());
+
+        String payload = new String(received.get(), StandardCharsets.UTF_8);
+        assertTrue(payload.startsWith("--" + boundary + "\r\n"), payload);
+        assertTrue(payload.contains("Content-Disposition: form-data; name=\"a\"\r\n\r\n1\r\n"), payload);
+        assertTrue(payload.contains("name=\"b\"\r\n\r\ntwo words\r\n"), payload);
+        assertFalse(payload.contains("skip"), "disabled fields must not be sent: " + payload);
+        assertTrue(payload.endsWith("--" + boundary + "--\r\n"), "closing delimiter: " + payload);
+
+        // The framing has to be fully known up front for the length to be fixed rather than chunked.
+        assertEquals(String.valueOf(received.get().length), contentLength.get());
     }
 
     @Test

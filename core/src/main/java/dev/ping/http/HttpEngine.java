@@ -33,6 +33,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -54,17 +56,38 @@ public final class HttpEngine {
     private static final List<String> RESTRICTED_HEADERS =
             List.of("connection", "content-length", "expect", "host", "upgrade");
 
+    /** {@code {{ name }}}, tolerating whitespace inside the braces. */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*\\}\\}");
+
     private final Map<String, Exchange> inFlight = new ConcurrentHashMap<>();
 
     /**
      * An in-flight request and whether we asked it to stop.
+     *
+     * <p>Registered before dispatch and filled in afterwards: the renderer shows Cancel as
+     * soon as it sends, so a cancel can arrive while the request is still being handed to
+     * the client. The intent is applied to the future whenever it turns up.
      *
      * <p>The intent is tracked explicitly because the JDK does not report it reliably: a
      * cancelled exchange may surface as {@code CancellationException} or as a wrapped I/O
      * failure depending on how far it had progressed. Only the caller knows the difference
      * between "the network broke" and "the user pressed stop".
      */
-    private record Exchange(CompletableFuture<?> future, AtomicBoolean cancelled) {
+    private static final class Exchange {
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+        private volatile CompletableFuture<?> future;
+
+        AtomicBoolean cancelled() {
+            return cancelled;
+        }
+
+        CompletableFuture<?> future() {
+            return future;
+        }
+
+        void future(CompletableFuture<?> value) {
+            this.future = value;
+        }
     }
 
     /** Built per request: redirect policy and TLS trust are per-request settings. */
@@ -92,24 +115,42 @@ public final class HttpEngine {
         };
     }
 
+    /** Convenience for callers with no variables: tests, and the CLI before phase 7 lands. */
     public ResponseData send(RequestSpec spec) {
-        URI uri = buildUri(spec);
-        HttpRequest request = buildRequest(spec, uri);
+        return send(spec, Map.of());
+    }
+
+    public ResponseData send(RequestSpec spec, Map<String, String> variables) {
         String requestId = spec.requestId() == null ? UUID.randomUUID().toString() : spec.requestId();
 
-        // Resolved before dispatch so the cost is attributable; the client's own lookup then
-        // hits the JDK cache. Failure is not fatal: report the timing as unknown, not zero.
-        Long dnsMs = measureDns(uri.getHost());
-
-        HttpClient client = clientFor(spec);
-        long startedAt = System.nanoTime();
-
-        CompletableFuture<HttpResponse<InputStream>> future =
-                client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
-        AtomicBoolean cancelled = new AtomicBoolean();
-        inFlight.put(requestId, new Exchange(future, cancelled));
+        // Register before doing any work at all. The renderer offers Cancel the moment it
+        // sends, so the intent has to be recorded before the request can be built, let alone
+        // dispatched; otherwise an early Cancel is a no-op and the request runs to completion.
+        Exchange exchange = new Exchange();
+        inFlight.put(requestId, exchange);
 
         try {
+            if (exchange.cancelled().get()) {
+                throw cancelledException();
+            }
+
+            URI uri = buildUri(spec, variables);
+            HttpRequest request = buildRequest(spec, uri, variables);
+
+            // Resolved before dispatch so the cost is attributable; the client's own lookup
+            // then hits the JDK cache. Failure is not fatal: report the timing as unknown.
+            Long dnsMs = measureDns(uri.getHost());
+
+            HttpClient client = clientFor(spec);
+            long startedAt = System.nanoTime();
+
+            CompletableFuture<HttpResponse<InputStream>> future =
+                    client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
+            exchange.future(future);
+            if (exchange.cancelled().get()) {
+                future.cancel(true);
+            }
+
             HttpResponse<InputStream> response = future.join();
             long ttfbMs = millisSince(startedAt);
 
@@ -122,13 +163,13 @@ public final class HttpEngine {
         } catch (CancellationException e) {
             throw cancelledException();
         } catch (CompletionException e) {
-            if (cancelled.get()) {
+            if (exchange.cancelled().get()) {
                 throw cancelledException();
             }
             Throwable cause = e.getCause() == null ? e : e.getCause();
             throw new RpcException(RpcException.REQUEST_FAILED, describe(cause), cause);
         } catch (IOException e) {
-            if (cancelled.get()) {
+            if (exchange.cancelled().get()) {
                 throw cancelledException();
             }
             throw new RpcException(RpcException.REQUEST_FAILED, describe(e), e);
@@ -144,7 +185,11 @@ public final class HttpEngine {
             return false;
         }
         exchange.cancelled().set(true);
-        exchange.future().cancel(true);
+        CompletableFuture<?> future = exchange.future();
+        if (future != null) {
+            // Null when dispatch has not returned yet; send() applies the intent once it does.
+            future.cancel(true);
+        }
         return true;
     }
 
@@ -154,13 +199,13 @@ public final class HttpEngine {
 
     // --- request construction ------------------------------------------------------------
 
-    private static URI buildUri(RequestSpec spec) {
+    private static URI buildUri(RequestSpec spec, Map<String, String> variables) {
         if (spec.url() == null || spec.url().isBlank()) {
             throw RpcException.invalidParams("A url is required");
         }
 
-        String url = spec.url().trim();
-        String encodedQuery = encodeQuery(spec.query());
+        String url = interpolate(spec.url().trim(), variables);
+        String encodedQuery = encodeQuery(spec.query(), variables);
         if (!encodedQuery.isEmpty()) {
             url += (url.contains("?") ? "&" : "?") + encodedQuery;
         }
@@ -177,7 +222,7 @@ public final class HttpEngine {
         return uri;
     }
 
-    private static String encodeQuery(List<RequestSpec.Param> query) {
+    private static String encodeQuery(List<RequestSpec.Param> query, Map<String, String> variables) {
         if (query == null) {
             return "";
         }
@@ -189,7 +234,9 @@ public final class HttpEngine {
             if (!encoded.isEmpty()) {
                 encoded.append('&');
             }
-            encoded.append(urlEncode(param.name())).append('=').append(urlEncode(param.value()));
+            encoded.append(urlEncode(interpolate(param.name(), variables)))
+                    .append('=')
+                    .append(urlEncode(interpolate(param.value(), variables)));
         }
         return encoded.toString();
     }
@@ -198,11 +245,11 @@ public final class HttpEngine {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 
-    private HttpRequest buildRequest(RequestSpec spec, URI uri) {
+    private HttpRequest buildRequest(RequestSpec spec, URI uri, Map<String, String> variables) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofMillis(spec.timeoutOrDefault()));
 
-        BodyPayload body = buildBody(spec.body());
+        BodyPayload body = buildBody(spec.body(), variables);
         builder.method(spec.methodOrDefault(), body.publisher());
 
         boolean contentTypeSet = false;
@@ -211,12 +258,12 @@ public final class HttpEngine {
                 if (!header.isEnabled() || header.name() == null || header.name().isBlank()) {
                     continue;
                 }
-                String name = header.name().trim();
+                String name = interpolate(header.name().trim(), variables);
                 if (RESTRICTED_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
                     // The JDK owns these; setting one throws IllegalArgumentException.
                     continue;
                 }
-                builder.header(name, header.value() == null ? "" : header.value());
+                builder.header(name, interpolate(header.value(), variables));
                 contentTypeSet |= name.equalsIgnoreCase("content-type");
             }
         }
@@ -231,23 +278,23 @@ public final class HttpEngine {
     private record BodyPayload(HttpRequest.BodyPublisher publisher, String contentType) {
     }
 
-    private static BodyPayload buildBody(RequestSpec.Body body) {
+    private static BodyPayload buildBody(RequestSpec.Body body, Map<String, String> variables) {
         if (body == null || body.type() == null || body.type().equalsIgnoreCase("none")) {
             return new BodyPayload(HttpRequest.BodyPublishers.noBody(), null);
         }
 
-        String explicit = body.contentType();
+        String explicit = interpolate(body.contentType(), variables);
         return switch (body.type().toLowerCase(Locale.ROOT)) {
             case "json" -> new BodyPayload(
-                    ofString(body.content()),
+                    ofString(interpolate(body.content(), variables)),
                     explicit == null ? "application/json" : explicit);
             case "raw" -> new BodyPayload(
-                    ofString(body.content()),
+                    ofString(interpolate(body.content(), variables)),
                     explicit == null ? "text/plain" : explicit);
             case "form" -> new BodyPayload(
-                    ofString(encodeQuery(body.fields())),
+                    ofString(encodeQuery(body.fields(), variables)),
                     explicit == null ? "application/x-www-form-urlencoded" : explicit);
-            case "multipart" -> multipart(body.fields());
+            case "multipart" -> multipart(body.fields(), variables);
             default -> throw RpcException.invalidParams("Unknown body type: " + body.type());
         };
     }
@@ -257,7 +304,7 @@ public final class HttpEngine {
                 content == null ? "" : content, StandardCharsets.UTF_8);
     }
 
-    private static BodyPayload multipart(List<RequestSpec.Param> fields) {
+    private static BodyPayload multipart(List<RequestSpec.Param> fields, Map<String, String> variables) {
         String boundary = "PingBoundary" + UUID.randomUUID().toString().replace("-", "");
         StringBuilder payload = new StringBuilder();
 
@@ -268,8 +315,8 @@ public final class HttpEngine {
                 }
                 payload.append("--").append(boundary).append("\r\n")
                         .append("Content-Disposition: form-data; name=\"")
-                        .append(field.name()).append("\"\r\n\r\n")
-                        .append(field.value() == null ? "" : field.value()).append("\r\n");
+                        .append(interpolate(field.name(), variables)).append("\"\r\n\r\n")
+                        .append(interpolate(field.value(), variables)).append("\r\n");
             }
         }
         payload.append("--").append(boundary).append("--\r\n");
@@ -395,6 +442,27 @@ public final class HttpEngine {
 
     private static long millisSince(long startedAtNanos) {
         return (System.nanoTime() - startedAtNanos) / 1_000_000;
+    }
+
+    /**
+     * Substitutes {@code {{name}}} from the resolved map.
+     *
+     * <p>An unknown name is left exactly as written, so a half-configured request shows
+     * what is missing on the wire rather than silently sending an empty value.
+     */
+    static String interpolate(String value, Map<String, String> variables) {
+        if (value == null || variables == null || variables.isEmpty() || value.indexOf("{{") < 0) {
+            return value;
+        }
+        Matcher matcher = PLACEHOLDER.matcher(value);
+        StringBuilder resolved = new StringBuilder();
+        while (matcher.find()) {
+            String replacement = variables.get(matcher.group(1).trim());
+            matcher.appendReplacement(resolved,
+                    Matcher.quoteReplacement(replacement == null ? matcher.group(0) : replacement));
+        }
+        matcher.appendTail(resolved);
+        return resolved.toString();
     }
 
     /**

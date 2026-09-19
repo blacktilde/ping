@@ -9,6 +9,7 @@ import dev.ping.http.RequestSpec;
 import dev.ping.rpc.RpcException;
 import dev.ping.rpc.RpcServer;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Exposes {@link HttpEngine} over RPC. */
@@ -27,7 +28,7 @@ public final class HttpMethods {
     public static void registerOn(RpcServer server) {
         HttpEngine engine = new HttpEngine();
 
-        server.register("http.send", params -> engine.send(parse(params)));
+        server.register("http.send", params -> engine.send(parse(params), variables(params)));
         server.register("http.cancel", params -> {
             String requestId = requireRequestId(params);
             return Map.of("cancelled", engine.cancel(requestId));
@@ -46,6 +47,17 @@ public final class HttpMethods {
         } catch (IllegalArgumentException e) {
             throw RpcException.invalidParams("Malformed request: " + e.getMessage());
         }
+    }
+
+    /** Resolved variable values, if any. The engine substitutes them into the request. */
+    private static Map<String, String> variables(JsonNode params) {
+        JsonNode node = params == null ? null : params.get("variables");
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        Map<String, String> variables = new LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> variables.put(entry.getKey(), entry.getValue().asText("")));
+        return variables;
     }
 
     private static String requireRequestId(JsonNode params) {

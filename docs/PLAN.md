@@ -157,7 +157,26 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   per-request settings round-trip through files and reach `http.send` but have no controls
   yet. None of these block the MVP; the conflict case is the one worth revisiting when the
   store is next touched.
-- [ ] **7. Variables and environments.** Precedence rules. Must land before auth, which depends on it.
+- [x] **7. Variables and environments.** Precedence rules. Must land before auth, which depends on it.
+
+  **Outcome.** Variables come in three scopes and one ordering, both in a single core class
+  (`Variables`): **runtime > environment > collection**. Collection variables live in
+  `collection.yaml`; each environment is `environments/<name>.yaml`; runtime is in-memory
+  and not persisted, which is the slot phase 8's tokens will fill. `vars.resolve` flattens
+  the scopes, `vars.catalog`/`vars.environment`/`vars.save*` read and write them, and
+  `store.scan` hides both reserved names from the sidebar.
+
+  **Interpolation is in the core**, as planned, so the CLI will behave identically: `{{name}}`
+  in the url, query names and values, header names and values, and body content, content
+  type and fields. `http.send` gained an optional `variables` map; an unknown name is left
+  exactly as written so a half-configured request shows what is missing on the wire. The
+  renderer picks an environment, edits both scopes in a variables panel, resolves once when
+  the collection, environment or variables change, and attaches the map to each send.
+
+  **Native-image held:** `make agent` added the collection and environment records and
+  `make native-test` passed all 52 tests. `make smoke` proves precedence end to end — an
+  environment value overrides a collection one on the wire, and a collection-only value
+  survives when the environment is cleared.
 - [ ] **8. Auth.** Basic, Bearer, API key, then OAuth2 client credentials, then auth code
   with PKCE — loopback listener in the core, browser via `shell.openExternal`, tokens in
   `safeStorage`.

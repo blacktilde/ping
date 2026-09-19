@@ -199,6 +199,25 @@ class HttpMethodsTest {
     }
 
     @Test
+    void substitutesVariablesSentWithTheRequest() throws Exception {
+        AtomicReference<String> query = new AtomicReference<>();
+        server.createContext("/vars", exchange -> {
+            try (exchange) {
+                query.set(exchange.getRequestURI().getRawQuery());
+                exchange.sendResponseHeaders(200, -1);
+            }
+        });
+
+        List<JsonNode> out = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{\
+                "url":"%s/vars","query":[{"name":"q","value":"{{token}}"}],\
+                "variables":{"token":"resolved"}}}""".formatted(baseUrl));
+
+        assertEquals("q=resolved", query.get());
+        assertTrue(out.get(0).has("result"));
+    }
+
+    @Test
     void cancelRequiresARequestId() throws Exception {
         List<JsonNode> out = exchange("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"http.cancel\",\"params\":{}}");
 

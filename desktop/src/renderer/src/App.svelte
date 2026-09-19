@@ -16,10 +16,19 @@
     writeRequest,
     type StoreNode
   } from './lib/store'
+  import {
+    addEnvironment,
+    clearVariables,
+    loadCollection,
+    loadEnvironment,
+    persistVariables,
+    variables
+  } from './lib/vars.svelte'
   import KeyValueEditor from './components/KeyValueEditor.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
   import ResponsePane from './components/ResponsePane.svelte'
   import Sidebar from './components/Sidebar.svelte'
+  import VariablesPanel from './components/VariablesPanel.svelte'
 
   interface CoreInfo {
     coreVersion: string
@@ -49,10 +58,13 @@
   let activePath = $state<string | null>(null)
   let savedKey = $state<string | null>(null)
   let storeError = $state('')
+  let showVariables = $state(false)
 
   const queryCount = $derived(enabledCount(draft.query))
   const headerCount = $derived(enabledCount(draft.headers))
   const dirty = $derived(savedKey !== null && draftKey(draft) !== savedKey)
+  // A collection is always the first path segment; requests can nest below it.
+  const activeCollection = $derived(activePath ? activePath.split('/')[0] : '')
 
   // Proves the whole chain on startup: renderer, preload, main, core process.
   $effect(() => {
@@ -65,6 +77,16 @@
   $effect(() => {
     void refresh({ autoOpen: true })
     return onStoreChanged(() => void refresh())
+  })
+
+  // Variables follow the collection of the open request, not the workspace.
+  $effect(() => {
+    const collection = activeCollection
+    if (!collection) {
+      clearVariables()
+      return
+    }
+    void loadCollection(collection).catch((cause: Error) => (storeError = cause.message))
   })
 
   async function refresh(options: { autoOpen?: boolean } = {}): Promise<void> {
@@ -160,6 +182,38 @@
     }
   }
 
+  async function onEnvironmentChange(path: string): Promise<void> {
+    try {
+      await loadEnvironment(path)
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function onSaveVariables(): Promise<void> {
+    try {
+      await persistVariables()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function onAddEnvironment(): Promise<void> {
+    const name = prompt('Environment name')
+    if (!name || !variables.collection) {
+      return
+    }
+    try {
+      await addEnvironment(name)
+      showVariables = true
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
   function onKeydown(event: KeyboardEvent): void {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
       event.preventDefault()
@@ -200,7 +254,12 @@
     // The pane is aria-busy so the staleness is announced rather than hidden.
 
     try {
-      response = await sendRequest(toRequestSpec(draft, requestId))
+      const spec = toRequestSpec(draft, requestId)
+      if (Object.keys(variables.resolved).length > 0) {
+        // A spread unwraps the reactive proxy, which cannot cross the context bridge.
+        spec.variables = { ...variables.resolved }
+      }
+      response = await sendRequest(spec)
     } catch (cause) {
       response = null
       if (cause instanceof CoreError && cause.code === RpcError.requestCancelled) {
@@ -278,6 +337,27 @@
           class="h-2.5 w-2.5 shrink-0 rounded-full bg-accent"
         ></span>
       {/if}
+      <select
+        value={variables.environment}
+        onchange={(event) => void onEnvironmentChange(event.currentTarget.value)}
+        aria-label="Environment"
+        class="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-neutral-300
+               outline-none transition focus:border-accent"
+      >
+        <option value="">No environment</option>
+        {#each variables.environments as environment (environment.path)}
+          <option value={environment.path}>{environment.name}</option>
+        {/each}
+      </select>
+      <button
+        type="button"
+        onclick={() => (showVariables = !showVariables)}
+        aria-pressed={showVariables}
+        class="rounded-lg border border-line px-4 py-2 text-sm text-neutral-300 transition
+               hover:border-accent"
+      >
+        Variables
+      </button>
       <button
         data-role="save"
         type="button"
@@ -419,4 +499,12 @@
       <ResponsePane {response} {inFlight} />
     </div>
   </main>
+
+  {#if showVariables}
+    <VariablesPanel
+      onClose={() => (showVariables = false)}
+      onSave={onSaveVariables}
+      onAddEnvironment={onAddEnvironment}
+    />
+  {/if}
 </div>

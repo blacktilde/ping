@@ -135,6 +135,12 @@ public record RequestSpec(
             return this;
         }
 
+        /** Lets tests exercise the multipart framing directly, without going through Jackson. */
+        public Builder multipartBody(List<Param> fields) {
+            this.body = new Body("multipart", null, null, fields);
+            return this;
+        }
+
         public Builder timeoutMs(int value) {
             this.timeoutMs = value;
             return this;

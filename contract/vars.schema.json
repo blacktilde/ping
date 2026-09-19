@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/vars.schema.json",
+  "title": "Ping core RPC — variables and environments",
+  "$defs": {
+    "variable": {
+      "type": "object",
+      "description": "A variable row. Disabled or unnamed rows are ignored.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "type": "string" },
+        "enabled": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+
+    "environmentRef": {
+      "type": "object",
+      "description": "An environment as the picker needs it: what to show and the path to load.",
+      "required": ["name", "path"],
+      "properties": {
+        "name": { "type": "string" },
+        "path": { "type": "string", "description": "Relative to the workspace root." }
+      },
+      "additionalProperties": false
+    },
+
+    "collectionDoc": {
+      "type": "object",
+      "description": "Contents of a collection's collection.yaml.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } }
+      },
+      "additionalProperties": false
+    },
+
+    "environmentDoc": {
+      "type": "object",
+      "description": "One environment file, overriding collection variables of the same name.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } }
+      },
+      "additionalProperties": false
+    },
+
+    "vars.catalog.params": {
+      "type": "object",
+      "required": ["root", "collection"],
+      "properties": {
+        "root": { "type": "string" },
+        "collection": { "type": "string", "description": "Relative path of a collection folder." }
+      },
+      "additionalProperties": false
+    },
+    "vars.catalog.result": {
+      "type": "object",
+      "required": ["name", "variables", "environments"],
+      "properties": {
+        "name": { "type": "string" },
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } },
+        "environments": { "type": "array", "items": { "$ref": "#/$defs/environmentRef" } }
+      },
+      "additionalProperties": false
+    },
+
+    "vars.environment.params": {
+      "type": "object",
+      "required": ["root", "path"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "vars.environment.result": { "$ref": "#/$defs/environmentDoc" },
+
+    "vars.saveCollection.params": {
+      "type": "object",
+      "required": ["root", "collection"],
+      "properties": {
+        "root": { "type": "string" },
+        "collection": { "type": "string" },
+        "name": { "type": "string", "description": "Omitted keeps the collection's current name." },
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } }
+      },
+      "additionalProperties": false
+    },
+    "vars.saveCollection.result": { "type": "object", "additionalProperties": false },
+
+    "vars.saveEnvironment.params": {
+      "type": "object",
+      "required": ["root", "name"],
+      "properties": {
+        "root": { "type": "string" },
+        "collection": {
+          "type": "string",
+          "description": "Required only when path is omitted; where a new file is derived."
+        },
+        "path": {
+          "type": "string",
+          "description": "Existing environment file to overwrite. Omitted derives <collection>/environments/<slug>.yaml."
+        },
+        "name": { "type": "string" },
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } }
+      },
+      "additionalProperties": false
+    },
+    "vars.saveEnvironment.result": {
+      "type": "object",
+      "required": ["path"],
+      "properties": { "path": { "type": "string" } },
+      "additionalProperties": false
+    },
+
+    "vars.resolve.params": {
+      "type": "object",
+      "required": ["root", "collection"],
+      "properties": {
+        "root": { "type": "string" },
+        "collection": { "type": "string" },
+        "environment": {
+          "type": "string",
+          "description": "Relative path of an environment file. Omitted means collection variables only."
+        }
+      },
+      "additionalProperties": false
+    },
+    "vars.resolve.result": {
+      "type": "object",
+      "required": ["variables"],
+      "properties": {
+        "variables": {
+          "type": "object",
+          "description": "Flattened map. Precedence, highest first: runtime, environment, collection.",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

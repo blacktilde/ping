@@ -29,8 +29,18 @@ import java.util.stream.Stream;
  *
  * <p>Every path is resolved against the workspace root and rejected if it escapes, so a
  * renderer bug cannot reach outside the folder the user opened.
+ *
+ * <p>Two names inside a collection are reserved and never appear in the sidebar:
+ * {@code collection.yaml} holds the collection's own metadata, and {@code environments/}
+ * holds one file per environment.
  */
 public final class YamlStore {
+
+    /** Collection metadata: name and collection-level variables. */
+    public static final String COLLECTION_FILE = "collection.yaml";
+
+    /** Folder of environment files, each overriding collection variables of the same name. */
+    public static final String ENVIRONMENTS_DIR = "environments";
 
     /**
      * Loads as well as saves, so the writer's output is exactly what the reader expects.
@@ -82,20 +92,9 @@ public final class YamlStore {
         }
     }
 
-    /** Writes through a temp file and a rename, so a crash never leaves a half-written request. */
+    /** Writes through a temp file and a rename, so a crash never leaves a half-written file. */
     public void write(Path root, String relativePath, StoredRequest request) {
-        Path base = normalize(root);
-        Path file = resolve(base, relativePath);
-        try {
-            Files.createDirectories(file.getParent());
-            String yaml = YAML.writeValueAsString(request);
-            Path temp = Files.createTempFile(file.getParent(), ".ping-", ".yaml");
-            Files.writeString(temp, yaml, StandardCharsets.UTF_8);
-            move(temp, file);
-        } catch (IOException e) {
-            throw RpcException.storeFailed(
-                    "Could not write " + relativePath + ": " + e.getMessage(), e);
-        }
+        writeValue(resolve(root, relativePath), request);
     }
 
     /**
@@ -121,6 +120,102 @@ public final class YamlStore {
         return relative(base, file);
     }
 
+    // --- collection metadata and environments ---------------------------------------------
+
+    /** The collection's name and variables, defaulting to the folder name with none. */
+    public CollectionDoc collectionDoc(Path root, String collectionPath) {
+        Path base = normalize(root);
+        Path directory = resolve(base, collectionPath);
+        if (!Files.isDirectory(directory)) {
+            throw RpcException.storeFailed("No such collection: " + collectionPath);
+        }
+
+        Path file = directory.resolve(COLLECTION_FILE);
+        if (!Files.isRegularFile(file)) {
+            return new CollectionDoc(directory.getFileName().toString(), List.of());
+        }
+        try {
+            CollectionDoc doc = YAML.readValue(file.toFile(), CollectionDoc.class);
+            String name = doc.name() == null || doc.name().isBlank()
+                    ? directory.getFileName().toString()
+                    : doc.name();
+            return new CollectionDoc(name, doc.variables());
+        } catch (IOException e) {
+            throw RpcException.storeFailed(
+                    "Could not parse " + relative(base, file) + ": " + e.getMessage(), e);
+        }
+    }
+
+    public void saveCollection(Path root, String collectionPath, CollectionDoc doc) {
+        Path base = normalize(root);
+        Path directory = resolve(base, collectionPath);
+        if (!Files.isDirectory(directory)) {
+            throw RpcException.storeFailed("No such collection: " + collectionPath);
+        }
+        writeValue(directory.resolve(COLLECTION_FILE), doc);
+    }
+
+    public List<EnvironmentRef> environmentNames(Path root, String collectionPath) {
+        Path base = normalize(root);
+        Path directory = collectionPath == null || collectionPath.isBlank()
+                ? base
+                : resolve(base, collectionPath);
+        Path environments = directory.resolve(ENVIRONMENTS_DIR);
+        if (!Files.isDirectory(environments)) {
+            return List.of();
+        }
+
+        List<EnvironmentRef> refs = new ArrayList<>();
+        try (Stream<Path> entries = Files.list(environments)) {
+            entries.filter(YamlStore::isYaml)
+                    .filter(path -> !hidden(path))
+                    .sorted(byName())
+                    .forEach(path -> refs.add(new EnvironmentRef(environmentName(path), relative(base, path))));
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not read " + environments, e);
+        }
+        return refs;
+    }
+
+    public EnvironmentDoc readEnvironment(Path root, String relativePath) {
+        Path file = resolve(root, relativePath);
+        if (!Files.isRegularFile(file)) {
+            throw RpcException.storeFailed("No such environment: " + relativePath);
+        }
+        try {
+            EnvironmentDoc doc = YAML.readValue(file.toFile(), EnvironmentDoc.class);
+            String name = doc.name() == null || doc.name().isBlank()
+                    ? baseName(file)
+                    : doc.name();
+            return new EnvironmentDoc(name, doc.variables());
+        } catch (IOException e) {
+            throw RpcException.storeFailed(
+                    "Could not parse " + relativePath + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Writes an environment file. With no path it lands at
+     * {@code <collection>/environments/<slug>.yaml}, so creating one is a single call.
+     *
+     * @return the relative path of the file that was written
+     */
+    public String saveEnvironment(Path root, String collectionPath, String path, EnvironmentDoc doc) {
+        Path base = normalize(root);
+        Path file;
+        if (path == null || path.isBlank()) {
+            Path directory = resolve(base, collectionPath);
+            if (!Files.isDirectory(directory)) {
+                throw RpcException.storeFailed("No such collection: " + collectionPath);
+            }
+            file = directory.resolve(ENVIRONMENTS_DIR).resolve(slugify(doc.name()) + ".yaml");
+        } else {
+            file = resolve(base, path);
+        }
+        writeValue(file, doc);
+        return relative(base, file);
+    }
+
     // --- tree building -------------------------------------------------------------------
 
     private List<CollectionNode> children(Path root, Path directory) {
@@ -132,14 +227,14 @@ public final class YamlStore {
                 if (hidden(entry)) {
                     continue;
                 }
+                String name = entry.getFileName().toString();
                 if (Files.isDirectory(entry)) {
-                    folders.add(new CollectionNode(
-                            entry.getFileName().toString(),
-                            relative(root, entry),
-                            CollectionNode.FOLDER,
-                            null,
-                            children(root, entry)));
-                } else if (isYaml(entry)) {
+                    if (name.equals(ENVIRONMENTS_DIR)) {
+                        continue;
+                    }
+                    folders.add(new CollectionNode(name, relative(root, entry),
+                            CollectionNode.FOLDER, null, children(root, entry)));
+                } else if (isYaml(entry) && !name.equals(COLLECTION_FILE)) {
                     requests.add(requestNode(root, entry));
                 }
             }
@@ -166,6 +261,18 @@ public final class YamlStore {
         }
     }
 
+    private static String environmentName(Path file) {
+        try {
+            EnvironmentDoc doc = YAML.readValue(file.toFile(), EnvironmentDoc.class);
+            if (doc.name() != null && !doc.name().isBlank()) {
+                return doc.name();
+            }
+        } catch (Exception e) {
+            // An unreadable environment still appears, named after its file.
+        }
+        return baseName(file);
+    }
+
     // --- paths ---------------------------------------------------------------------------
 
     private static Path resolve(Path root, String relativePath) {
@@ -188,6 +295,19 @@ public final class YamlStore {
         return root.relativize(path).toString().replace('\\', '/');
     }
 
+    private static void writeValue(Path file, Object value) {
+        try {
+            Files.createDirectories(file.getParent());
+            String yaml = YAML.writeValueAsString(value);
+            Path temp = Files.createTempFile(file.getParent(), ".ping-", ".yaml");
+            Files.writeString(temp, yaml, StandardCharsets.UTF_8);
+            move(temp, file);
+        } catch (IOException e) {
+            throw RpcException.storeFailed(
+                    "Could not write " + file.getFileName() + ": " + e.getMessage(), e);
+        }
+    }
+
     private static Path unique(Path directory, String slug) {
         Path candidate = directory.resolve(slug + ".yaml");
         int suffix = 2;
@@ -203,7 +323,7 @@ public final class YamlStore {
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-+)|(-+$)", "");
-        return slug.isEmpty() ? "request" : slug;
+        return slug.isEmpty() ? "environment" : slug;
     }
 
     private static void move(Path temp, Path target) throws IOException {

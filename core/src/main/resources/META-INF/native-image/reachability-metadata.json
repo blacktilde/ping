@@ -252,6 +252,26 @@
       ]
     },
     {
+      "type": "dev.ping.store.CollectionDoc",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "variables",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "dev.ping.store.CollectionNode",
       "methods": [
         {
@@ -272,6 +292,39 @@
         },
         {
           "name": "type",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.store.EnvironmentDoc",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "variables",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.store.EnvironmentRef",
+      "methods": [
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "path",
           "parameterTypes": []
         }
       ]

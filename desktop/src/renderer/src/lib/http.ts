@@ -59,6 +59,8 @@ export interface HttpRequestSpec {
   redirects?: RedirectPolicy
   verifyTls?: boolean
   maxBodyBytes?: number
+  /** Resolved values for {{name}} placeholders; resolution precedence lives in the core. */
+  variables?: Record<string, string>
 }
 
 export interface HttpHeader {

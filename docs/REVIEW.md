@@ -25,51 +25,6 @@ numbering of the files they describe.
 > with a reason, or say the tags are not being used and they will stop being written.
 
 
-### `make smoke` is flaky and leaks processes — medium
-
-Six consecutive runs: three passed, three failed — twice `timed out waiting for the
-cancelled state`, once `renderer never appeared`. A gate that fails one run in two trains
-people to ignore it.
-
-It is not the app. Cancellation measured over stdio at the core takes 3-4 ms, identically
-for a GET, a POST whose body the server ignores, and a POST whose body it drains; in the
-UI, when it works, it settles in about 100 ms. Runs that start from a verified-clean
-process table pass.
-
-The cause is teardown. After every run an Electron tree and/or a `dev.ping.Main` JVM are
-still alive: `app.kill()` followed immediately by `process.exit()` does not reap them, and
-the next run collides with the survivors. Compounding it, the app launches against the
-real user profile (`--user-data-dir` defaults to `~/.config/ping-desktop`), so a leaked
-instance holds the Chromium profile lock — which is exactly what `renderer never appeared`
-looks like. It also means running the test writes to the user's actual app state.
-
-Fix: spawn detached and kill the process group, await `exit` with a SIGKILL fallback
-before the harness exits, and give each run a temporary `--user-data-dir`.
-
-Inherited from phase 3, when the harness was written, but phase 4 promoted it to the CI
-gate.
-
-Fold into: phase 7. **Carried from phases 5 and 6.**
-
-### Multipart and the CodeMirror body are untested — medium
-
-`make smoke` drives query parameters, headers and a form body. It does not drive the JSON
-body through CodeMirror. Multipart is untested in both the smoke test and Java —
-`grep -c multipart` over the Java test sources returns zero.
-
-Both were verified by hand and are correct today: a JSON body arrives as
-`content-type: application/json` with its content intact, and a multipart body carries a
-matching boundary, CRLF framing, a closing delimiter, a `Content-Length`, and excludes
-disabled fields. So this is missing cover, not a defect — but a hand-rolled multipart
-builder and the one component that cannot be driven by a plain value setter are precisely
-what regresses without anyone noticing.
-
-Multipart deserves a Java test, where a delimiter or CRLF slip would live. CodeMirror
-cannot be reached by the smoke test's existing helpers; it needs CDP `Input.insertText`
-after focusing `.cm-content`.
-
-Fold into: phase 7. **Carried from phases 5 and 6.**
-
 ### The tab pattern is half-implemented, and now duplicated — low
 
 The request panel has `role="tablist"`, `role="tab"` and `aria-selected`, but no
@@ -189,7 +144,86 @@ above requires anyway, removes this too.
 
 Fold into: phase 7.
 
+### Raw Java exception text reaches the UI again — medium
+
+A header name or value that the JDK rejects throws `IllegalArgumentException` out of
+`buildRequest`, before any of the transport handling. `RpcServer` catches it as an
+unexpected failure and sends `e.toString()`, so the error banner reads:
+
+```
+java.lang.IllegalArgumentException: invalid header value: "ok
+X-Injected: yes"
+```
+
+This is the same defect closed in phase 3, reopened through a path its guard does not
+cover: `HttpEngineTest.surfacesConnectionFailuresAsRequestFailed` only asserts on transport
+failures routed through `describe()`, and this never reaches `describe()`.
+
+It is easy to hit rather than exotic. A newline pasted into a header value does it, and so
+does a variable whose value contains one — which is how a shared collection or environment
+file can produce it without anyone typing a newline at all. The upside is that the JDK
+does reject it: header injection through a variable is not possible, confirmed for both
+names and values.
+
+Two things to fix: validate header names and values before building the request and report
+`INVALID_PARAMS` with a readable message, since this is bad input rather than an internal
+fault; and widen the guard so it covers the request-building path, not only the transport
+one.
+
+Fold into: phase 8.
+
+### Multipart field names are not escaped — low
+
+`multipart()` builds each part by concatenating `name="` + the field name + `"`, with no
+escaping or validation. A field name containing a quote and CRLF breaks out of the
+`Content-Disposition` line. Observed on the wire from a field named
+`a"\r\nContent-Type: text/html\r\n\r\nINJECTED`:
+
+```
+--PingBoundary…
+Content-Disposition: form-data; name="a"
+Content-Type: text/html
+
+INJECTED"
+
+v
+```
+
+The forged headers and content land inside the part. A whole extra part cannot be forged,
+because the boundary is a fresh UUID the attacker cannot know, and the request is the
+user's own, so the impact is shaping your own outgoing body. It becomes slightly more than
+cosmetic once the name comes from `{{a variable}}` supplied by a shared collection.
+
+RFC 7578 wants the name escaped or percent-encoded; rejecting CR and LF and escaping the
+quote is enough. `HttpEngineTest.framesMultipartFieldsWithABoundary` is the natural place
+for the case.
+
+Fold into: phase 8.
+
 ## Closed
+
+### `make smoke` is stable and reaps its processes — phase 7
+
+The harness spawns Electron detached, gives it a throwaway `--user-data-dir`, and on
+teardown signals the whole process group and awaits `exit` with a SIGKILL fallback, so the
+core and helpers are reaped instead of colliding with the next run. A leftover instance
+from before the fix, holding the real profile, confirmed the leak was real.
+
+The intermittent `timed out waiting for the cancelled state` had a second cause this
+finding missed. `HttpEngine.send` registered the in-flight exchange too late — after
+`sendAsync`, and before that after building the client — so a Cancel arriving during
+dispatch was silently a no-op; registration is now the handler's first act, with the intent
+applied whenever the future appears. The harness also clicked Cancel the instant the button
+rendered, before the request had left the core, which no person can do; it now waits until
+the slow endpoint has been reached. Ten consecutive runs passed.
+
+### Multipart and the CodeMirror body are covered — phase 7
+
+`HttpEngineTest.framesMultipartFieldsWithABoundary` builds a multipart body and asserts the
+declared boundary, the CRLF framing, the closing delimiter, an exact `Content-Length`, and
+that a disabled field is absent. `make smoke` types a JSON body into CodeMirror through CDP
+`Input.insertText` after focusing `.cm-content`, then asserts the server received it with
+`application/json`. The native suite is 53 tests.
 
 ### Run the UI smoke test in CI — phase 4
 

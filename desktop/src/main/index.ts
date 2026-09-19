@@ -71,9 +71,9 @@ function isRelativePath(value: string): boolean {
 }
 
 /**
- * Store calls name a root, but the renderer does not get to choose it: the shell owns the
- * open folder. Injecting the root here means a compromised renderer cannot read or write
- * outside it, and the core checks the same boundary again.
+ * Store and variable calls name a root, but the renderer does not get to choose it: the
+ * shell owns the open folder. Injecting the root here means a compromised renderer cannot
+ * read or write outside it, and the core checks the same boundary again.
  */
 function withWorkspaceRoot(
   params: unknown,
@@ -115,7 +115,7 @@ function registerIpc(): void {
     }
 
     let args = params
-    if (method.startsWith('store.')) {
+    if (method.startsWith('store.') || method.startsWith('vars.')) {
       const current = workspace.current()
       if (!current) {
         return failure(null, 'No collection folder is open')

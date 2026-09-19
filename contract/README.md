@@ -37,6 +37,11 @@ A request without an `id` is a notification: the core runs it and answers nothin
 | `store.read`  | `{ root, path }`          | `StoredRequest`                                     |
 | `store.write` | `{ root, path, request }` | `{ path: string }`                                  |
 | `store.create`| `{ root, collection?, name }` | `{ path: string }`                              |
+| `vars.catalog`| `{ root, collection }`    | `{ name, variables, environments }`                 |
+| `vars.environment`| `{ root, path }`      | `EnvironmentDoc`                                    |
+| `vars.saveCollection`| `{ root, collection, name?, variables? }` | `{}`                     |
+| `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
+| `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
 
 `core.info.nativeImage` reports whether the running core is the GraalVM native image or
 the JVM build, so the UI can show which one is in use.
@@ -70,6 +75,20 @@ request node names come from the file's `name`, not its filename. `storedRequest
 mirror the `http.send` params (see `store.schema.json`), with `name` added and empty fields
 omitted. Writes go through a temp file and a rename, so a crash cannot leave a half-written
 request. `store.create` derives a unique filename from the request name.
+
+### vars.*
+
+Variables live in scopes and are flattened before a request is sent. Precedence, lowest to
+highest: **collection** (`collection.yaml`), **environment** (`environments/<name>.yaml`),
+**runtime**. Runtime is not persisted; it is where phase 8's tokens will shadow a file value
+without editing it.
+
+`vars.resolve` returns the flattened map, and the shell passes it to `http.send` as
+`variables`. Interpolation is `{{name}}` in the url, query names and values, header names
+and values, and body content, content type and fields. An unknown name is left exactly as
+written, so a half-configured request shows what is missing on the wire rather than silently
+sending an empty value. Substitution happens in the core, so the future CLI behaves
+identically.
 
 ### Error codes
 
