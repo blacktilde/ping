@@ -72,22 +72,24 @@ jobs:
       - run: npm ci
         working-directory: desktop
 
-      - run: npm run build
-        working-directory: desktop
-
-      # The version comes from the tag, so the installer names and the latest*.yml update
-      # metadata agree with the release the updater will compare against.
-      - name: Resolve version
-        id: version
+      # The version comes from the tag, written into package.json so installer names and the
+      # latest*.yml update metadata agree with the release the updater compares against.
+      # Done here rather than with an electron-builder CLI override: PowerShell on Windows
+      # parses `-c.key=value` differently and treats the tail as a config file path.
+      - name: Set version from the tag
         shell: bash
+        working-directory: desktop
         run: |
           tag="${{ inputs.tag }}"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          npm version "${tag#v}" --no-git-tag-version --allow-same-version
+
+      - run: npm run build
+        working-directory: desktop
 
       # Unsigned by default. A signed release supplies CSC_LINK / CSC_KEY_PASSWORD and the
       # Apple credentials; electron-builder picks them up without a config change.
       - name: Package
-        run: npx electron-builder --publish never -c.extraMetadata.version=${{ steps.version.outputs.version }}
+        run: npx electron-builder --publish never
         working-directory: desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
