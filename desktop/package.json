@@ -17,6 +17,7 @@
     "preview": "electron-vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "smoke": "node test/smoke.mjs",
+    "screenshots": "node test/screenshots.mjs",
     "package": "electron-builder",
     "package:dir": "electron-builder --dir"
   },
