@@ -4,7 +4,13 @@ import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
 import { OAuthTokenStore } from './oauth'
 import { SecretStore } from './secrets'
-import { startUpdater } from './updater'
+import {
+  checkForUpdates,
+  downloadUpdate,
+  installUpdate,
+  startUpdater,
+  updateState
+} from './updater'
 import { Workspace } from './workspace'
 
 const core = new CoreClient()
@@ -226,6 +232,21 @@ function registerIpc(): void {
     }
   })
 
+  // The updater runs in main and pushes its state; the renderer only asks for the next step.
+  ipcMain.handle('updates:state', () => updateState())
+  ipcMain.handle('updates:check', () => {
+    checkForUpdates()
+    return updateState()
+  })
+  ipcMain.handle('updates:download', () => {
+    downloadUpdate()
+    return updateState()
+  })
+  ipcMain.handle('updates:install', () => {
+    installUpdate()
+    return updateState()
+  })
+
   ipcMain.handle('secrets:list', () => secrets.names())
   ipcMain.handle('secrets:set', (_event, name: unknown, value: unknown) => {
     if (typeof name !== 'string' || typeof value !== 'string') {
@@ -336,7 +357,7 @@ app.whenReady().then(async () => {
   history.load()
   oauthTokens.load()
   createWindow()
-  startUpdater()
+  startUpdater((state) => mainWindow?.webContents.send('updates:state', state))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

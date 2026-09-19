@@ -150,7 +150,9 @@ const app = spawn(
     stdio: ['ignore', 'pipe', 'pipe'],
     // Own process group, so teardown can signal Electron, its helpers and the core at once.
     detached: true,
-    env: { ...process.env, PING_WORKSPACE: workspaceDir }
+    // The fake updater drives the same state machine without a network, so the in-app flow
+    // is covered even though a source build is not `isPackaged`.
+    env: { ...process.env, PING_WORKSPACE: workspaceDir, PING_FAKE_UPDATE: '1' }
   }
 )
 app.stderr.on('data', (chunk) => {
@@ -1074,6 +1076,63 @@ try {
     'the copy confirmation'
   )
   check('confirms the copy', true)
+
+  console.log('--- 16. in-app update flow')
+  await evaluate(pressCtrlK)
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="palette"]')`),
+    2000,
+    'the command palette'
+  )
+  await evaluate(typeInPalette('updates'))
+  const updateOption =
+    `[...document.querySelectorAll('[data-role="palette"] [role="option"]')]` +
+    `.find(o => o.textContent.includes('Check for updates'))`
+  await waitFor(async () => await evaluate(`!!${updateOption}`), 2000, 'the update command')
+  check('offers a check-for-updates command', true)
+  await evaluate(`${updateOption}?.click()`)
+
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'available'`
+      ),
+    3000,
+    'the update offer'
+  )
+  const offer = await evaluate(`document.querySelector('[data-role="update-banner"]').textContent`)
+  check('shows the offered version', offer.includes('99.0.0'), offer.trim())
+
+  await evaluate(`document.querySelector('[data-role="update-download"]').click()`)
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'downloading'`
+      ),
+    2000,
+    'the download to start'
+  )
+  check('downloads only after the user asks', true)
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'downloaded'`
+      ),
+    5000,
+    'the download to finish'
+  )
+  check('reports the update ready to install', true)
+
+  await evaluate(`document.querySelector('[data-role="update-install"]').click()`)
+  await waitFor(
+    async () =>
+      await evaluate(
+        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'installing'`
+      ),
+    3000,
+    'the install to start'
+  )
+  check('installs only after the user asks', true)
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)
