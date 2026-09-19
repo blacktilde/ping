@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -130,11 +131,34 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ping-${{ matrix.os }}
+          name: ping-dist-${{ matrix.os }}
           path: |
             desktop/dist/*.AppImage
             desktop/dist/*.deb
             desktop/dist/*.dmg
             desktop/dist/*.zip
             desktop/dist/*.exe
+            desktop/dist/*.yml
+            desktop/dist/*.blockmap
           if-no-files-found: warn
+
+  release:
+    name: Release
+    # All installers are built; a tag turns them into a downloadable GitHub Release.
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ping-dist-*
+          path: installers
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: installers/*
+          generate_release_notes: true

@@ -24,21 +24,15 @@ _None._
 
 ## Closed
 
-### The update feed and updater are removed until there is a real one — phase 10
+### The update feed points at the project's own public repository — phase 10
 
-`anomalyco` is confirmed third party: not the author's account, not one of their
-organizations. The `publish` block and `desktop/src/main/updater.ts` are both gone,
-`electron-updater` is off the dependency list, and `electron-builder.yml` carries a comment
-saying what has to exist before either comes back — a **public** repository the project
-controls, because electron-updater fetches release assets with no credentials and a private
-repository yields silent 404s.
-
-Verified in a rebuilt artifact: no `app-update.yml` under `resources/`, no `electron-updater`
-in the built main bundle, and `anomalyco` appears nowhere in the tree. `package.json`
-`homepage` and `repository` now point at `dbohry/ping`, which also matters because
-electron-builder infers a publish target from `repository` when no `publish` block is set.
-
-Nothing had been distributed: no commits pushed, no releases, `dist/` git-ignored.
+`anomalyco` was confirmed third party, so the `publish` block and
+`desktop/src/main/updater.ts` were removed while the only remote was private. The repository
+is now public (`dbohry/ping`), so `publish` names it, electron-builder emits the `latest*.yml`
+feed plus `app-update.yml`, and a `v*` tag creates a GitHub Release carrying the installers.
+`startUpdater` checks once in a packaged build but downloads and installs only after a dialog
+answer — `autoDownload` is false, per this finding. `make smoke` and the packaged-app check
+still pass.
 
 ### The hardened runtime keeps only what V8 needs — phase 10
 

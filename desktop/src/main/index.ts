@@ -3,6 +3,7 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { CoreClient, CoreRpcError } from './core'
 import { OAuthTokenStore } from './oauth'
 import { SecretStore } from './secrets'
+import { startUpdater } from './updater'
 import { Workspace } from './workspace'
 
 const core = new CoreClient()
@@ -324,6 +325,7 @@ app.whenReady().then(async () => {
   secrets.load()
   oauthTokens.load()
   createWindow()
+  startUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

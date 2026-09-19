@@ -53,10 +53,10 @@ linux:
     - AppImage
     - deb
 
-# No update feed on purpose. electron-updater reads release assets over plain HTTPS with no
-# credentials, so the feed has to be a public repository this project controls; a wrong or
-# private owner means silent 404s, or worse, letting someone else choose what every install
-# downloads. `publish: null` stops electron-builder inferring one from `repository`.
-# Remove it and add `publish: { provider: github, owner: <owner>, repo: <repo> }` plus an
-# updater in the main process only once that public release repository exists.
-publish: null
+# The update feed. electron-updater reads these release assets over plain HTTPS, so the feed
+# must be a public repository this project controls, and dbohry/ping is. The app never
+# installs an update without asking — see `startUpdater` in the main process.
+publish:
+  provider: github
+  owner: dbohry
+  repo: ping

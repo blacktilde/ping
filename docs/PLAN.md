@@ -241,12 +241,14 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   because Vite bundles it into the renderer, which cut the asar from 5.9 MB to 3.2 MB, and
   `build/icon.png` replaces the default Electron icon.
 
-  **No updater yet, on purpose.** electron-updater reads release assets over plain HTTPS with
-  no credentials, so its feed must be a public repository this project controls. The only
-  remote is private, so a feed would 404 at best and, at worst, let another namespace decide
-  what every install runs. There is no `publish` block, no `electron-updater` dependency, and
-  no `app-update.yml` in the artifact; `electron-builder.yml` states exactly what to add when
-  a public release repository exists.
+  **Releases and updates.** A `v*` tag drives a `release` job that gathers the per-OS
+  installers and creates a GitHub Release, so packages are downloadable. `publish` points at
+  the public `dbohry/ping` repository, which is what makes electron-builder emit the
+  `latest*.yml` metadata and the `app-update.yml` electron-updater reads. The app checks once
+  in a packaged build and **asks before doing anything**: `autoDownload` is false, and a
+  dialog offers Download, then Restart. The feed must stay a public repository this project
+  controls — a wrong or private owner is a silent 404 at best, and a stranger choosing what
+  every install runs at worst.
 
   **Per-OS CI.** A `package` job matrix downloads the `ping-core-<os>` artifact the core job
   built, runs `electron-builder`, and uploads the installers. It is skipped on pull requests
