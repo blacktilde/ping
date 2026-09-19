@@ -69,6 +69,14 @@ jobs:
           name: ping-core-${{ matrix.os }}
           path: core/build/native/nativeCompile
 
+      # upload-artifact/download-artifact do not preserve the Unix executable bit, so the core
+      # arrives mode 644. electron-builder copies it verbatim, and the AppImage then cannot exec
+      # it — spawn fails with EACCES. Restore the bit before packaging.
+      - name: Make the core executable
+        if: runner.os != 'Windows'
+        working-directory: core/build/native/nativeCompile
+        run: chmod +x ping-core
+
       - run: npm ci
         working-directory: desktop
 
