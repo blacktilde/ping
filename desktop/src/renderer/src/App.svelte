@@ -37,6 +37,7 @@
   import Sidebar from './components/Sidebar.svelte'
   import VariablesPanel from './components/VariablesPanel.svelte'
   import Tabs from './components/Tabs.svelte'
+  import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
 
   interface CoreInfo {
@@ -462,205 +463,220 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="flex h-full">
-  <Sidebar
-    {nodes}
-    {activePath}
-    {workspaceRoot}
-    onSelect={selectNode}
-    onCreate={createIn}
-    onDelete={deleteNode}
-    onOpenLocation={openLocation}
-    onNewCollection={newCollection}
-    onOpenFolder={openFolder}
-  />
+  <SplitPane
+    direction="horizontal"
+    unit="pixels"
+    storageKey="ping.split.sidebar"
+    label="Resize sidebar"
+  >
+    {#snippet first()}
+      <Sidebar
+        {nodes}
+        {activePath}
+        {workspaceRoot}
+        onSelect={selectNode}
+        onCreate={createIn}
+        onDelete={deleteNode}
+        onOpenLocation={openLocation}
+        onNewCollection={newCollection}
+        onOpenFolder={openFolder}
+      />
+    {/snippet}
 
-  <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
-    <header class="flex items-baseline justify-between border-b border-line pb-3">
-      <div>
-        <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-        <p class="text-sm text-fg-muted">A desktop REST client</p>
-      </div>
-
-      {#if info}
-        <dl class="flex gap-5 text-xs text-fg-muted">
-          <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
-          <div><dt class="inline text-fg-faint">java</dt> <dd class="inline">{info.javaVersion}</dd></div>
+    {#snippet second()}
+      <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
+        <header class="flex items-baseline justify-between border-b border-line pb-3">
           <div>
-            <dt class="inline text-fg-faint">mode</dt>
-            <dd class="inline">{info.nativeImage ? 'native-image' : 'jvm'}</dd>
+            <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
+            <p class="text-sm text-fg-muted">A desktop REST client</p>
           </div>
-        </dl>
-      {:else if !bootError}
-        <span class="text-xs text-fg-faint">connecting to core…</span>
-      {/if}
-    </header>
 
-    <div class="flex items-center gap-3">
-      <input
-        bind:value={draft.name}
-        aria-label="Request name"
-        class="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm
-               text-fg outline-none transition focus:border-accent"
-      />
-      {#if dirty}
-        <span
-          data-role="dirty"
-          title="Unsaved changes"
-          class="h-2.5 w-2.5 shrink-0 rounded-full bg-accent"
-        ></span>
-      {/if}
-      <select
-        value={variables.environment}
-        onchange={(event) => void onEnvironmentChange(event.currentTarget.value)}
-        aria-label="Environment"
-        class="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg
-               outline-none transition focus:border-accent"
-      >
-        <option value="">No environment</option>
-        {#each variables.environments as environment (environment.path)}
-          <option value={environment.path}>{environment.name}</option>
-        {/each}
-      </select>
-      <button
-        type="button"
-        onclick={() => (showVariables = !showVariables)}
-        aria-pressed={showVariables}
-        class="rounded-lg border border-line px-4 py-2 text-sm text-fg transition
-               hover:border-accent"
-      >
-        Variables
-      </button>
-      <button
-        data-role="save"
-        type="button"
-        onclick={save}
-        disabled={!activePath || !dirty}
-        title={activePath
-          ? 'Save changes'
-          : 'Open a request from a collection, or create a collection first'}
-        class="rounded-lg border border-line px-4 py-2 text-sm text-fg-muted transition
-               hover:border-accent disabled:opacity-40"
-      >
-        Save
-      </button>
-    </div>
-
-    <form
-      class="flex gap-2"
-      onsubmit={(event) => {
-        event.preventDefault()
-        void send()
-      }}
-    >
-      <select
-        bind:value={draft.method}
-        aria-label="HTTP method"
-        class="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm font-medium outline-none
-               transition focus:border-accent"
-      >
-        {#each METHODS as verb (verb)}
-          <option value={verb}>{verb}</option>
-        {/each}
-      </select>
-
-      <input
-        bind:value={draft.url}
-        aria-label="Request URL"
-        spellcheck="false"
-        autocomplete="off"
-        placeholder="https://api.example.com/resource"
-        class="flex-1 rounded-lg border border-line bg-panel px-4 py-2.5 font-mono text-sm
-               outline-none transition focus:border-accent"
-      />
-
-      <button
-        type="submit"
-        disabled={inFlight}
-        class="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white
-               transition hover:brightness-110 disabled:opacity-40"
-      >
-        {inFlight ? 'Sending…' : 'Send'}
-      </button>
-
-      {#if inFlight}
-        <button
-          type="button"
-          onclick={cancel}
-          class="rounded-lg border border-line px-4 py-2.5 text-sm text-fg
-                 transition hover:border-fg-muted"
-        >
-          Cancel
-        </button>
-      {/if}
-    </form>
-
-    {#if storeError}
-      <p
-        data-role="store-error"
-        role="alert"
-        class="rounded-lg border border-amber-900/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-300"
-      >
-        {storeError}
-      </p>
-    {/if}
-
-    {#if error || bootError}
-      <p
-        data-role="error"
-        role="alert"
-        class="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300"
-      >
-        {error || bootError}
-      </p>
-    {:else if cancelled}
-      <p
-        data-role="cancelled"
-        class="rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
-      >
-        Request cancelled.
-      </p>
-    {/if}
-
-    <div class="grid min-h-0 flex-1 grid-rows-2 gap-4">
-      <section
-        data-role="request"
-        class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
-      >
-        <Tabs tabs={requestTabs} bind:active={tab} idPrefix="request" />
-
-        <div
-          id="request-panel"
-          role="tabpanel"
-          aria-labelledby={`request-tab-${tab}`}
-          class="min-h-0 flex-1"
-        >
-          {#if tab === 'params'}
-            <KeyValueEditor
-              items={draft.query}
-              nameLabel="Query parameter"
-              valueLabel="Query value"
-              addLabel="Add parameter"
-              emptyText="No query parameters yet."
-            />
-          {:else if tab === 'headers'}
-            <KeyValueEditor
-              items={draft.headers}
-              nameLabel="Header name"
-              valueLabel="Header value"
-              addLabel="Add header"
-              emptyText="No headers yet."
-            />
-          {:else if tab === 'body'}
-            <BodyEditor body={draft.body} />
-          {:else}
-            <AuthEditor auth={draft.auth} status={authStatus} onAuthorize={authorize} />
+          {#if info}
+            <dl class="flex gap-5 text-xs text-fg-muted">
+              <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
+              <div><dt class="inline text-fg-faint">java</dt> <dd class="inline">{info.javaVersion}</dd></div>
+              <div>
+                <dt class="inline text-fg-faint">mode</dt>
+                <dd class="inline">{info.nativeImage ? 'native-image' : 'jvm'}</dd>
+              </div>
+            </dl>
+          {:else if !bootError}
+            <span class="text-xs text-fg-faint">connecting to core…</span>
           {/if}
-        </div>
-      </section>
+        </header>
 
-      <ResponsePane {response} {inFlight} />
-    </div>
-  </main>
+        <div class="flex items-center gap-3">
+          <input
+            bind:value={draft.name}
+            aria-label="Request name"
+            class="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm
+                   text-fg outline-none transition focus:border-accent"
+          />
+          {#if dirty}
+            <span
+              data-role="dirty"
+              title="Unsaved changes"
+              class="h-2.5 w-2.5 shrink-0 rounded-full bg-accent"
+            ></span>
+          {/if}
+          <select
+            value={variables.environment}
+            onchange={(event) => void onEnvironmentChange(event.currentTarget.value)}
+            aria-label="Environment"
+            class="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg
+                   outline-none transition focus:border-accent"
+          >
+            <option value="">No environment</option>
+            {#each variables.environments as environment (environment.path)}
+              <option value={environment.path}>{environment.name}</option>
+            {/each}
+          </select>
+          <button
+            type="button"
+            onclick={() => (showVariables = !showVariables)}
+            aria-pressed={showVariables}
+            class="rounded-lg border border-line px-4 py-2 text-sm text-fg transition
+                   hover:border-accent"
+          >
+            Variables
+          </button>
+          <button
+            data-role="save"
+            type="button"
+            onclick={save}
+            disabled={!activePath || !dirty}
+            title={activePath
+              ? 'Save changes'
+              : 'Open a request from a collection, or create a collection first'}
+            class="rounded-lg border border-line px-4 py-2 text-sm text-fg-muted transition
+                   hover:border-accent disabled:opacity-40"
+          >
+            Save
+          </button>
+        </div>
+
+        <form
+          class="flex gap-2"
+          onsubmit={(event) => {
+            event.preventDefault()
+            void send()
+          }}
+        >
+          <select
+            bind:value={draft.method}
+            aria-label="HTTP method"
+            class="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm font-medium outline-none
+                   transition focus:border-accent"
+          >
+            {#each METHODS as verb (verb)}
+              <option value={verb}>{verb}</option>
+            {/each}
+          </select>
+
+          <input
+            bind:value={draft.url}
+            aria-label="Request URL"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="https://api.example.com/resource"
+            class="flex-1 rounded-lg border border-line bg-panel px-4 py-2.5 font-mono text-sm
+                   outline-none transition focus:border-accent"
+          />
+
+          <button
+            type="submit"
+            disabled={inFlight}
+            class="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white
+                   transition hover:brightness-110 disabled:opacity-40"
+          >
+            {inFlight ? 'Sending…' : 'Send'}
+          </button>
+
+          {#if inFlight}
+            <button
+              type="button"
+              onclick={cancel}
+              class="rounded-lg border border-line px-4 py-2.5 text-sm text-fg
+                     transition hover:border-fg-muted"
+            >
+              Cancel
+            </button>
+          {/if}
+        </form>
+
+        {#if storeError}
+          <p
+            data-role="store-error"
+            role="alert"
+            class="rounded-lg border border-amber-900/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-300"
+          >
+            {storeError}
+          </p>
+        {/if}
+
+        {#if error || bootError}
+          <p
+            data-role="error"
+            role="alert"
+            class="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300"
+          >
+            {error || bootError}
+          </p>
+        {:else if cancelled}
+          <p
+            data-role="cancelled"
+            class="rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
+          >
+            Request cancelled.
+          </p>
+        {/if}
+
+        <SplitPane storageKey="ping.split.request" label="Resize request and response">
+          {#snippet first()}
+            <section
+              data-role="request"
+              class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
+            >
+              <Tabs tabs={requestTabs} bind:active={tab} idPrefix="request" />
+
+              <div
+                id="request-panel"
+                role="tabpanel"
+                aria-labelledby={`request-tab-${tab}`}
+                class="min-h-0 flex-1"
+              >
+                {#if tab === 'params'}
+                  <KeyValueEditor
+                    items={draft.query}
+                    nameLabel="Query parameter"
+                    valueLabel="Query value"
+                    addLabel="Add parameter"
+                    emptyText="No query parameters yet."
+                  />
+                {:else if tab === 'headers'}
+                  <KeyValueEditor
+                    items={draft.headers}
+                    nameLabel="Header name"
+                    valueLabel="Header value"
+                    addLabel="Add header"
+                    emptyText="No headers yet."
+                  />
+                {:else if tab === 'body'}
+                  <BodyEditor body={draft.body} />
+                {:else}
+                  <AuthEditor auth={draft.auth} status={authStatus} onAuthorize={authorize} />
+                {/if}
+              </div>
+            </section>
+          {/snippet}
+
+          {#snippet second()}
+            <ResponsePane {response} {inFlight} />
+          {/snippet}
+        </SplitPane>
+      </main>
+    {/snippet}
+  </SplitPane>
 
   {#if showVariables}
     <VariablesPanel

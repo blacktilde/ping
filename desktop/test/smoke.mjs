@@ -663,6 +663,74 @@ try {
     'the theme to return'
   )
   check('theme command switches back', true)
+
+  console.log('--- 10. resizable panels')
+  const handles = await evaluate(`(() => {
+    const separators = [...document.querySelectorAll('[role="separator"]')];
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section && section.parentElement && section.parentElement.nextElementSibling;
+    return {
+      count: separators.length,
+      orientations: separators.map(s => s.getAttribute('aria-orientation')),
+      requestValue: handle ? Number(handle.getAttribute('aria-valuenow')) : null,
+      requestFlex: handle ? handle.previousElementSibling.getAttribute('style') : null,
+      labelled: !!handle?.getAttribute('aria-label')
+    };
+  })()`)
+  check('renders a handle per split', handles.count === 2, String(handles.count))
+  check(
+    'handles orient for their axis',
+    handles.orientations.join(',') === 'vertical,horizontal',
+    handles.orientations.join(',')
+  )
+  check('the request split reports its size', handles.requestValue === 50, String(handles.requestValue))
+  check('the handle is labelled', handles.labelled)
+
+  await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    handle.focus();
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    return true;
+  })()`)
+  await wait(100)
+  const resized = await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    return {
+      value: Number(handle.getAttribute('aria-valuenow')),
+      focused: document.activeElement === handle,
+      flex: section.parentElement.getAttribute('style')
+    };
+  })()`)
+  check('arrow keys resize the split', resized.value > handles.requestValue, `${handles.requestValue} -> ${resized.value}`)
+  check('the handle takes focus', resized.focused)
+  check('the pane follows the handle', resized.flex !== handles.requestFlex, `${handles.requestFlex} -> ${resized.flex}`)
+
+  await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    const rect = handle.getBoundingClientRect();
+    handle.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    }));
+    window.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top - 120
+    }));
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    return true;
+  })()`)
+  await wait(100)
+  const dragged = await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    return Number(handle.getAttribute('aria-valuenow'));
+  })()`)
+  check('dragging the handle resizes the split', dragged < resized.value, `${resized.value} -> ${dragged}`)
 } catch (cause) {
   failures++
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)
