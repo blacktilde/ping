@@ -105,7 +105,7 @@
 
 <aside
   data-role="sidebar"
-  class="flex h-full w-64 shrink-0 flex-col border-r border-line bg-panel"
+  class="flex h-full w-full flex-col border-r border-line bg-panel"
 >
   <div class="flex flex-col gap-1 border-b border-line px-3 py-2">
     <div class="flex items-center justify-between">
