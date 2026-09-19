@@ -72,7 +72,12 @@ class RpcServerTest {
         JsonNode result = out.get(1).path("result");
         assertEquals(CoreMethods.VERSION, result.path("coreVersion").asText());
         assertTrue(result.path("javaVersion").asText().startsWith("25"));
-        assertEquals(false, result.path("nativeImage").asBoolean());
+
+        // This same suite runs twice: on the JVM, and compiled by native-image via nativeTest.
+        // Cross-check the reported flag against an independent signal rather than hardcoding
+        // either answer — GraalVM names its runtime "Substrate VM".
+        boolean runningNatively = System.getProperty("java.vm.name", "").contains("Substrate");
+        assertEquals(runningNatively, result.path("nativeImage").asBoolean());
     }
 
     @Test

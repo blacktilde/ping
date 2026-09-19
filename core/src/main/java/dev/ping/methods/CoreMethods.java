@@ -33,8 +33,11 @@ public final class CoreMethods {
         result.put("coreVersion", VERSION);
         result.put("javaVersion", System.getProperty("java.version"));
         result.put("vendor", System.getProperty("java.vm.vendor"));
-        // Set by GraalVM in a native-image build; absent on the JVM. Lets the UI show which core is running.
-        result.put("nativeImage", System.getProperty("org.graalvm.nativeimage.imagecode") != null);
+        // "runtime" means executing inside a native image. The property also exists on a
+        // GraalVM JVM (and reads "buildtime" while the image is being built), so its mere
+        // presence proves nothing. Lets the UI show which core is running.
+        result.put("nativeImage",
+                "runtime".equals(System.getProperty("org.graalvm.nativeimage.imagecode")));
         return result;
     }
 }

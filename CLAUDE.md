@@ -16,6 +16,9 @@ current checkboxes. `contract/README.md` describes the RPC protocol.
 | `make core` | Rebuild the core after changing Java sources         |
 | `make test` | Run the core test suite                              |
 | `make build`| Production build                                     |
+| `make native`| Compile the core to a native image (minutes)        |
+| `make native-test`| Run the suite compiled as a native image       |
+| `make agent`| Regenerate native-image reachability metadata        |
 
 The Electron dev server does not rebuild Java. After editing the core, run `make core`
 and restart.
@@ -38,6 +41,12 @@ only the variable name.
 
 **Develop against the JVM core.** `native-image` builds take minutes and are for releases
 and CI gates only.
+
+**A new type crossing the RPC boundary needs a test that sends it as JSON.** The tracing
+agent that generates reachability metadata only records what the tests actually execute.
+A unit test that builds an object in code proves the logic but teaches the agent nothing,
+and the native binary then fails on the first real request. `make native-test` catches
+this; `make agent` regenerates the metadata afterwards.
 
 ## Stack notes
 

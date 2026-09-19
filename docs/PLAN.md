@@ -82,11 +82,15 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   ping, Electron spawns it. *Gate: a Svelte button reaches the core and renders the reply.*
 - [x] **1. HTTP engine**, on the JVM for fast iteration. Method, URL, query, headers, body,
   timeout, redirect policy, cancellation, timing. *Gate: JUnit suite green against a mock server.*
-- [ ] **2. native-image build — early, not last.** Tracing agent over the test suite to
+- [x] **2. native-image build — early, not last.** Tracing agent over the test suite to
   generate reflection config, then a CI matrix for Linux/macOS/Windows. *Gate: the native
-  binary passes the same suite.* This on the JVM for fast iteration. Method, URL, query, headers, body,
-  timeout, redirect policy, cancellation, timing. *Gate: JUnit suite green against a mock server.*is the project's largest technical risk; finding an
+  binary passes the same suite.* This is the project's largest technical risk; finding an
   incompatibility here is cheap, finding it in phase 9 is not.
+
+  **Outcome: the stack holds.** All 36 tests pass compiled as a native image, against a
+  real loopback server. The binary is 33 MB and reaches `core.ready` in ~2 ms against
+  ~93 ms for the JVM build — a 46x startup difference, which is the whole reason for
+  choosing GraalVM over a bundled JRE. Compiling takes ~21 s today and will grow.
 - [ ] **3. Vertical slice.** URL bar, Send, raw response pane, against a real API.
 - [ ] **4. Request editors.** Params and headers tables, body modes (json, raw,
   form-urlencoded, multipart), CodeMirror with JSON linting.
@@ -118,6 +122,21 @@ The engine tracks cancellation intent in an `AtomicBoolean` rather than inferrin
 the exception type, because an aborted exchange surfaces as `CancellationException` or as
 a wrapped I/O failure depending on how far it had progressed. Only the caller knows the
 difference between a broken network and a user pressing stop.
+
+## Reachability metadata
+
+`native-image` must be told what is reached by reflection. Published metadata covers
+Jackson itself; what this project adds is the binding onto its own records, stored in
+`core/src/main/resources/META-INF/native-image/` and regenerated with `make agent`.
+
+**The agent only sees what the tests execute.** The first agent run captured nothing for
+`RequestSpec`, because the engine tests build specs with a builder and never cross
+Jackson. The shipped binary would have failed on its first real request. The RPC-level
+tests in `HttpMethodsTest` close that gap: they drive the core with real JSON, which is
+both honest coverage and the trace the agent needs.
+
+So **when a new type crosses the RPC boundary it needs a test that sends it as JSON**,
+followed by `make agent`. `make native-test` is what catches the omission.
 
 ## Conventions
 
