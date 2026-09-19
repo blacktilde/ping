@@ -1,11 +1,11 @@
 <script lang="ts">
-  import {
-    cancelRequest,
-    sendRequest,
-    type HttpMethod,
-    type HttpResponse
-  } from './lib/http'
   import { call, CoreError, RpcError } from './lib/core'
+  import { cancelRequest, sendRequest, type HttpResponse } from './lib/http'
+  import { draft } from './lib/draft.svelte'
+  import { enabledCount, METHODS, toRequestSpec } from './lib/request'
+  import KeyValueEditor from './components/KeyValueEditor.svelte'
+  import BodyEditor from './components/BodyEditor.svelte'
+  import ResponsePane from './components/ResponsePane.svelte'
 
   interface CoreInfo {
     coreVersion: string
@@ -14,17 +14,25 @@
     nativeImage: boolean
   }
 
-  const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+  type Tab = 'params' | 'headers' | 'body'
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'params', label: 'Params' },
+    { id: 'headers', label: 'Headers' },
+    { id: 'body', label: 'Body' }
+  ]
 
   let info = $state<CoreInfo | null>(null)
   let bootError = $state('')
-  let method = $state<HttpMethod>('GET')
-  let url = $state('https://jsonplaceholder.typicode.com/todos/1')
+  let tab = $state<Tab>('params')
   let response = $state<HttpResponse | null>(null)
   let error = $state('')
   let cancelled = $state(false)
   let inFlight = $state(false)
   let activeRequestId = $state('')
+
+  const queryCount = $derived(enabledCount(draft.query))
+  const headerCount = $derived(enabledCount(draft.headers))
 
   // Proves the whole chain on startup: renderer, preload, main, core process.
   $effect(() => {
@@ -34,7 +42,7 @@
   })
 
   async function send(): Promise<void> {
-    const target = url.trim()
+    const target = draft.url.trim()
     if (inFlight || target.length === 0) {
       return
     }
@@ -48,7 +56,7 @@
     // The pane is aria-busy so the staleness is announced rather than hidden.
 
     try {
-      response = await sendRequest(target, method, requestId)
+      response = await sendRequest(toRequestSpec(draft, requestId))
     } catch (cause) {
       response = null
       if (cause instanceof CoreError && cause.code === RpcError.requestCancelled) {
@@ -73,29 +81,18 @@
     }
   }
 
-  function statusTone(status: number): string {
-    if (status >= 200 && status < 300) return 'text-emerald-400'
-    if (status >= 300 && status < 400) return 'text-amber-400'
-    if (status >= 400) return 'text-red-400'
-    return 'text-neutral-300'
-  }
-
-  function versionLabel(version: string): string {
-    return version === 'HTTP_2' ? 'HTTP/2' : 'HTTP/1.1'
-  }
-
-  function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  function tabBadge(id: Tab): string | null {
+    if (id === 'params') return queryCount > 0 ? String(queryCount) : null
+    if (id === 'headers') return headerCount > 0 ? String(headerCount) : null
+    return draft.body.type === 'none' ? null : '•'
   }
 </script>
 
-<main class="flex h-full flex-col gap-4 p-6">
+<main class="flex h-full flex-col gap-3 p-5">
   <header class="flex items-baseline justify-between border-b border-line pb-3">
     <div>
       <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-      <p class="text-sm text-neutral-500">Phase 3 — live request</p>
+      <p class="text-sm text-neutral-500">Phase 4 — request editors</p>
     </div>
 
     {#if info}
@@ -120,18 +117,18 @@
     }}
   >
     <select
-      bind:value={method}
+      bind:value={draft.method}
       aria-label="HTTP method"
       class="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm font-medium outline-none
              transition focus:border-accent"
     >
-      {#each methods as verb (verb)}
+      {#each METHODS as verb (verb)}
         <option value={verb}>{verb}</option>
       {/each}
     </select>
 
     <input
-      bind:value={url}
+      bind:value={draft.url}
       aria-label="Request URL"
       spellcheck="false"
       autocomplete="off"
@@ -164,6 +161,7 @@
   {#if error || bootError}
     <p
       data-role="error"
+      role="alert"
       class="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300"
     >
       {error || bootError}
@@ -177,47 +175,56 @@
     </p>
   {/if}
 
-  <section
-    aria-busy={inFlight}
-    class="flex flex-1 flex-col overflow-hidden rounded-lg border border-line bg-panel"
-  >
-    {#if response}
-      <header class="flex items-center gap-4 border-b border-line px-4 py-2.5 text-xs">
-        <span class="font-mono text-sm font-semibold {statusTone(response.status)}">
-          {response.status}
-        </span>
-        <span class="text-neutral-500">{versionLabel(response.httpVersion)}</span>
-        <span class="text-neutral-500">{formatBytes(response.body.bytes)}</span>
-        {#if response.redirects.length > 0}
-          <span class="text-neutral-500">
-            followed {response.redirects.length}
-            {response.redirects.length === 1 ? 'redirect' : 'redirects'}
-          </span>
-        {/if}
-        {#if response.body.contentType}
-          <span class="truncate text-neutral-600">{response.body.contentType}</span>
-        {/if}
-      </header>
-
-      {#if response.body.truncated}
-        <p class="border-b border-amber-900/50 bg-amber-950/30 px-4 py-2 text-xs text-amber-300">
-          Response is larger than the display cap; only the beginning is shown.
-        </p>
-      {/if}
-
-      {#if response.body.textual}
-        <pre
-          class="flex-1 overflow-auto p-4 font-mono text-sm leading-relaxed text-neutral-300">{response.body.content ||
-            '(empty body)'}</pre>
-      {:else}
-        <div class="flex flex-1 items-center justify-center text-sm text-neutral-600">
-          Binary response — {formatBytes(response.body.bytes)} not displayed
-        </div>
-      {/if}
-    {:else}
-      <div class="flex flex-1 items-center justify-center text-sm text-neutral-600">
-        Send a request to see the response.
+  <div class="grid min-h-0 flex-1 grid-rows-2 gap-4">
+    <section
+      data-role="request"
+      class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
+    >
+      <div role="tablist" class="flex items-center gap-1 border-b border-line px-2">
+        {#each tabs as entry (entry.id)}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === entry.id}
+            onclick={() => (tab = entry.id)}
+            class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition
+                   {tab === entry.id
+              ? 'border-accent text-neutral-100'
+              : 'border-transparent text-neutral-500 hover:text-neutral-300'}"
+          >
+            {entry.label}
+            {#if tabBadge(entry.id)}
+              <span class="rounded-full bg-line px-1.5 text-[10px] text-neutral-400">
+                {tabBadge(entry.id)}
+              </span>
+            {/if}
+          </button>
+        {/each}
       </div>
-    {/if}
-  </section>
+
+      <div class="min-h-0 flex-1">
+        {#if tab === 'params'}
+          <KeyValueEditor
+            items={draft.query}
+            nameLabel="Query parameter"
+            valueLabel="Query value"
+            addLabel="Add parameter"
+            emptyText="No query parameters yet."
+          />
+        {:else if tab === 'headers'}
+          <KeyValueEditor
+            items={draft.headers}
+            nameLabel="Header name"
+            valueLabel="Header value"
+            addLabel="Add header"
+            emptyText="No headers yet."
+          />
+        {:else}
+          <BodyEditor body={draft.body} />
+        {/if}
+      </div>
+    </section>
+
+    <ResponsePane {response} {inFlight} />
+  </div>
 </main>

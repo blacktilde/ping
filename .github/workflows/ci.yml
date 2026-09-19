@@ -67,3 +67,11 @@ jobs:
 
       - run: npm run build
         working-directory: desktop
+
+      # Drives the built app over CDP. Offline so the run does not depend on a third-party
+      # API; the live HTTPS path stays a local-only step. xvfb gives Electron a display.
+      - name: UI smoke test
+        run: xvfb-run -a npm run smoke
+        working-directory: desktop
+        env:
+          PING_SMOKE_OFFLINE: '1'

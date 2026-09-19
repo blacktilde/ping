@@ -9,6 +9,47 @@ import { call } from './core'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
 
+export type BodyMode = 'none' | 'json' | 'raw' | 'form' | 'multipart'
+
+/** A name/value row the user can disable without deleting. Mirrors contract `param`. */
+export interface Param {
+  name: string
+  value: string
+  enabled: boolean
+}
+
+export interface RequestBody {
+  type: BodyMode
+  content: string
+  /** Overrides the type implied by the mode; raw only in the UI today. */
+  contentType: string
+  fields: Param[]
+}
+
+/** The editable request, before it is turned into RPC params. */
+export interface RequestDraft {
+  method: HttpMethod
+  url: string
+  query: Param[]
+  headers: Param[]
+  body: RequestBody
+}
+
+/** Exactly the params `http.send` accepts. */
+export interface HttpRequestSpec {
+  requestId: string
+  method: HttpMethod
+  url: string
+  query: Param[]
+  headers: Param[]
+  body: {
+    type: BodyMode
+    content?: string
+    contentType?: string
+    fields?: Param[]
+  }
+}
+
 export interface HttpHeader {
   name: string
   value: string
@@ -49,12 +90,8 @@ export interface HttpResponse {
  * Runs one exchange. The core blocks on the network for the length of the call, so the
  * renderer is free to keep painting; `requestId` is what makes the exchange cancellable.
  */
-export async function sendRequest(
-  url: string,
-  method: HttpMethod,
-  requestId: string
-): Promise<HttpResponse> {
-  return call<HttpResponse>('http.send', { requestId, method, url })
+export async function sendRequest(spec: HttpRequestSpec): Promise<HttpResponse> {
+  return call<HttpResponse>('http.send', spec)
 }
 
 /** @returns true when an exchange was in flight under this id and has been asked to stop */

@@ -404,8 +404,11 @@ public final class HttpEngine {
      * refused" is the same information as "ConnectException: Connection refused" without
      * the Java. Messages that are useless on their own (a bare hostname, a missing
      * timeout detail) are rewritten; the rest pass through untouched.
+     *
+     * <p>Package-private so the branch table can be asserted directly, without having to
+     * provoke each failure over a real socket.
      */
-    private static String describe(Throwable cause) {
+    static String describe(Throwable cause) {
         if (cause instanceof UnknownHostException) {
             return "Unknown host: " + cause.getMessage();
         }

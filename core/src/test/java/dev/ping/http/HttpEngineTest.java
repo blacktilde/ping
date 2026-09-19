@@ -9,7 +9,11 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -18,6 +22,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import javax.net.ssl.SSLHandshakeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -284,6 +289,23 @@ class HttpEngineTest {
                 () -> engine.send(get("/stall").timeoutMs(200).build()));
 
         assertEquals(RpcException.REQUEST_FAILED, thrown.code());
+        assertEquals("Request timed out", thrown.getMessage());
+    }
+
+    @Test
+    void rewritesTransportFailuresForPeople() {
+        assertEquals("Unknown host: nope.invalid",
+                HttpEngine.describe(new UnknownHostException("nope.invalid")));
+        assertEquals("Request timed out",
+                HttpEngine.describe(new HttpTimeoutException("timed out")));
+        assertEquals("Request timed out",
+                HttpEngine.describe(new SocketTimeoutException("read timed out")));
+        assertTrue(HttpEngine.describe(new SSLHandshakeException("no cipher suites"))
+                        .startsWith("TLS handshake failed"),
+                "a TLS failure should lead with the plain meaning");
+        assertEquals("Connection refused", HttpEngine.describe(new ConnectException()));
+        assertEquals("Connection refused",
+                HttpEngine.describe(new ConnectException("Connection refused")));
     }
 
     @Test

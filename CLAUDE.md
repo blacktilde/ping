@@ -5,7 +5,8 @@ Svelte 5 UI, talking over newline-delimited JSON-RPC 2.0 on stdio.
 
 **Read `docs/PLAN.md` before starting work** — it holds the stack rationale, the
 responsibility split between the three layers, and the numbered phase plan with its
-current checkboxes. `contract/README.md` describes the RPC protocol.
+current checkboxes. `contract/README.md` describes the RPC protocol, and `docs/REVIEW.md`
+lists open review findings, each tagged with the phase it should be folded into.
 
 ## Commands
 
@@ -57,3 +58,7 @@ this; `make agent` regenerates the metadata afterwards.
 - `electron-vite` builds the preload as CJS so the renderer can stay sandboxed; Electron
   rejects ESM preloads under a sandbox.
 - Vite is pinned to 7.x because `electron-vite` 5 does not yet accept Vite 8.
+- TypeScript is pinned to 6.x because `svelte-check` peers on `^5.0.0 || ^6.0.0`. Moving
+  to TypeScript 7 removes the only type checking the renderer has — `npm run build` uses
+  esbuild, which strips types without checking them. Revisit when `svelte-check` ships
+  TypeScript 7 support.

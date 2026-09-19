@@ -103,8 +103,19 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   `http.send`, so Cancel used the existing `http.cancel`. Verified against a live HTTPS
   endpoint (200, HTTP/2) and by `make smoke`, a CDP-driven test over send, cancel and
   connection failure. Headers, cookies and the timing breakdown are left to phase 5.
-- [ ] **4. Request editors.** Params and headers tables, body modes (json, raw,
+- [x] **4. Request editors.** Params and headers tables, body modes (json, raw,
   form-urlencoded, multipart), CodeMirror with JSON linting.
+
+  **Outcome: the UI was the whole cost.** The contract already carried query, headers and
+  every body mode, so no core or schema change was needed. The request panel is now tabbed
+  (Params / Headers / Body) over one `RequestDraft`; a single `KeyValueEditor` serves query,
+  headers, form and multipart rows, and `BodyEditor` swaps in a CodeMirror 6 surface for
+  JSON and raw. JSON gets `@codemirror/lang-json`'s parse linter; the theme is one-dark
+  trimmed to the panel surface. **One boundary lesson:** a Svelte `$state` proxy cannot be
+  structured-cloned across the context bridge, so `toRequestSpec` copies rows to plain
+  objects — the first editor value that reached `http.send` failed with "an object could not
+  be cloned" until it did. `make check` stays clean and `make smoke` now drives a query
+  parameter, a header and a form body to the local server and asserts they arrive.
 - [ ] **5. Response viewer.** Pretty/raw/preview, headers, cookies, timing breakdown, size,
   search, virtualized for large payloads.
 
