@@ -265,6 +265,36 @@
               </span>
               <span class="truncate">{node.name}</span>
             </button>
+            {#if confirming === node.path}
+              <button
+                type="button"
+                onclick={() => {
+                  confirming = null
+                  onDelete(node)
+                }}
+                class="mr-1 rounded px-1.5 text-xs font-medium text-red-400 transition
+                       hover:bg-line/60"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onclick={() => (confirming = null)}
+                class="mr-1 rounded px-1.5 text-xs text-fg-muted transition hover:bg-line/60"
+              >
+                Cancel
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => (confirming = node.path)}
+                aria-label="Delete {node.name}"
+                class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
+                       group-hover:opacity-100 hover:text-red-400"
+              >
+                ×
+              </button>
+            {/if}
           {:else}
             <button
               type="button"
