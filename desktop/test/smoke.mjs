@@ -985,6 +985,30 @@ try {
     newest.trim()
   )
 
+  // Search narrows the list to name/method/URL matches; clearing it restores every entry.
+  const allEntries = await historyCount()
+  const searchUrl = await evaluate(
+    `document.querySelector('[data-role="history-entry"]').dataset.url`
+  )
+  const needle = searchUrl.replace(/^https?:\/\//, '').split(/[?#]/)[0]
+  await evaluate(setInput('Search history', needle))
+  await wait(100)
+  const matched = await historyCount()
+  check(
+    'filters history by search text',
+    matched >= 1 &&
+      matched <= allEntries &&
+      (await evaluate(
+        `[...document.querySelectorAll('[data-role="history-entry"]')].every(
+          e => e.dataset.url.includes(${JSON.stringify(needle)})
+        )`
+      )),
+    `${matched}/${allEntries} match ${needle}`
+  )
+  await evaluate(setInput('Search history', ''))
+  await wait(100)
+  check('clearing search restores history', (await historyCount()) === allEntries)
+
   // The list is shell-local; the file lives in the throwaway profile, so its presence
   // proves the main process persisted it rather than the renderer holding state only.
   const persisted = JSON.parse(readFileSync(join(userDataDir, 'history.json'), 'utf8'))
