@@ -25,99 +25,35 @@ numbering of the files they describe.
 > with a reason, or say the tags are not being used and they will stop being written.
 
 
-### Symlinks escape the workspace boundary — blocking
-
-`YamlStore` documents that "every path is resolved against the workspace root and rejected
-if it escapes, so a renderer bug cannot reach outside the folder the user opened". The
-check is lexical only — `normalize()` collapses `..` textually and never resolves symlinks
-— so a symlink inside the opened folder reaches outside it. Confirmed against the built
-core, with a workspace containing `col/linked.yaml -> outside/secret.yaml` and
-`col/outdir -> outside/`:
-
-- `store.scan` walked the symlinked directory and listed files outside the workspace in the
-  sidebar tree.
-- `store.read` returned the contents of both the symlinked file and a file inside the
-  symlinked directory.
-- `store.write` created a new file outside the workspace, `outside/planted.yaml`.
-
-Writing through a symlinked *file* did not overwrite its target, because the temp-file and
-rename replaces the link rather than following it. That is luck, not defence, and it does
-not apply to the directory case.
-
-The threat model is the product's own premise. Collections are folders shared through git,
-git records symlinks, and opening a cloned collection is the intended workflow — so
-"a folder the user opened" is not the same as "files the user wrote". It still takes a
-crafted repository and a user opening it, so this is not remotely triggerable.
-
-Marked blocking not because the app is unusable but because the boundary is documented,
-tested and absent: `StoreMethodsTest.refusesToEscapeTheWorkspace` covers only lexical
-`../escape.yaml`. A boundary that is believed to exist is worse than one nobody relies on.
-
-Fix: compare real paths, not lexical ones — resolve the target (or its nearest existing
-ancestor) with `toRealPath()` against `root.toRealPath()` — and skip symlinks while
-scanning. Then extend that test with a symlinked file and a symlinked directory.
-
-Fold into: phase 7.
-
-### Saved request files are mode 600 — low
-
-`write` creates its temp file with `Files.createTempFile`, which is `rw-------` by design,
-and the rename carries those permissions to the request file. Observed on a written file:
-`-rw------- planted.yaml`, beside hand-created files at `-rw-r--r--`.
-
-For collections meant to be committed and shared, files whose mode depends on whether Ping
-or a human last wrote them are a small, lasting oddity — it shows up as spurious mode
-changes in git on systems that track them. Set the permissions explicitly after the move,
-or create the temp file with the process umask.
-
-Fold into: phase 7.
-
-### A self-referential symlink fills the sidebar — low
-
-`ln -s .. col/loop` inside a workspace makes `children()` recurse through the link. It does
-not hang — the OS symlink limit makes `Files.isDirectory` return false around forty levels
-down, and the scan returns in about 150 ms — but it returns roughly 29 KB of tree that is
-the same folder nested forty times. Skipping symlinks while scanning, as the escape fix
-above requires anyway, removes this too.
-
-Fold into: phase 7.
-
-### The code editors ignore the theme — medium
-
-Phase 9 added a light theme, but `CodeEditor.svelte` applies `oneDark` unconditionally. In
-light mode the two largest surfaces in the app — the request body editor and the response
-body viewer — stay dark. Measured with the light theme active:
-
-```
-app surface : rgb(243, 244, 246)
-editor bg   : rgb(40, 44, 52)
-```
-
-Everything else follows `data-theme` correctly, which is what makes this stand out rather
-than read as a deliberate choice.
-
-The editor's extensions are built once in `extensions()` at mount, so switching needs
-either a CodeMirror `Compartment` reconfigured when `theme.resolved` changes, or a remount
-keyed on it — the components already wrap these editors in `{#key}`.
-
-Fold into: phase 10.
-
-### The command palette is not a real modal — low
-
-It declares `role="dialog"` and `aria-modal="true"` but does not behave like one: focus is
-not trapped, so Tab walks out of the palette into the page behind it, and focus is not
-restored to the previously focused element when it closes. Inside the list, `role="option"`
-wraps a focusable `<button>` — an option should not contain focusable children — and the
-input carries no `aria-activedescendant`, so the highlighted row is not announced as the
-selection moves.
-
-Raised only because the same pass built `Tabs.svelte` properly, with roving tabindex,
-`aria-controls` and matching `role="tabpanel"` in both consumers. The palette is the one
-piece that claims a pattern without implementing it.
-
-Fold into: phase 10.
+_None._
 
 ## Closed
+
+### Symlinks cannot escape the workspace — phase 9
+
+`YamlStore.resolve` also compares the real path of the deepest existing ancestor against
+`root.toRealPath()`, so a symlink pointing outside is rejected for read and write, and
+`scan`/`children`/`environmentNames` skip symlinks entirely — which also stops a
+self-referential link filling the tree. Covered by
+`StoreMethodsTest.refusesSymlinksThatLeaveTheWorkspace`.
+
+### Saved request files are shareable — phase 9
+
+`writeValue` sets `rw-r--r--` after the rename where the filesystem has POSIX modes, so a
+file Ping wrote matches one a person wrote. Covered by
+`StoreMethodsTest.writtenFilesAreReadableByOthers`.
+
+### The editors follow the theme — phase 9
+
+`CodeEditor` swaps its CodeMirror theme through a `Compartment` when `theme.resolved`
+changes: oneDark on dark, a light layer over the fallback highlight style on light. `make
+smoke` reads the editor text colour before and after a theme switch and asserts it changes.
+
+### The command palette is a real combobox — phase 9
+
+The input is `role="combobox"` with `aria-controls` and `aria-activedescendant` onto the
+highlighted option; options are non-focusable `role="option"` elements; Tab is trapped while
+open; and focus returns to whatever opened it when it closes.
 
 ### Typed credentials no longer reach collection files — phase 9
 

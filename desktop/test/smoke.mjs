@@ -598,6 +598,13 @@ try {
     JSON.stringify(semantics)
   )
 
+  // Mount a CodeMirror so the editor theme can be observed.
+  await evaluate(clickTab('Body'))
+  await evaluate(setSelect('Body mode', 'json'))
+  await wait(200)
+  const editorColor = `getComputedStyle(document.querySelector('[data-role="request"] .cm-content')).color`
+  const beforeColor = await evaluate(editorColor)
+
   const pressCtrlK = `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))`
   await evaluate(pressCtrlK)
   await waitFor(
@@ -607,39 +614,49 @@ try {
   )
   check('command palette opens on Ctrl-K', true)
 
-  await evaluate(`(() => {
+  const combobox = await evaluate(`(() => {
+    const input = document.querySelector('[data-role="palette"] [role="combobox"]');
+    return {
+      role: input?.getAttribute('role') ?? null,
+      controls: input?.getAttribute('aria-controls') ?? null,
+      active: input?.getAttribute('aria-activedescendant') ?? null
+    };
+  })()`)
+  check(
+    'palette is a combobox tied to its listbox',
+    combobox.role === 'combobox' && combobox.controls === 'palette-listbox' && !!combobox.active,
+    JSON.stringify(combobox)
+  )
+
+  const typeInPalette = (text) => `(() => {
     const input = document.querySelector('[data-role="palette"] input');
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    setter.call(input, 'theme');
+    setter.call(input, ${JSON.stringify(text)});
     input.dispatchEvent(new Event('input', { bubbles: true }));
     return input.value;
-  })()`)
-  await waitFor(
-    async () =>
-      await evaluate(
-        `[...document.querySelectorAll('[data-role="palette"] button')].some(b => b.textContent.includes('Theme:'))`
-      ),
-    2000,
-    'the theme command'
-  )
+  })()`
+  const themeOption =
+    `[...document.querySelectorAll('[data-role="palette"] [role="option"]')]` +
+    `.find(o => o.textContent.includes('Theme:'))`
+
+  await evaluate(typeInPalette('theme'))
+  await waitFor(async () => await evaluate(`!!${themeOption}`), 2000, 'the theme command')
   check('palette filters commands', true)
 
   const initialTheme = await evaluate(`document.documentElement.dataset.theme`)
-  await evaluate(
-    `[...document.querySelectorAll('[data-role="palette"] button')].find(b => b.textContent.includes('Theme:'))?.click()`
-  )
+  await evaluate(`${themeOption}?.click()`)
   await waitFor(
     async () => (await evaluate(`document.documentElement.dataset.theme`)) !== initialTheme,
     2000,
     'the theme to change'
   )
   check('theme command switches the theme', true)
+  const afterColor = await evaluate(editorColor)
+  check('the editor follows the theme', beforeColor !== afterColor, `${beforeColor} -> ${afterColor}`)
 
   await evaluate(pressCtrlK)
   await wait(200)
-  await evaluate(
-    `[...document.querySelectorAll('[data-role="palette"] button')].find(b => b.textContent.includes('Theme:'))?.click()`
-  )
+  await evaluate(`${themeOption}?.click()`)
   await waitFor(
     async () => (await evaluate(`document.documentElement.dataset.theme`)) === initialTheme,
     2000,

@@ -14,6 +14,8 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -65,6 +67,7 @@ public final class YamlStore {
         List<CollectionNode> collections = new ArrayList<>();
         try (Stream<Path> entries = Files.list(base)) {
             entries.filter(Files::isDirectory)
+                    .filter(path -> !Files.isSymbolicLink(path))
                     .filter(path -> !hidden(path))
                     .sorted(byName())
                     .forEach(path -> collections.add(new CollectionNode(
@@ -169,6 +172,7 @@ public final class YamlStore {
         try (Stream<Path> entries = Files.list(environments)) {
             entries.filter(YamlStore::isYaml)
                     .filter(path -> !hidden(path))
+                    .filter(path -> !Files.isSymbolicLink(path))
                     .sorted(byName())
                     .forEach(path -> refs.add(new EnvironmentRef(environmentName(path), relative(base, path))));
         } catch (IOException e) {
@@ -224,7 +228,9 @@ public final class YamlStore {
 
         try (Stream<Path> entries = Files.list(directory)) {
             for (Path entry : entries.sorted(byName()).toList()) {
-                if (hidden(entry)) {
+                if (hidden(entry) || Files.isSymbolicLink(entry)) {
+                    // Symlinks are neither shown nor followed: one can point outside the
+                    // workspace, and a self-referential one fills the tree with copies.
                     continue;
                 }
                 String name = entry.getFileName().toString();
@@ -284,11 +290,47 @@ public final class YamlStore {
         if (!resolved.startsWith(base) || resolved.equals(base)) {
             throw RpcException.invalidParams("Path escapes the workspace: " + relativePath);
         }
+        // A lexical check is not enough: a symlink inside the folder can point outside it, so
+        // the real path of the deepest existing ancestor has to stay under the real root too.
+        if (!realPath(resolved).startsWith(base)) {
+            throw RpcException.invalidParams("Path escapes the workspace: " + relativePath);
+        }
         return resolved;
     }
 
     private static Path normalize(Path root) {
-        return root.toAbsolutePath().normalize();
+        try {
+            return root.toRealPath();
+        } catch (IOException e) {
+            return root.toAbsolutePath().normalize();
+        }
+    }
+
+    /**
+     * Resolves symlinks on the deepest existing ancestor and re-attaches the rest, so a path
+     * that does not exist yet can still be checked for escape.
+     */
+    private static Path realPath(Path path) {
+        Path existing = path;
+        List<Path> missing = new ArrayList<>();
+        while (existing != null && !Files.exists(existing)) {
+            missing.add(0, existing.getFileName());
+            existing = existing.getParent();
+        }
+        if (existing == null) {
+            return path.toAbsolutePath().normalize();
+        }
+
+        Path real;
+        try {
+            real = existing.toRealPath();
+        } catch (IOException e) {
+            return path.toAbsolutePath().normalize();
+        }
+        for (Path part : missing) {
+            real = real.resolve(part);
+        }
+        return real;
     }
 
     private static String relative(Path root, Path path) {
@@ -302,9 +344,25 @@ public final class YamlStore {
             Path temp = Files.createTempFile(file.getParent(), ".ping-", ".yaml");
             Files.writeString(temp, yaml, StandardCharsets.UTF_8);
             move(temp, file);
+            makeShareable(file);
         } catch (IOException e) {
             throw RpcException.storeFailed(
                     "Could not write " + file.getFileName() + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Collections are meant to be committed and shared, so a file Ping wrote should look like
+     * one a person wrote. {@code createTempFile} is deliberately owner-only, and the rename
+     * carries that, so set a readable mode explicitly where the filesystem has modes.
+     */
+    private static void makeShareable(Path file) {
+        try {
+            if (Files.getFileStore(file).supportsFileAttributeView(PosixFileAttributeView.class)) {
+                Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-r--r--"));
+            }
+        } catch (IOException | UnsupportedOperationException e) {
+            // A filesystem without modes is not a reason to fail the write.
         }
     }
 

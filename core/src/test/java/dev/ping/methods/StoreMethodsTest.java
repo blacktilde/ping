@@ -9,16 +9,23 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Drives the store the way the desktop does: as JSON crossing the RPC boundary.
@@ -212,5 +219,75 @@ class StoreMethodsTest {
                 Map.of("root", workspace.toString(), "path", "api/broken.yaml"));
 
         assertEquals(RpcException.STORE_FAILED, response.path("error").path("code").asInt());
+    }
+
+    @Test
+    void refusesSymlinksThatLeaveTheWorkspace() throws Exception {
+        Path outside = Files.createTempDirectory("ping-outside");
+        try {
+            Files.createDirectories(workspace.resolve("col"));
+            Files.writeString(outside.resolve("secret.yaml"), "name: secret\n");
+            try {
+                Files.createSymbolicLink(
+                        workspace.resolve("col/linked.yaml"), outside.resolve("secret.yaml"));
+                Files.createSymbolicLink(workspace.resolve("col/outdir"), outside);
+                Files.createSymbolicLink(workspace.resolve("col/loop"), Path.of(".."));
+            } catch (IOException | UnsupportedOperationException e) {
+                assumeTrue(false, "symlinks are unavailable here: " + e.getMessage());
+            }
+            Files.writeString(workspace.resolve("col/real.yaml"), "name: real\n");
+
+            JsonNode read = call("store.read",
+                    Map.of("root", workspace.toString(), "path", "col/linked.yaml"));
+            assertEquals(RpcException.INVALID_PARAMS, read.path("error").path("code").asInt());
+
+            JsonNode write = call("store.write", Map.of(
+                    "root", workspace.toString(),
+                    "path", "col/outdir/planted.yaml",
+                    "request", Map.of("name", "planted")));
+            assertEquals(RpcException.INVALID_PARAMS, write.path("error").path("code").asInt());
+            assertFalse(Files.exists(outside.resolve("planted.yaml")),
+                    "nothing may be written outside the workspace");
+
+            JsonNode children = call("store.scan", Map.of("root", workspace.toString()))
+                    .path("result").path("collections").get(0).path("children");
+            List<String> names = new ArrayList<>();
+            children.forEach(node -> names.add(node.path("name").asText()));
+            assertTrue(names.contains("real"), names.toString());
+            assertFalse(names.contains("linked") || names.contains("outdir") || names.contains("loop"),
+                    "a symlink must not appear in the tree, let alone be followed: " + names);
+        } finally {
+            deleteRecursively(outside);
+        }
+    }
+
+    @Test
+    void writtenFilesAreReadableByOthers() throws Exception {
+        assumeTrue(
+                Files.getFileStore(workspace)
+                        .supportsFileAttributeView(PosixFileAttributeView.class),
+                "this filesystem has no POSIX file modes");
+        Files.createDirectories(workspace.resolve("col"));
+
+        call("store.write", Map.of(
+                "root", workspace.toString(),
+                "path", "col/x.yaml",
+                "request", Map.of("name", "x")));
+
+        Set<PosixFilePermission> permissions =
+                Files.getPosixFilePermissions(workspace.resolve("col/x.yaml"));
+        assertTrue(permissions.contains(PosixFilePermission.OTHERS_READ),
+                "a written file should be as shareable as a hand-written one: " + permissions);
+    }
+
+    private static void deleteRecursively(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
+        }
     }
 }

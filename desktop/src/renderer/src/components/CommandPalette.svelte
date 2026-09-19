@@ -16,6 +16,7 @@
   let query = $state('')
   let selected = $state(0)
   let input = $state<HTMLInputElement>()
+  let returnFocus: HTMLElement | null = null
 
   const filtered = $derived(
     query.trim()
@@ -25,12 +26,22 @@
       : commands
   )
 
-  // Reset and focus each time it opens; queueMicrotask waits for the input to exist.
+  // The combobox owns focus: the selected option is announced through
+  // aria-activedescendant rather than being focusable itself.
+  const activeOption = $derived(
+    filtered.length > 0 && selected >= 0 ? `palette-option-${selected}` : undefined
+  )
+
+  // Reset on open, and hand focus back to whatever had it on close.
   $effect(() => {
     if (open) {
+      returnFocus = document.activeElement as HTMLElement | null
       query = ''
       selected = 0
       queueMicrotask(() => input?.focus())
+    } else if (returnFocus) {
+      returnFocus.focus()
+      returnFocus = null
     }
   })
 
@@ -53,6 +64,9 @@
     if (event.key === 'Escape') {
       event.preventDefault()
       open = false
+    } else if (event.key === 'Tab') {
+      // A modal: keep focus inside rather than walking into the page behind it.
+      event.preventDefault()
     } else if (event.key === 'ArrowDown') {
       event.preventDefault()
       selected = Math.min(selected + 1, filtered.length - 1)
@@ -87,30 +101,41 @@
         bind:this={input}
         bind:value={query}
         onkeydown={onKeydown}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="palette-listbox"
+        aria-autocomplete="list"
+        aria-activedescendant={activeOption}
         aria-label="Command"
         placeholder="Type a command…"
         spellcheck="false"
         autocomplete="off"
         class="w-full border-b border-line bg-transparent px-4 py-3 text-sm text-fg outline-none"
       />
-      <ul class="max-h-80 overflow-auto py-1" role="listbox">
+      <ul id="palette-listbox" class="max-h-80 overflow-auto py-1" role="listbox">
         {#if filtered.length === 0}
-          <li class="px-4 py-6 text-center text-sm text-fg-faint">No matching commands.</li>
+          <li role="presentation" class="px-4 py-6 text-center text-sm text-fg-faint">
+            No matching commands.
+          </li>
         {/if}
         {#each filtered as command, index (command.id)}
-          <li role="option" aria-selected={index === selected}>
-            <button
-              type="button"
+          <li role="presentation">
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+            <div
+              id={`palette-option-${index}`}
+              role="option"
+              tabindex="-1"
+              aria-selected={index === selected}
               onclick={() => run(index)}
               onmouseenter={() => (selected = index)}
-              class="flex w-full items-center justify-between px-4 py-2 text-left text-sm
-                     transition {index === selected ? 'bg-line text-fg' : 'text-fg-muted'}"
+              class="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-left
+                     text-sm transition {index === selected ? 'bg-line text-fg' : 'text-fg-muted'}"
             >
               <span>{command.label}</span>
               {#if command.hint}
                 <span class="font-mono text-xs text-fg-faint">{command.hint}</span>
               {/if}
-            </button>
+            </div>
           </li>
         {/each}
       </ul>

@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { EditorState, type Extension } from '@codemirror/state'
+  import { Compartment, EditorState, type Extension } from '@codemirror/state'
   import { EditorView } from '@codemirror/view'
   import { basicSetup } from 'codemirror'
   import { json, jsonParseLinter } from '@codemirror/lang-json'
   import { linter } from '@codemirror/lint'
   import { oneDark } from '@codemirror/theme-one-dark'
+  import { theme } from '../lib/theme.svelte'
 
   interface Props {
     value?: string
@@ -35,10 +36,26 @@
     '.cm-gutters': { backgroundColor: 'transparent', border: 'none' }
   })
 
+  // oneDark supplies the token colours on a dark surface; the light layer lets the fallback
+  // highlight style and the panel surface show through. Swapped in place, so the doc and
+  // selection survive a theme change.
+  const themeCompartment = new Compartment()
+
+  const lightLayer = EditorView.theme({
+    '&': { backgroundColor: 'transparent', color: '#1f2933' },
+    '.cm-gutters': { backgroundColor: 'transparent', color: '#7b8794', border: 'none' },
+    '.cm-activeLine': { backgroundColor: 'rgba(0, 0, 0, 0.04)' },
+    '.cm-activeLineGutter': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
+  })
+
+  function themeLayer(): Extension {
+    return theme.resolved === 'dark' ? oneDark : lightLayer
+  }
+
   function extensions(): Extension[] {
     const list: Extension[] = [
       basicSetup,
-      oneDark,
+      themeCompartment.of(themeLayer()),
       appearance,
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ 'aria-label': label }),
@@ -63,6 +80,12 @@
       state: EditorState.create({ doc: value, extensions: extensions() })
     })
     return () => view?.destroy()
+  })
+
+  // Reflect a theme change without losing the document or the cursor.
+  $effect(() => {
+    theme.resolved
+    view?.dispatch({ effects: themeCompartment.reconfigure(themeLayer()) })
   })
 
   // Reflect changes made from outside the editor, such as a body mode reset. The equality
