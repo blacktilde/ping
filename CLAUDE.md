@@ -67,6 +67,10 @@ the workspace root and returns the credentials it lifted out of the files. Only 
 secrets and strips their values before the renderer sees the result. `core:request` refuses the
 method for that reason.
 
+**Notes are untrusted text.** Request and collection `docs` come from shared files and other
+people's imports. `lib/markdown.ts` renders them with raw HTML disabled; keep it that way, and never
+pass anything but its output to `{@html}`.
+
 **Develop against the JVM core.** `native-image` builds take minutes and are for releases
 and CI gates only.
 

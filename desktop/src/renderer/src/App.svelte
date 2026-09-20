@@ -62,6 +62,7 @@
   import AssertEditor from './components/AssertEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
   import CaptureEditor from './components/CaptureEditor.svelte'
+  import DocsEditor from './components/DocsEditor.svelte'
   import RequestSettings from './components/RequestSettings.svelte'
   import ResponsePane from './components/ResponsePane.svelte'
   import Sidebar from './components/Sidebar.svelte'
@@ -129,6 +130,7 @@
     { id: 'auth', label: 'Auth', badge: active.draft.auth.type === 'none' ? null : 'on' },
     { id: 'asserts', label: 'Asserts', badge: assertTotal > 0 ? String(assertTotal) : null },
     { id: 'capture', label: 'Capture', badge: captureTotal > 0 ? String(captureTotal) : null },
+    { id: 'docs', label: 'Docs', badge: active.draft.docs?.trim() ? '•' : null },
     { id: 'settings', label: 'Settings', badge: null }
   ])
 
@@ -368,6 +370,15 @@
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /** Empty notes delete the key, so the YAML and the dirty fingerprint stay clean. */
+  function setDocs(value: string): void {
+    if (value.trim() === '') {
+      delete active.draft.docs
+    } else {
+      active.draft.docs = value
     }
   }
 
@@ -821,6 +832,7 @@
       { id: 'tab-auth', label: 'Go to Auth', run: () => (active.editorTab = 'auth') },
       { id: 'tab-asserts', label: 'Go to Asserts', run: () => (active.editorTab = 'asserts') },
       { id: 'tab-capture', label: 'Go to Capture', run: () => (active.editorTab = 'capture') },
+      { id: 'tab-docs', label: 'Go to Docs', run: () => (active.editorTab = 'docs') },
       { id: 'env-none', label: 'Environment: none', run: () => void onEnvironmentChange('') }
     ]
 
@@ -1250,6 +1262,14 @@
                 <AssertEditor items={active.draft.asserts} />
               {:else if active.editorTab === 'capture'}
                 <CaptureEditor items={active.draft.capture} />
+              {:else if active.editorTab === 'docs'}
+                {#key active.path ?? tabs.activeId}
+                  <DocsEditor
+                    value={active.draft.docs}
+                    label="Request notes"
+                    onChange={setDocs}
+                  />
+                {/key}
               {:else}
                 <RequestSettings draft={active.draft} />
               {/if}

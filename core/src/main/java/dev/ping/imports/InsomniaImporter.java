@@ -81,7 +81,9 @@ final class InsomniaImporter {
                 }
             }
         }
-        return new ImportedCollection(name, variables, environments, folder(name, id));
+        String description = ImportSupport.text(workspace, "description");
+        return new ImportedCollection(name, variables, environments, folder(name, id),
+                description == null || description.isBlank() ? null : description.strip());
     }
 
     private JsonNode firstOfType(String parentId, String type) {

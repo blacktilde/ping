@@ -11,11 +11,15 @@ import java.util.List;
  * <p>Values are literal here, secrets included. {@link CollectionWriter} is the one place
  * that lifts credentials out before anything reaches disk, so a new importer cannot forget to.
  */
+/**
+ * @param docs the source's own description of the collection, kept as the collection's notes; may be null
+ */
 public record ImportedCollection(
         String name,
         List<RequestSpec.Param> variables,
         List<Environment> environments,
-        Folder root) {
+        Folder root,
+        String docs) {
 
     public record Environment(String name, List<RequestSpec.Param> variables) {
     }

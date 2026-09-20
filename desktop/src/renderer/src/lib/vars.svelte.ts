@@ -20,6 +20,7 @@ import {
 export const variables = $state({
   collection: '',
   name: '',
+  docs: '',
   environment: '',
   environments: [] as EnvironmentRef[],
   collectionVariables: [] as Param[],
@@ -30,6 +31,7 @@ export const variables = $state({
 export function clearVariables(): void {
   variables.collection = ''
   variables.name = ''
+  variables.docs = ''
   variables.environment = ''
   variables.environments = []
   variables.collectionVariables = []
@@ -47,6 +49,7 @@ export async function loadCollection(collection: string): Promise<void> {
 
   variables.collection = collection
   variables.name = catalog.name
+  variables.docs = catalog.docs ?? ''
   variables.environments = catalog.environments
   variables.collectionVariables = normalizeVariables(catalog.variables)
 
@@ -72,7 +75,12 @@ export async function persistVariables(): Promise<void> {
   if (!variables.collection) {
     return
   }
-  await saveCollection(variables.collection, variables.name, variables.collectionVariables)
+  await saveCollection(
+    variables.collection,
+    variables.name,
+    variables.collectionVariables,
+    variables.docs
+  )
   if (variables.environment) {
     const doc = await readEnvironment(variables.environment)
     await saveEnvironment(

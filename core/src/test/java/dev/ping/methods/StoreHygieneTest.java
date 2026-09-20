@@ -182,6 +182,19 @@ class StoreHygieneTest {
     }
 
     @Test
+    void renamingAndDuplicatingACollectionKeepItsNotes() throws Exception {
+        file("demo/collection.yaml", "name: Demo\ndocs: Notes about the demo\n");
+        file("demo/get.yaml", "name: Get\nmethod: GET\nurl: https://x.io\n");
+
+        assertEquals("demo copy", ok("store.duplicate", Map.of("path", "demo")));
+        assertTrue(read("demo copy/collection.yaml").contains("docs: Notes about the demo"));
+
+        assertEquals("Shop", ok("store.rename", Map.of("path", "demo", "name", "Shop")));
+        assertTrue(read("Shop/collection.yaml").contains("docs: Notes about the demo"),
+                "a rename rewrites collection.yaml and must not drop the notes");
+    }
+
+    @Test
     void reservedEntriesAndBlankNamesAreRefused() throws Exception {
         file("demo/collection.yaml", "name: Demo\n");
         file("demo/environments/dev.yaml", "name: Dev\n");

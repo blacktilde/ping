@@ -11,6 +11,8 @@ export interface EnvironmentRef {
 export interface VarsCatalog {
   name: string
   variables: Param[]
+  /** Markdown notes about the collection; absent when there are none. */
+  docs?: string
   environments: EnvironmentRef[]
 }
 
@@ -30,12 +32,15 @@ export async function readEnvironment(path: string): Promise<EnvironmentDoc> {
 export async function saveCollection(
   collection: string,
   name: string,
-  variables: Param[]
+  variables: Param[],
+  docs: string
 ): Promise<void> {
   await call<Record<string, never>>('vars.saveCollection', {
     collection,
     name,
-    variables: plain(variables)
+    variables: plain(variables),
+    // Always sent, so clearing the notes (an empty string) is saved as well as editing them.
+    docs
   })
 }
 

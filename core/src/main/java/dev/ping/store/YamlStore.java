@@ -200,7 +200,7 @@ public final class YamlStore {
         String path = relative(base, target);
         if (isCollection(base, target) && Files.isRegularFile(target.resolve(COLLECTION_FILE))) {
             CollectionDoc doc = collectionDoc(base, path);
-            saveCollection(base, path, new CollectionDoc(name, doc.variables()));
+            saveCollection(base, path, new CollectionDoc(name, doc.variables(), doc.docs()));
         }
         return path;
     }
@@ -291,7 +291,7 @@ public final class YamlStore {
             copyTree(source, target);
             if (isCollection(base, target) && Files.isRegularFile(target.resolve(COLLECTION_FILE))) {
                 CollectionDoc doc = collectionDoc(base, copy);
-                saveCollection(base, copy, new CollectionDoc(doc.name() + " copy", doc.variables()));
+                saveCollection(base, copy, new CollectionDoc(doc.name() + " copy", doc.variables(), doc.docs()));
             }
             return copy;
         } catch (IOException e) {
@@ -453,7 +453,7 @@ public final class YamlStore {
 
             Path metadata = collection.resolve(COLLECTION_FILE);
             if (!Files.exists(metadata)) {
-                writeValue(metadata, new CollectionDoc(name, List.of()));
+                writeValue(metadata, new CollectionDoc(name, List.of(), null));
             }
 
             boolean hasRequest;
@@ -513,14 +513,14 @@ public final class YamlStore {
 
         Path file = directory.resolve(COLLECTION_FILE);
         if (!Files.isRegularFile(file)) {
-            return new CollectionDoc(directory.getFileName().toString(), List.of());
+            return new CollectionDoc(directory.getFileName().toString(), List.of(), null);
         }
         try {
             CollectionDoc doc = YAML.readValue(file.toFile(), CollectionDoc.class);
             String name = doc.name() == null || doc.name().isBlank()
                     ? directory.getFileName().toString()
                     : doc.name();
-            return new CollectionDoc(name, doc.variables());
+            return new CollectionDoc(name, doc.variables(), doc.docs());
         } catch (IOException e) {
             throw RpcException.storeFailed(
                     "Could not parse " + relative(base, file) + ": " + e.getMessage(), e);

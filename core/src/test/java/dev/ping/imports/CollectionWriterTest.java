@@ -204,6 +204,15 @@ class CollectionWriterTest {
     }
 
     @Test
+    void theSourcesDescriptionIsWrittenAsTheCollectionsNotes() throws IOException {
+        write("""
+                {"info": {"name": "Noted", "description": "Read me first", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+                 "item": []}""");
+        assertEquals("Read me first", store.collectionDoc(root, "Noted").docs());
+        assertTrue(Files.readString(root.resolve("Noted/collection.yaml")).contains("docs: Read me first"));
+    }
+
+    @Test
     void theStoreHelpersAreDeterministic() {
         assertEquals("a b", YamlStore.folderName("a/b", "x").replaceAll("\\s+", " "));
         assertEquals("x", YamlStore.folderName("...", "x"));
