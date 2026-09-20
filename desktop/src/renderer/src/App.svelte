@@ -3,6 +3,7 @@
   import { authToSpec, cancelRequest, sendRequest, type RequestDraft } from './lib/http'
   import { copyText } from './lib/clipboard'
   import { toCurl } from './lib/curl'
+  import { importCurl, looksLikeCurl } from './lib/import'
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { confirmDialog } from './lib/confirm.svelte'
@@ -355,6 +356,46 @@
   }
 
   let curlStatusTimer: number | undefined
+
+  /** What the last import did, shown under the URL bar while its tab is active. */
+  let importNotice = $state<{
+    tabId: string
+    error: boolean
+    text: string
+    warnings: string[]
+  } | null>(null)
+
+  /**
+   * Pasting a curl command into the URL bar imports it as a request. Anything else pastes as
+   * usual, and so does a command the core cannot read, so nothing the user pasted is lost.
+   */
+  async function pasteIntoUrl(event: ClipboardEvent): Promise<void> {
+    const text = event.clipboardData?.getData('text') ?? ''
+    if (!looksLikeCurl(text)) {
+      return
+    }
+    event.preventDefault()
+    const input = event.currentTarget as HTMLInputElement
+    const start = input.selectionStart ?? input.value.length
+    const end = input.selectionEnd ?? start
+    try {
+      const { request, warnings } = await importCurl(text)
+      // A pristine tab is reused and anything else gets a new one, so the user's own draft is
+      // never overwritten by a paste.
+      openTab({ draft: storedToDraft(request) })
+      importNotice = { tabId: tabs.activeId, error: false, text: 'Imported from cURL', warnings }
+    } catch (cause) {
+      input.setRangeText(text, start, end, 'end')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      const reason = cause instanceof Error ? cause.message : String(cause)
+      importNotice = {
+        tabId: tabs.activeId,
+        error: true,
+        text: `Pasted as text: could not import as cURL (${reason})`,
+        warnings: []
+      }
+    }
+  }
 
   /** Puts the generated curl on the clipboard and confirms it briefly. */
   async function copyAsCurl(): Promise<void> {
@@ -853,6 +894,7 @@
             autocomplete="off"
             placeholder="https://api.example.com/resource"
             oninput={() => (urlRequired = false)}
+            onpaste={(event) => void pasteIntoUrl(event)}
             class="w-full rounded-lg border bg-panel py-2.5 pl-4 pr-16 font-mono
                    text-sm outline-none transition
                    {urlRequired ? 'border-warning' : 'border-line focus:border-accent'}"
@@ -960,6 +1002,37 @@
           </button>
         {/if}
       </form>
+
+      {#if importNotice && importNotice.tabId === tabs.activeId}
+        <div
+          data-role="import-notice"
+          data-error={importNotice.error}
+          role="status"
+          class="flex items-start gap-3 rounded-lg border px-3 py-2 text-xs
+                 {importNotice.error
+            ? 'border-warning-soft bg-warning-soft text-warning'
+            : 'border-line bg-panel text-fg-muted'}"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="font-medium">{importNotice.text}</p>
+            {#if importNotice.warnings.length > 0}
+              <ul class="mt-1 list-disc space-y-0.5 pl-4">
+                {#each importNotice.warnings as warning, index (index)}
+                  <li data-role="import-warning">{warning}</li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+          <button
+            type="button"
+            onclick={() => (importNotice = null)}
+            aria-label="Dismiss import notice"
+            class="rounded-md px-1.5 text-lg leading-none text-fg-faint transition hover:text-fg"
+          >
+            ×
+          </button>
+        </div>
+      {/if}
 
       {#if coreState !== 'ready'}
         <p

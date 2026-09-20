@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/import.schema.json",
+  "title": "Ping core RPC — import",
+  "$defs": {
+    "import.curl.params": {
+      "type": "object",
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "A curl command line, as copied from a terminal, browser devtools or API documentation. Line continuations and $'...' quoting are understood. Nothing is executed or expanded."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "importResult": {
+      "type": "object",
+      "description": "What an importer produced. It is a draft: nothing is written to disk.",
+      "required": ["request"],
+      "properties": {
+        "request": { "$ref": "store.schema.json#/$defs/storedRequest" },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Everything the source expressed that a request cannot: file bodies, proxies, client certificates, unsupported auth schemes, unknown options, shell variables left as written. Omitted when empty."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "import.curl.result": { "$ref": "#/$defs/importResult" }
+  }
+}
