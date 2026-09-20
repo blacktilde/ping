@@ -103,6 +103,7 @@
   let nodes = $state<StoreNode[]>([])
   let storeError = $state('')
   let showVariables = $state(false)
+  let showAbout = $state(false)
   let paletteOpen = $state(false)
   let showNetwork = $state(false)
   let workspaceRoot = $state<string | null>(null)
@@ -1022,14 +1023,49 @@
           </button>
 
           {#if info}
-            <dl class="ml-2 flex gap-5 text-xs text-fg-muted">
-              <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
-              <div><dt class="inline text-fg-faint">java</dt> <dd class="inline">{info.javaVersion}</dd></div>
-              <div>
-                <dt class="inline text-fg-faint">mode</dt>
-                <dd class="inline">{info.nativeImage ? 'native-image' : 'jvm'}</dd>
-              </div>
-            </dl>
+            <div
+              class="relative"
+              onfocusout={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) showAbout = false
+              }}
+            >
+              <button
+                type="button"
+                onclick={() => (showAbout = !showAbout)}
+                aria-expanded={showAbout}
+                aria-label="About this build"
+                title="About this build"
+                class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v5M12 8h.01" />
+                </svg>
+              </button>
+              {#if showAbout}
+                <dl
+                  data-role="about"
+                  class="absolute right-0 top-full z-30 mt-1 w-52 space-y-1 rounded-lg border
+                         border-line bg-panel p-3 text-xs text-fg-muted shadow-lg"
+                >
+                  <div class="flex justify-between"><dt class="text-fg-faint">core</dt><dd>{info.coreVersion}</dd></div>
+                  <div class="flex justify-between"><dt class="text-fg-faint">java</dt><dd>{info.javaVersion}</dd></div>
+                  <div class="flex justify-between">
+                    <dt class="text-fg-faint">mode</dt>
+                    <dd>{info.nativeImage ? 'native-image' : 'jvm'}</dd>
+                  </div>
+                </dl>
+              {/if}
+            </div>
           {:else if !bootError}
             <span class="ml-2 text-xs text-fg-faint">connecting to core…</span>
           {/if}
