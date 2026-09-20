@@ -1441,43 +1441,40 @@
     </SplitPane>
   {/snippet}
 
-  {#if sidebarCollapsed}
-    {@render workspace()}
-  {:else}
-    <SplitPane
-      direction="horizontal"
-      unit="pixels"
-      storageKey="ping.split.sidebar"
-      label="Resize sidebar"
-    >
-      {#snippet first()}
-        <Sidebar
-          {nodes}
-          activePath={active.path}
-          {workspaceRoot}
-          history={history.entries}
-          bind:panel={sidebarPanel}
-          onSelect={selectNode}
-          onCreate={createIn}
-          onDelete={deleteNode}
-          onOpenLocation={openLocation}
-          onRename={(node, name) => void renameNode(node, name)}
-          onDuplicate={(node) => void duplicateNode(node)}
-          onMove={(node, target) => void moveNode(node, target)}
-          onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
-          onNewCollection={newCollection}
-          onOpenFolder={openFolder}
-          onImport={() => void importCollection()}
-          onSelectHistory={selectHistory}
-          onClearHistory={clearHistoryEntries}
-        />
-      {/snippet}
+  <SplitPane
+    direction="horizontal"
+    unit="pixels"
+    collapsed={sidebarCollapsed}
+    storageKey="ping.split.sidebar"
+    label="Resize sidebar"
+  >
+    {#snippet first()}
+      <Sidebar
+        {nodes}
+        activePath={active.path}
+        {workspaceRoot}
+        history={history.entries}
+        bind:panel={sidebarPanel}
+        onSelect={selectNode}
+        onCreate={createIn}
+        onDelete={deleteNode}
+        onOpenLocation={openLocation}
+        onRename={(node, name) => void renameNode(node, name)}
+        onDuplicate={(node) => void duplicateNode(node)}
+        onMove={(node, target) => void moveNode(node, target)}
+        onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
+        onNewCollection={newCollection}
+        onOpenFolder={openFolder}
+        onImport={() => void importCollection()}
+        onSelectHistory={selectHistory}
+        onClearHistory={clearHistoryEntries}
+      />
+    {/snippet}
 
-      {#snippet second()}
-        {@render workspace()}
-      {/snippet}
-    </SplitPane>
-  {/if}
+    {#snippet second()}
+      {@render workspace()}
+    {/snippet}
+  </SplitPane>
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
 
