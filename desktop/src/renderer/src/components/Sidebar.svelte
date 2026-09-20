@@ -172,7 +172,7 @@
               type="button"
               onclick={onImport}
               aria-label="Import collection"
-              title="Import a Postman or Insomnia export"
+              title="Import a Postman, Insomnia or OpenAPI file"
               class="rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-fg"
             >
               <svg

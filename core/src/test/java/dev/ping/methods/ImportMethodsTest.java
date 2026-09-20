@@ -125,4 +125,33 @@ class ImportMethodsTest {
             assertEquals(0, files.count(), "a rejected import writes nothing");
         }
     }
+
+    @Test
+    void importsAnOpenApiYamlDocumentSentAsJson() throws Exception {
+        String spec = String.join("\n",
+                "openapi: 3.0.3",
+                "info: {title: Pets}",
+                "servers: [{url: 'https://pets.io'}]",
+                "security: [{bearerAuth: []}]",
+                "paths:",
+                "  /pets/{id}:",
+                "    get:",
+                "      tags: [pets]",
+                "      summary: Get pet",
+                "components:",
+                "  securitySchemes:",
+                "    bearerAuth: {type: http, scheme: bearer}",
+                "");
+        JsonNode result = call("import.collection",
+                Map.of("root", workspace.toString(), "content", spec)).path("result");
+
+        assertEquals("Pets", result.path("collections").get(0).path("path").asText());
+        assertEquals(1, result.path("collections").get(0).path("requests").asInt());
+        assertFalse(result.has("secrets"), "a spec holds no credentials to lift");
+        assertTrue(result.path("warnings").get(0).asText().contains("bearerAuth"));
+
+        String yaml = Files.readString(workspace.resolve("Pets/pets/get-pet.yaml"));
+        assertTrue(yaml.contains("{{baseUrl}}/pets/{{id}}"), yaml);
+        assertTrue(yaml.contains("{{bearerAuth}}"), yaml);
+    }
 }

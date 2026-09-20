@@ -6,7 +6,7 @@ import dev.ping.rpc.RpcException;
 import java.util.List;
 
 /**
- * Recognises a collection export and hands it to the right importer.
+ * Recognises a collection export or API description and hands it to the right importer.
  *
  * <p>Detection reads the file's own markers rather than its name or extension, and an
  * export that is clearly one of ours but not importable says why, so the user is not left
@@ -24,16 +24,27 @@ public final class CollectionImporter {
     public static Parsed parse(String content) {
         JsonNode root;
         try {
-            root = ImportSupport.JSON.readTree(content);
+            root = ImportSupport.parseDocument(content);
         } catch (Exception e) {
-            throw RpcException.invalidParams("The file is not valid JSON. Postman and Insomnia "
-                    + "exports are JSON; an Insomnia v5 YAML export must be exported as v4 JSON.");
+            throw RpcException.invalidParams("The file is not valid JSON or YAML. Postman and "
+                    + "Insomnia exports are JSON; an Insomnia v5 YAML export must be exported "
+                    + "as v4 JSON.");
         }
         if (root == null || !root.isObject()) {
-            throw RpcException.invalidParams("The file is not a Postman or Insomnia export");
+            throw RpcException.invalidParams("The file is not a Postman collection, an Insomnia "
+                    + "export or an OpenAPI document");
         }
 
         List<String> warnings = new java.util.ArrayList<>();
+
+        String openapi = ImportSupport.text(root, "openapi");
+        if (openapi != null && openapi.startsWith("3.")) {
+            return new Parsed(List.of(OpenApiImporter.parse(root, warnings)), warnings);
+        }
+        if (root.has("swagger")) {
+            throw RpcException.invalidParams("Swagger " + ImportSupport.text(root, "swagger")
+                    + " is not supported. Convert it to OpenAPI 3 and try again.");
+        }
 
         String schema = ImportSupport.text(root.path("info"), "schema");
         if (schema != null && schema.contains("collection/v2")) {
@@ -55,7 +66,7 @@ public final class CollectionImporter {
             }
             return new Parsed(InsomniaImporter.parse(root, warnings), warnings);
         }
-        throw RpcException.invalidParams("The file is not a Postman collection (v2.x) or an "
-                + "Insomnia v4 export");
+        throw RpcException.invalidParams("The file is not a Postman collection (v2.x), an "
+                + "Insomnia v4 export or an OpenAPI 3 document");
     }
 }

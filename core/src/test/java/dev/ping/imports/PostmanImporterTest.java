@@ -243,8 +243,9 @@ class PostmanImporterTest {
     @Test
     void rejectsWhatItCannotImportAndSaysWhy() {
         String[][] cases = {
-            {"not json", "not valid JSON"},
-            {"[1]", "not a Postman or Insomnia export"},
+            {"a: [unclosed", "not valid JSON or YAML"},
+            {"not json", "not a Postman collection"},
+            {"[1]", "not a Postman collection"},
             {"{\"name\": \"x\"}", "not a Postman collection"},
             {"{\"_postman_variable_scope\": \"environment\", \"values\": []}", "environment export"},
             {"{\"info\": {\"schema\": \"https://schema.getpostman.com/json/collection/v1.0.0/collection.json\"}}",

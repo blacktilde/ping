@@ -56,7 +56,7 @@ const api = {
   },
 
   /**
-   * Imports a Postman or Insomnia export. The shell shows the file picker, reads the file and
+   * Imports a Postman or Insomnia export, or an OpenAPI document. The shell shows the file picker, reads the file and
    * stores any credentials it contains; the renderer only learns what was created. Resolves
    * with `value: null` when the dialog is dismissed.
    */

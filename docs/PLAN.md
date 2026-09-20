@@ -96,7 +96,7 @@ assertions plus the runner change what the project is for.
   *Gate: `StoreMethodsTest` covers rename, move and duplicate including collisions; `make
   smoke` renames an open request and the tab survives with its dirty state intact.*
 
-- [ ] **14. Import.** Three sources, smallest first: a curl command pasted into the URL bar,
+- [x] **14. Import.** Three sources, smallest first: a curl command pasted into the URL bar,
   an OpenAPI 3 document, and a Postman v2.1 or Insomnia v4 export. The parsers belong in the
   core — the CLI will want them, and a `StoredRequest` is what they all produce — behind
   `import.curl`, `import.openapi` and `import.collection`. Import writes through the existing
@@ -105,9 +105,11 @@ assertions plus the runner change what the project is for.
   pre-request script becomes a `docs` note on the request it came from.
   *Gate: a fixture corpus per format round-trips to YAML and back; each new RPC type has a
   test that sends it as JSON, then `make agent` and `make native-test`.*
-  *Status: shipping in slices. **Done:** cURL paste (`import.curl`, the URL-bar paste handler), and
-  Postman v2.x / Insomnia v4 files (`import.collection`, the sidebar Import button, the `docs`
-  field, secrets lifted into `safeStorage`). **Remaining:** OpenAPI 3 (`import.openapi`).*
+  *Shipped in three slices: cURL paste (`import.curl`, the URL-bar paste handler); Postman v2.x
+  and Insomnia v4 files; and OpenAPI 3.x (JSON or YAML). The file-based sources share one RPC,
+  `import.collection`, which detects the format from the content, so there is a single Import
+  button and no separate `import.openapi`. Also landed with it: the `docs` field on a request and
+  secrets lifted into `safeStorage`.*
 
 - [x] **15. Assertions.** A stored request gains an `asserts` list, `http.send` gains an
   `assertions` result array, and the response pane grows a pass/fail row. Declarative and

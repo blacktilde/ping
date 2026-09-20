@@ -128,7 +128,9 @@ async function chooseImportFile(): Promise<string | null> {
   }
   const options: Electron.OpenDialogOptions = {
     properties: ['openFile'],
-    filters: [{ name: 'Postman or Insomnia export', extensions: ['json'] }]
+    filters: [
+      { name: 'Postman, Insomnia or OpenAPI', extensions: ['json', 'yaml', 'yml'] }
+    ]
   }
   const result = mainWindow
     ? await dialog.showOpenDialog(mainWindow, options)
@@ -326,7 +328,7 @@ function registerIpc(): void {
     return result.filePath
   })
 
-  // Imports a Postman or Insomnia export into a new collection folder. Everything that matters
+  // Imports a Postman or Insomnia export, or an OpenAPI document, into a new collection folder. Everything that matters
   // stays in main: the file is chosen here and read here (the renderer never names a path),
   // the workspace root is injected here, and lifted credentials are stored here and stripped
   // from what the renderer gets back.
