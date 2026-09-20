@@ -44,7 +44,11 @@
         "timeoutMs": { "type": "integer" },
         "redirects": { "enum": ["never", "normal", "always"] },
         "verifyTls": { "type": "boolean" },
-        "maxBodyBytes": { "type": "integer" }
+        "maxBodyBytes": { "type": "integer" },
+        "asserts": {
+          "type": "array",
+          "items": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/assert" }
+        }
       },
       "additionalProperties": false
     },

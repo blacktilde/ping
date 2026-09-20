@@ -7,6 +7,8 @@
  */
 
 import type {
+  Assert,
+  AssertType,
   BodyMode,
   HttpMethod,
   HttpRequestSpec,
@@ -30,6 +32,60 @@ export function emptyParam(): Param {
   return { name: '', value: '', enabled: true }
 }
 
+export const ASSERT_TYPES: { value: AssertType; label: string }[] = [
+  { value: 'status', label: 'Status' },
+  { value: 'header', label: 'Header' },
+  { value: 'jsonpath', label: 'JSON path' },
+  { value: 'body', label: 'Body' },
+  { value: 'duration', label: 'Duration (ms)' }
+]
+
+/** Ops each type accepts, default first; the core rejects anything else. */
+export const ASSERT_OPS: Record<AssertType, { value: NonNullable<Assert['op']>; label: string }[]> = {
+  status: [{ value: 'equals', label: 'equals' }],
+  header: [
+    { value: 'exists', label: 'exists' },
+    { value: 'equals', label: 'equals' },
+    { value: 'contains', label: 'contains' }
+  ],
+  jsonpath: [
+    { value: 'exists', label: 'exists' },
+    { value: 'equals', label: 'equals' },
+    { value: 'contains', label: 'contains' }
+  ],
+  body: [{ value: 'contains', label: 'contains' }],
+  duration: [{ value: 'lt', label: 'is under' }]
+}
+
+/** Whether a type/op reads `target` and `expected`, so the editor can hide what is unused. */
+export function assertUsesTarget(type: AssertType): boolean {
+  return type === 'header' || type === 'jsonpath'
+}
+
+export function assertUsesExpected(type: AssertType, op: Assert['op']): boolean {
+  return !(op === 'exists' && (type === 'header' || type === 'jsonpath'))
+}
+
+export function emptyAssert(): Assert {
+  return { type: 'status', target: '', op: 'equals', expected: '200', enabled: true }
+}
+
+/**
+ * Copies rows into plain objects with a fixed key order, so two drafts that mean the same
+ * thing fingerprint the same. Fields the type does not read are dropped, which keeps a
+ * stale target from surviving a switch from header to status.
+ */
+export function plainAsserts(items: Assert[] | undefined): Assert[] {
+  return (items ?? []).map((item) => {
+    const row: Assert = { type: item.type }
+    if (assertUsesTarget(item.type)) row.target = item.target ?? ''
+    if (item.op) row.op = item.op
+    if (assertUsesExpected(item.type, item.op)) row.expected = item.expected ?? ''
+    row.enabled = item.enabled ?? true
+    return row
+  })
+}
+
 export function newDraft(): RequestDraft {
   return {
     name: 'Untitled request',
@@ -38,7 +94,8 @@ export function newDraft(): RequestDraft {
     query: [],
     headers: [],
     body: { type: 'none', content: '', contentType: '', fields: [] },
-    auth: newAuth()
+    auth: newAuth(),
+    asserts: []
   }
 }
 
@@ -90,10 +147,17 @@ export function toRequestSpec(draft: RequestDraft, requestId: string): HttpReque
 
   const auth = authToSpec(draft.auth)
   if (auth) spec.auth = auth
+  const asserts = plainAsserts(draft.asserts)
+  if (asserts.length > 0) spec.asserts = asserts
   return spec
 }
 
 /** Rows that will actually reach the wire: enabled and named. Used for the tab badges. */
 export function enabledCount(items: Param[]): number {
   return items.filter((item) => item.enabled && item.name.trim().length > 0).length
+}
+
+/** Assertions that will run: enabled ones. Used for the tab badge. */
+export function assertCount(items: Assert[]): number {
+  return items.filter((item) => item.enabled !== false).length
 }

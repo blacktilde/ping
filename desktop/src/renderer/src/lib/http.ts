@@ -107,6 +107,30 @@ export interface RequestBody {
   fields: Param[]
 }
 
+export type AssertType = 'status' | 'header' | 'jsonpath' | 'body' | 'duration'
+export type AssertOp = 'exists' | 'equals' | 'contains' | 'lt'
+
+/** One declarative check on a response; mirrors `assert` in `contract/http.schema.json`. */
+export interface Assert {
+  type: AssertType
+  /** Header name for `header`, a path for `jsonpath`; unused otherwise. */
+  target?: string
+  /** Omitted means the type's default op, which the core owns. */
+  op?: AssertOp
+  expected?: string
+  enabled?: boolean
+}
+
+export interface AssertionResult {
+  type: string
+  target?: string | null
+  op: string
+  expected?: string | null
+  passed: boolean
+  actual?: string | null
+  message?: string | null
+}
+
 /** The editable request, before it is turned into RPC params. */
 export interface RequestDraft {
   name: string
@@ -116,6 +140,7 @@ export interface RequestDraft {
   headers: Param[]
   body: RequestBody
   auth: AuthDraft
+  asserts: Assert[]
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
@@ -141,6 +166,7 @@ export interface HttpRequestSpec {
   maxBodyBytes?: number
   /** How to authenticate; values may reference variables, which secrets resolve into. */
   auth?: AuthSpec
+  asserts?: Assert[]
   /** Resolved values for {{name}} placeholders; resolution precedence lives in the core. */
   variables?: Record<string, string>
 }
@@ -180,6 +206,8 @@ export interface HttpResponse {
   body: HttpResponseBody
   timing: HttpTiming
   redirects: RedirectHop[]
+  /** One per enabled assertion; absent or empty when the request has none. */
+  assertions?: AssertionResult[]
 }
 
 /**

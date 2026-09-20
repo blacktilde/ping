@@ -14,7 +14,13 @@ public record ResponseData(
         List<Header> headers,
         BodyData body,
         Timing timing,
-        List<Redirect> redirects) {
+        List<Redirect> redirects,
+        List<AssertionResult> assertions) {
+
+    /** Assertions run after the exchange is assembled, so they see exactly what the UI will. */
+    public ResponseData withAssertions(List<AssertionResult> results) {
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, results);
+    }
 
     public record Header(String name, String value) {
     }
