@@ -143,6 +143,38 @@ export function closeTab(id: string): RequestTab | undefined {
   return removed
 }
 
+/**
+ * Points open tabs at a path that moved. A tab on the path itself or on anything under it (a
+ * renamed or moved folder's descendants) follows it, so the next save writes to the file's new
+ * home instead of resurrecting the old one.
+ *
+ * `savedKey` fingerprints the draft's content, not its location, so it is left alone and a dirty
+ * tab stays dirty. Only a request's own display name is carried into both the draft and the
+ * fingerprint, so the rename is not itself reported as an unsaved edit.
+ *
+ * @param newName the request's new display name, when the move was a rename of a request
+ */
+export function retargetTabs(oldPath: string, newPath: string, newName?: string): void {
+  for (const tab of tabs.list) {
+    if (tab.path === oldPath) {
+      tab.path = newPath
+      if (newName !== undefined) {
+        tab.draft.name = newName
+        if (tab.savedKey !== null) {
+          try {
+            tab.savedKey = JSON.stringify({ ...JSON.parse(tab.savedKey), name: newName })
+          } catch {
+            // A key that is not JSON cannot be edited; the tab simply reads as changed.
+          }
+        }
+      }
+    } else if (tab.path?.startsWith(`${oldPath}/`)) {
+      tab.path = `${newPath}${tab.path.slice(oldPath.length)}`
+    }
+  }
+  persist()
+}
+
 export function closeTabsUnder(path: string): RequestTab[] {
   const doomed = tabs.list.filter(
     (tab) => tab.path === path || (tab.path?.startsWith(`${path}/`) ?? false)

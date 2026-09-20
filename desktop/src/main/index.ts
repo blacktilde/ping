@@ -170,7 +170,7 @@ function withWorkspaceRoot(
   const source = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
   const safe: Record<string, unknown> = { ...source, root }
 
-  for (const field of ['path', 'collection']) {
+  for (const field of ['path', 'collection', 'to']) {
     const value = safe[field]
     if (value === undefined) {
       continue

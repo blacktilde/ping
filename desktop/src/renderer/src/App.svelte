@@ -22,18 +22,23 @@
     ensureTab,
     newTab,
     openTab,
+    retargetTabs,
     tabs
   } from './lib/tabs.svelte'
   import {
     chooseWorkspace,
+    createFolder,
     createRequest,
     currentWorkspace,
     deleteEntry,
     draftKey,
     draftToStored,
+    duplicateEntry,
+    moveEntry,
     onStoreChanged,
     openInFileManager,
     readRequest,
+    renameEntry,
     scaffoldCollection,
     scanStore,
     storedToDraft,
@@ -309,6 +314,56 @@
       await deleteEntry(node.path)
       // Any tab editing the deleted file (or something under it) has nothing left to save.
       closeTabsUnder(node.path)
+      nodes = await scanStore()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /**
+   * Renames a request or folder. Open tabs follow the new path before the tree is rescanned, so a
+   * tab never points at a file that no longer exists, and a tab with unsaved edits keeps them.
+   */
+  async function renameNode(node: StoreNode, name: string): Promise<void> {
+    try {
+      const path = await renameEntry(node.path, name)
+      retargetTabs(node.path, path, node.type === 'request' ? name : undefined)
+      nodes = await scanStore()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function moveNode(node: StoreNode, target: StoreNode): Promise<void> {
+    try {
+      const path = await moveEntry(node.path, target.path)
+      retargetTabs(node.path, path)
+      nodes = await scanStore()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function duplicateNode(node: StoreNode): Promise<void> {
+    try {
+      const path = await duplicateEntry(node.path)
+      nodes = await scanStore()
+      const copy = findNode(nodes, path)
+      if (copy && copy.type === 'request') {
+        await openRequest(copy)
+      }
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function createFolderIn(parent: string, name: string): Promise<void> {
+    try {
+      await createFolder(parent, name)
       nodes = await scanStore()
       storeError = ''
     } catch (cause) {
@@ -1234,6 +1289,10 @@
           onCreate={createIn}
           onDelete={deleteNode}
           onOpenLocation={openLocation}
+          onRename={(node, name) => void renameNode(node, name)}
+          onDuplicate={(node) => void duplicateNode(node)}
+          onMove={(node, target) => void moveNode(node, target)}
+          onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
           onNewCollection={newCollection}
           onOpenFolder={openFolder}
           onImport={() => void importCollection()}

@@ -42,7 +42,10 @@ not `http.send`, whose length is the user's to set.
 | `store.scan`  | `{ root: string }`        | `{ collections: Node[] }`                           |
 | `store.read`  | `{ root, path }`          | `StoredRequest`                                     |
 | `store.write` | `{ root, path, request }` | `{ path: string }`                                  |
-| `store.create`| `{ root, collection?, name }` | `{ path: string }`                              |
+| `store.create`| `{ root, collection?, type?, name }` | `{ path: string }`                       |
+| `store.rename`| `{ root, path, name }`    | `{ path: string }`                                  |
+| `store.move`  | `{ root, path, to }`      | `{ path: string }`                                  |
+| `store.duplicate`| `{ root, path }`       | `{ path: string }`                                  |
 | `store.scaffold`| `{ root, collection? }` | `{ collection: string }`                          |
 | `store.delete`| `{ root, path }`          | `{}`                                                |
 | `vars.catalog`| `{ root, collection }`    | `{ name, variables, environments }`                 |
@@ -88,6 +91,27 @@ mirror the `http.send` params (see `store.schema.json`), with `name` added and e
 omitted. Writes go through a temp file and a rename, so a crash cannot leave a half-written
 request. `store.create` derives a unique filename from the request name, and `store.scaffold`
 creates a starter collection on first run without ever overwriting an existing one.
+
+### Renaming, moving and duplicating
+
+`store.rename`, `store.move` and `store.duplicate` reshape the tree and return the new relative path.
+Every path (and `to`) is relative, validated by the shell and re-checked by the core against escapes
+and symlinks. Nothing is ever replaced.
+
+- **Rename a request** sets its `name` and renames the file to match, unless the file already carries
+  that name's slug (or the slug plus a numeric suffix), so a rename does not churn file names. Only
+  `name` changes: the request is edited as parsed YAML, so a field this core does not know survives.
+- **Rename a folder** sanitises the name for every platform and treats an existing sibling of that
+  name as an error, not a silent `Name 2`. Renaming a collection also renames it in `collection.yaml`.
+- **Move** takes a request or folder into an existing folder or collection. A request that would clash
+  takes a unique file name; a folder that would clash is an error. Refused: a collection, the workspace
+  root, an `environments` folder, and moving a folder into itself or a descendant. Moving to the current
+  parent returns the same path.
+- **Duplicate** copies a request (as `<name> copy`) or a whole folder or collection (recursively,
+  symlinks skipped) next to the original; a copied collection is named `<name> copy` in its
+  `collection.yaml`.
+- `collection.yaml` and everything under `environments/` are refused by all three.
+- `store.create` accepts `type: "folder"`.
 
 ### vars.*
 
