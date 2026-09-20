@@ -1414,8 +1414,35 @@
     </main>
   {/snippet}
 
+  <!-- The variables panel docks on the right, the mirror of the sidebar. -->
+  {#snippet workspace()}
+    <SplitPane
+      direction="horizontal"
+      unit="pixels"
+      anchor="end"
+      collapsed={!showVariables}
+      initial={448}
+      min={320}
+      max={720}
+      storageKey="ping.split.variables"
+      label="Resize variables"
+    >
+      {#snippet first()}
+        {@render mainContent()}
+      {/snippet}
+
+      {#snippet second()}
+        <VariablesPanel
+          onClose={() => (showVariables = false)}
+          onSave={onSaveVariables}
+          onAddEnvironment={onAddEnvironment}
+        />
+      {/snippet}
+    </SplitPane>
+  {/snippet}
+
   {#if sidebarCollapsed}
-    {@render mainContent()}
+    {@render workspace()}
   {:else}
     <SplitPane
       direction="horizontal"
@@ -1447,17 +1474,9 @@
       {/snippet}
 
       {#snippet second()}
-        {@render mainContent()}
+        {@render workspace()}
       {/snippet}
     </SplitPane>
-  {/if}
-
-  {#if showVariables}
-    <VariablesPanel
-      onClose={() => (showVariables = false)}
-      onSave={onSaveVariables}
-      onAddEnvironment={onAddEnvironment}
-    />
   {/if}
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />

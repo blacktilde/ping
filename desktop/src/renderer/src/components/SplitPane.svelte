@@ -4,6 +4,10 @@
   interface Props {
     direction?: 'horizontal' | 'vertical'
     unit?: 'fraction' | 'pixels'
+    // With `end`, the pixel size belongs to the second pane and the first takes the rest.
+    anchor?: 'start' | 'end'
+    // Hides the second pane and the divider, and leaves the first pane mounted.
+    collapsed?: boolean
     initial?: number
     min?: number
     max?: number
@@ -16,6 +20,8 @@
   let {
     direction = 'vertical',
     unit = 'fraction',
+    anchor = 'start',
+    collapsed = false,
     initial = unit === 'fraction' ? 0.5 : 256,
     min = unit === 'fraction' ? 0.15 : 180,
     max = unit === 'fraction' ? 0.85 : 520,
@@ -27,6 +33,8 @@
 
   // A vertical split stacks the panes, so its divider is horizontal to the reader.
   const vertical = $derived(direction === 'vertical')
+  // Dragging toward the anchored pane's far edge grows it, so the deltas flip.
+  const sign = $derived(unit === 'pixels' && anchor === 'end' ? -1 : 1)
 
   function clamp(value: number): number {
     return Math.min(max, Math.max(min, value))
@@ -81,7 +89,7 @@
     const move = (moveEvent: PointerEvent): void => {
       const current = vertical ? moveEvent.clientY : moveEvent.clientX
       if (unit === 'pixels') {
-        apply(start + (current - origin))
+        apply(start + sign * (current - origin))
         return
       }
       const bounds = container?.getBoundingClientRect()
@@ -102,8 +110,8 @@
 
   function onKeydown(event: KeyboardEvent): void {
     const step = unit === 'fraction' ? (event.shiftKey ? 0.1 : 0.02) : event.shiftKey ? 48 : 16
-    const decrease = vertical ? 'ArrowUp' : 'ArrowLeft'
-    const increase = vertical ? 'ArrowDown' : 'ArrowRight'
+    const decrease = vertical ? 'ArrowUp' : sign < 0 ? 'ArrowRight' : 'ArrowLeft'
+    const increase = vertical ? 'ArrowDown' : sign < 0 ? 'ArrowLeft' : 'ArrowRight'
     if (event.key === decrease) {
       apply(size - step)
     } else if (event.key === increase) {
@@ -134,8 +142,17 @@
     }
   })
 
-  const firstStyle = $derived(unit === 'fraction' ? `flex: ${size} 1 0%` : `flex: 0 0 ${size}px`)
-  const secondStyle = $derived(unit === 'fraction' ? `flex: ${1 - size} 1 0%` : 'flex: 1 1 0%')
+  const fill = 'flex: 1 1 0%'
+  const firstStyle = $derived(
+    collapsed || sign < 0
+      ? fill
+      : unit === 'fraction'
+        ? `flex: ${size} 1 0%`
+        : `flex: 0 0 ${size}px`
+  )
+  const secondStyle = $derived(
+    sign < 0 ? `flex: 0 0 ${size}px` : unit === 'fraction' ? `flex: ${1 - size} 1 0%` : fill
+  )
   const valueNow = $derived(Math.round(unit === 'fraction' ? size * 100 : size))
   const valueMin = $derived(Math.round(unit === 'fraction' ? min * 100 : min))
   const valueMax = $derived(Math.round(unit === 'fraction' ? max * 100 : max))
@@ -149,6 +166,7 @@
     {@render first()}
   </div>
 
+  {#if !collapsed}
   <!-- A focusable separator is a widget: the ARIA splitter pattern, which the linter misses. -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -174,4 +192,5 @@
   <div class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden" style={secondStyle}>
     {@render second()}
   </div>
+  {/if}
 </div>
