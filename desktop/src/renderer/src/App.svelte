@@ -294,7 +294,7 @@
   async function copyAsCurl(): Promise<void> {
     try {
       await copyText(curlCommand)
-      curlStatus = 'cURL copied'
+      curlStatus = 'copied!'
     } catch {
       curlStatus = 'Could not copy'
     }
@@ -666,12 +666,6 @@
             Variables
           </button>
 
-          {#if curlStatus}
-            <span role="status" data-role="curl-status" class="text-xs text-fg-muted">
-              {curlStatus}
-            </span>
-          {/if}
-
           {#if info}
             <dl class="ml-2 flex gap-5 text-xs text-fg-muted">
               <div><dt class="inline text-fg-faint">core</dt> <dd class="inline">{info.coreVersion}</dd></div>
@@ -732,29 +726,41 @@
                    text-sm outline-none transition focus:border-accent"
           />
           <div class="absolute inset-y-0 right-1.5 flex items-center gap-1">
-            <button
-              data-role="copy-curl"
-              data-curl={curlCommand}
-              type="button"
-              onclick={() => void copyAsCurl()}
-              aria-label="Copy as cURL"
-              title="Copy as cURL"
-              class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
+            <div class="relative">
+              <button
+                data-role="copy-curl"
+                data-curl={curlCommand}
+                type="button"
+                onclick={() => void copyAsCurl()}
+                aria-label="Copy as cURL"
+                title="Copy as cURL"
+                class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
               >
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>
-            </button>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="16 18 22 12 16 6" />
+                  <polyline points="8 6 2 12 8 18" />
+                </svg>
+              </button>
+              {#if curlStatus}
+                <span
+                  role="status"
+                  data-role="curl-status"
+                  class="pointer-events-none absolute -top-8 right-0 whitespace-nowrap rounded-md
+                         border border-line bg-panel px-2 py-1 text-xs text-fg-muted shadow-lg"
+                >
+                  {curlStatus}
+                </span>
+              {/if}
+            </div>
             {#if dirty}
               <span
                 data-role="dirty"
