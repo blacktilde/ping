@@ -36,9 +36,6 @@
     '.cm-gutters': { backgroundColor: 'transparent', border: 'none' }
   })
 
-  // oneDark supplies the token colours on a dark surface; the light layer lets the fallback
-  // highlight style and the panel surface show through. Swapped in place, so the doc and
-  // selection survive a theme change.
   const themeCompartment = new Compartment()
 
   const lightLayer = EditorView.theme({
@@ -55,8 +52,8 @@
   function extensions(): Extension[] {
     const list: Extension[] = [
       basicSetup,
-      themeCompartment.of(themeLayer()),
       appearance,
+      themeCompartment.of(themeLayer()),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ 'aria-label': label }),
       EditorView.updateListener.of((update) => {
