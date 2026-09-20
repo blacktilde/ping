@@ -41,6 +41,17 @@ expect() { # expect <exit code> <label> <command...>
 
 expect 0 "passing collection passes" \
   "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=$BASE"
+# Whoami answers 200 only for the token Login returned, so this also proves a captured value
+# reached the next request. The captured value itself must never appear in a report.
+for reporter in json junit human; do
+  "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=$BASE" -r "$reporter" -o "$WORK/report-$reporter" >/dev/null 2>&1
+  if grep -q 'tok-sample-4711' "$WORK/report-$reporter"; then
+    echo "FAIL the $reporter report contains a captured value"
+    failures=$((failures + 1))
+  else
+    echo "ok   the $reporter report holds no captured value"
+  fi
+done
 expect 1 "a failing assertion fails the run" \
   "$BIN" run "$HERE/sample/failing" -e ci --var "baseUrl=$BASE"
 expect 1 "junit report of a failing run" \

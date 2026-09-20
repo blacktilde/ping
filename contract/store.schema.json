@@ -49,6 +49,10 @@
           "type": "array",
           "items": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/assert" }
         },
+        "capture": {
+          "type": "array",
+          "items": { "$ref": "https://ping.dev/contract/http.schema.json#/$defs/capture" }
+        },
         "docs": {
           "type": "string",
           "description": "Free-form markdown notes about the request. Nothing on the wire depends on it; importers use it for what a request cannot express, such as a script that was not carried over."

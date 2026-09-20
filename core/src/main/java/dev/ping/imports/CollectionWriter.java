@@ -131,7 +131,7 @@ public final class CollectionWriter {
                 liftParams(request.query(), prefix, "query"),
                 liftParams(request.headers(), prefix, "header"),
                 body, auth, request.timeoutMs(), request.redirects(), request.verifyTls(),
-                request.maxBodyBytes(), request.asserts(), request.docs());
+                request.maxBodyBytes(), request.asserts(), request.capture(), request.docs());
     }
 
     /** Values of credential-looking names become references; everything else is untouched. */

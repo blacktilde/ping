@@ -24,7 +24,7 @@ class AssertionsTest {
                 new ResponseData.BodyData(body, null, false, body == null ? 0 : body.length(),
                         body != null, "application/json", "UTF-8"),
                 new ResponseData.Timing(null, 1, 1, totalMs),
-                List.of(), List.of());
+                List.of(), List.of(), List.of());
     }
 
     private static AssertionResult run(Assertion assertion, ResponseData response) {
@@ -145,7 +145,7 @@ class AssertionsTest {
 
         ResponseData truncated = new ResponseData(200, "HTTP_1_1", List.of(),
                 new ResponseData.BodyData("{\"id\":", null, true, 99, true, null, "UTF-8"),
-                new ResponseData.Timing(null, 1, 1, 1), List.of(), List.of());
+                new ResponseData.Timing(null, 1, 1, 1), List.of(), List.of(), List.of());
         assertTrue(run(new Assertion("jsonpath", "$.id", null, null, null), truncated)
                 .message().contains("truncated"));
     }

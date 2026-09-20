@@ -121,6 +121,30 @@ export interface Assert {
   enabled?: boolean
 }
 
+export type CaptureSource = 'jsonpath' | 'header' | 'status'
+
+/** One value to keep from a response; mirrors `capture` in `contract/http.schema.json`. */
+export interface Capture {
+  /** The runtime variable to set. */
+  name: string
+  source: CaptureSource
+  /** The path for `jsonpath`, the header name for `header`; unused for `status`. */
+  target?: string
+  enabled?: boolean
+}
+
+/**
+ * What a capture did. There is no value here on purpose: the shell keeps captured values and
+ * removes them before a response reaches the renderer, so nothing in the UI can hold one.
+ */
+export interface CaptureOutcome {
+  name: string
+  source: string
+  target?: string | null
+  found: boolean
+  message?: string | null
+}
+
 export interface AssertionResult {
   type: string
   target?: string | null
@@ -141,6 +165,7 @@ export interface RequestDraft {
   body: RequestBody
   auth: AuthDraft
   asserts: Assert[]
+  capture: Capture[]
   /** Notes kept with the request; carried through edit and save, no editor yet. */
   docs?: string
   timeoutMs?: number
@@ -169,6 +194,7 @@ export interface HttpRequestSpec {
   /** How to authenticate; values may reference variables, which secrets resolve into. */
   auth?: AuthSpec
   asserts?: Assert[]
+  capture?: Capture[]
   /** Resolved values for {{name}} placeholders; resolution precedence lives in the core. */
   variables?: Record<string, string>
 }
@@ -210,6 +236,8 @@ export interface HttpResponse {
   redirects: RedirectHop[]
   /** One per enabled assertion; absent or empty when the request has none. */
   assertions?: AssertionResult[]
+  /** One per enabled capture; names and hit/miss only, never the captured value. */
+  captured?: CaptureOutcome[]
 }
 
 /**

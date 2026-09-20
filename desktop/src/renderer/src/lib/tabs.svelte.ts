@@ -211,6 +211,7 @@ function revive(item: unknown): RequestTab | undefined {
   }
   // Drafts persisted before assertions existed have no list.
   draft.asserts = Array.isArray(draft.asserts) ? draft.asserts : []
+  draft.capture = Array.isArray(draft.capture) ? draft.capture : []
   return {
     id: typeof record.id === 'string' && record.id ? record.id : crypto.randomUUID(),
     draft,

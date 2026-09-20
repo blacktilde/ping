@@ -1,0 +1,10 @@
+name: Login
+method: GET
+url: "{{baseUrl}}/login"
+asserts:
+- type: status
+  expected: "200"
+capture:
+- name: token
+  source: jsonpath
+  target: $.token

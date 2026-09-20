@@ -48,6 +48,11 @@
         "assertions": {
           "type": "array",
           "items": { "$ref": "http.schema.json#/$defs/assertionResult" }
+        },
+        "captures": {
+          "type": "array",
+          "items": { "$ref": "http.schema.json#/$defs/captureResult" },
+          "description": "What each capture did, by name. The captured values themselves are never part of a result, and are masked wherever they resurface. Omitted when the request has none."
         }
       },
       "additionalProperties": false

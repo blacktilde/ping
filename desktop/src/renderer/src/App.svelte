@@ -12,7 +12,8 @@
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { confirmDialog } from './lib/confirm.svelte'
-  import { assertCount, enabledCount, METHODS, toRequestSpec } from './lib/request'
+  import { assertCount, captureCount, enabledCount, METHODS, toRequestSpec } from './lib/request'
+  import { refreshRuntime } from './lib/runtime.svelte'
   import {
     activeTab,
     activateTab,
@@ -55,6 +56,7 @@
   import BodyEditor from './components/BodyEditor.svelte'
   import AssertEditor from './components/AssertEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
+  import CaptureEditor from './components/CaptureEditor.svelte'
   import RequestSettings from './components/RequestSettings.svelte'
   import ResponsePane from './components/ResponsePane.svelte'
   import Sidebar from './components/Sidebar.svelte'
@@ -100,6 +102,7 @@
   const queryCount = $derived(enabledCount(active.draft.query))
   const headerCount = $derived(enabledCount(active.draft.headers))
   const assertTotal = $derived(assertCount(active.draft.asserts))
+  const captureTotal = $derived(captureCount(active.draft.capture))
   const dirty = $derived(
     active.savedKey !== null && draftKey(active.draft) !== active.savedKey
   )
@@ -120,6 +123,7 @@
     { id: 'body', label: 'Body', badge: active.draft.body.type === 'none' ? null : '•' },
     { id: 'auth', label: 'Auth', badge: active.draft.auth.type === 'none' ? null : 'on' },
     { id: 'asserts', label: 'Asserts', badge: assertTotal > 0 ? String(assertTotal) : null },
+    { id: 'capture', label: 'Capture', badge: captureTotal > 0 ? String(captureTotal) : null },
     { id: 'settings', label: 'Settings', badge: null }
   ])
 
@@ -162,6 +166,7 @@
   $effect(() => {
     if (showVariables) {
       void loadSecretRows().catch((cause: Error) => (storeError = cause.message))
+      void refreshRuntime()
     }
   })
 
@@ -695,6 +700,8 @@
     } finally {
       tab.inFlight = false
       tab.requestId = ''
+      // A capture may have added runtime variables; the panel lists their names.
+      void refreshRuntime()
       const outcome = tab.cancelled ? 'cancelled' : tab.error ? 'error' : 'ok'
       // History is a convenience; a write failure must not surface as a request failure.
       void recordHistory({ draft: sent, response: tab.response, outcome }).catch(() => {})
@@ -758,6 +765,7 @@
       { id: 'tab-body', label: 'Go to Body', run: () => (active.editorTab = 'body') },
       { id: 'tab-auth', label: 'Go to Auth', run: () => (active.editorTab = 'auth') },
       { id: 'tab-asserts', label: 'Go to Asserts', run: () => (active.editorTab = 'asserts') },
+      { id: 'tab-capture', label: 'Go to Capture', run: () => (active.editorTab = 'capture') },
       { id: 'env-none', label: 'Environment: none', run: () => void onEnvironmentChange('') }
     ]
 
@@ -1185,6 +1193,8 @@
                 />
               {:else if active.editorTab === 'asserts'}
                 <AssertEditor items={active.draft.asserts} />
+              {:else if active.editorTab === 'capture'}
+                <CaptureEditor items={active.draft.capture} />
               {:else}
                 <RequestSettings draft={active.draft} />
               {/if}

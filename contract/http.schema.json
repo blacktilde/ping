@@ -61,6 +61,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/assert" },
           "description": "Checks evaluated against the response; results come back as `assertions`."
+        },
+        "capture": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capture" },
+          "description": "Values to keep from the response; results come back as `captured`."
         }
       },
       "additionalProperties": false
@@ -85,6 +90,41 @@
         },
         "expected": { "type": "string" },
         "enabled": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+
+    "capture": {
+      "type": "object",
+      "description": "One value to keep from a response, under a variable name the next request can use. `target` may contain {{variable}} placeholders. A misconfigured capture is a miss with a message, never an RPC error.",
+      "required": ["name", "source"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "description": "The runtime variable to set."
+        },
+        "source": {
+          "enum": ["jsonpath", "header", "status"],
+          "description": "jsonpath: target is a path (the subset `assert` documents); header: target is the name, case-insensitive, repeats joined with \", \"; status: the response status."
+        },
+        "target": { "type": "string" },
+        "enabled": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+
+    "captureResult": {
+      "type": "object",
+      "description": "The outcome of one enabled capture. A miss has `found: false`, a message and no value: the variable stays absent, so a later {{name}} is sent as written rather than as an empty string. `value` is present only from the core to the shell; the shell stores it and removes it before anything reaches the renderer.",
+      "required": ["name", "source", "found"],
+      "properties": {
+        "name": { "type": "string" },
+        "source": { "type": "string" },
+        "target": { "type": ["string", "null"] },
+        "found": { "type": "boolean" },
+        "value": { "type": "string", "description": "Live data, often a credential. Never persisted, shown or reported." },
+        "message": { "type": ["string", "null"], "description": "Why it missed; null when it was found." }
       },
       "additionalProperties": false
     },
@@ -228,6 +268,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/assertionResult" },
           "description": "One per enabled assertion, in request order. Empty when the request has none."
+        },
+        "captured": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/captureResult" },
+          "description": "One per enabled capture, in request order. Empty when the request has none."
         }
       },
       "additionalProperties": false

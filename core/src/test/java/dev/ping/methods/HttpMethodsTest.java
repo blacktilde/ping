@@ -120,6 +120,31 @@ class HttpMethodsTest {
     }
 
     @Test
+    void capturesValuesSentAsJson() throws Exception {
+        handle("/login", 200, "application/json", "{\"token\":\"abc\",\"user\":{\"id\":7}}");
+
+        List<JsonNode> out = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{\
+                "url":"%s/login","variables":{"field":"$.user.id"},\
+                "capture":[\
+                {"name":"token","source":"jsonpath","target":"$.token"},\
+                {"name":"uid","source":"jsonpath","target":"{{field}}"},\
+                {"name":"code","source":"status"},\
+                {"name":"ct","source":"header","target":"content-type"},\
+                {"name":"nope","source":"jsonpath","target":"$.nope"},\
+                {"name":"off","source":"status","enabled":false}]}}""".formatted(baseUrl));
+
+        JsonNode captured = out.get(0).path("result").path("captured");
+        assertEquals(5, captured.size());
+        assertEquals("abc", captured.get(0).path("value").asText());
+        assertEquals("7", captured.get(1).path("value").asText());
+        assertEquals("200", captured.get(2).path("value").asText());
+        assertEquals("application/json", captured.get(3).path("value").asText());
+        assertFalse(captured.get(4).path("found").asBoolean());
+        assertFalse(captured.get(4).has("value"), "a miss carries no value");
+    }
+
+    @Test
     void aMisconfiguredAssertionDoesNotFailTheSend() throws Exception {
         handle("/items", 200, "application/json", "{}");
 

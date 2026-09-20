@@ -3,6 +3,7 @@
   import { formatBytes, formatDuration, statusTone, versionLabel } from '../lib/format'
   import { parseCookies } from '../lib/response'
   import ResponseAssertions from './ResponseAssertions.svelte'
+  import ResponseCaptures from './ResponseCaptures.svelte'
   import ResponseBody from './ResponseBody.svelte'
   import ResponseCookies from './ResponseCookies.svelte'
   import ResponseHeaders from './ResponseHeaders.svelte'
@@ -136,6 +137,10 @@
 
     {#if response.assertions && response.assertions.length > 0}
       <ResponseAssertions results={response.assertions} />
+    {/if}
+
+    {#if response.captured && response.captured.length > 0}
+      <ResponseCaptures results={response.captured} />
     {/if}
 
     <Tabs tabs={tabs} bind:active={tab} idPrefix="response" />

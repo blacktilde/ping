@@ -1,6 +1,7 @@
 package dev.ping.run.report;
 
 import dev.ping.http.AssertionResult;
+import dev.ping.http.CaptureResult;
 import dev.ping.run.RequestResult;
 import dev.ping.run.RunResult;
 
@@ -26,6 +27,13 @@ public final class HumanReporter implements Reporter {
                         .append(request.durationMs()).append(" ms");
             }
             out.println(line);
+            if (request.captures() != null) {
+                for (CaptureResult capture : request.captures()) {
+                    if (!capture.found()) {
+                        out.println("      ! capture " + capture.name() + ": " + capture.message());
+                    }
+                }
+            }
             for (AssertionResult assertion : request.assertions()) {
                 if (!assertion.passed()) {
                     out.println("      x " + describe(assertion)

@@ -121,7 +121,7 @@ assertions plus the runner change what the project is for.
   *Gate: unit coverage per predicate, an RPC-level test that sends `asserts` as JSON, and a
   smoke run showing one green and one red assertion.*
 
-- [ ] **16. Capture.** A `capture` list on a stored request writes named values out of a
+- [x] **16. Capture.** A `capture` list on a stored request writes named values out of a
   response — JSONPath, a header, or a status — into the **runtime** variable scope, which
   phase 7 built and left empty for exactly this. That makes login-then-call work with no
   scripting: the token lands in runtime, runtime already outranks environment and collection,

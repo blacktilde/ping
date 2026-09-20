@@ -1,6 +1,7 @@
 package dev.ping.run;
 
 import dev.ping.http.AssertionResult;
+import dev.ping.http.CaptureResult;
 import dev.ping.http.HttpEngine;
 import dev.ping.http.RequestSpec;
 import dev.ping.http.ResponseData;
@@ -13,6 +14,7 @@ import dev.ping.vars.Variables;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -50,7 +52,8 @@ public final class Runner {
         String collectionName = store.collectionDoc(root, collection).name();
         EnvironmentRef environment = environment(root, collection, options.environment());
 
-        // Held for the length of the run; capture will write into it. Empty until then.
+        // Held for the length of the run. A request's captures land here, so the next request
+        // sees them (runtime outranks environment and collection). Never written into a result.
         Map<String, String> runtime = new HashMap<>();
         List<CollectionNode> nodes = store.requestNodes(root, collection);
         List<RequestResult> results = new ArrayList<>();
@@ -64,8 +67,21 @@ public final class Runner {
                 variables.putAll(options.variables());
             }
 
-            RequestResult result = redact(
-                    runOne(root, nodes.get(index), variables), options.variables());
+            Step step = runOne(root, nodes.get(index), variables);
+            for (CaptureResult captured : step.captured()) {
+                // A miss puts nothing here, so a later {{name}} stays as written rather than empty.
+                if (captured.found() && captured.value() != null) {
+                    runtime.put(captured.name(), captured.value());
+                }
+            }
+
+            // Captured values are masked too, this request's included: an assertion that
+            // echoes the token it just captured would otherwise print it into the report.
+            List<String> hidden = new ArrayList<>(runtime.values());
+            if (options.variables() != null) {
+                hidden.addAll(options.variables().values());
+            }
+            RequestResult result = redact(step.result(), hidden);
             results.add(result);
             if (listener != null) {
                 listener.onRequest(index, nodes.size(), result);
@@ -85,7 +101,11 @@ public final class Runner {
                 results);
     }
 
-    private RequestResult runOne(Path root, CollectionNode node, Map<String, String> variables) {
+    /** A request's result plus the capture values that must not be part of it. */
+    private record Step(RequestResult result, List<CaptureResult> captured) {
+    }
+
+    private Step runOne(Path root, CollectionNode node, Map<String, String> variables) {
         String url = null;
         String method = node.method();
         try {
@@ -97,15 +117,17 @@ public final class Runner {
             ResponseData response = engine.send(spec, variables);
             List<AssertionResult> assertions = response.assertions();
             boolean passed = assertions.stream().allMatch(AssertionResult::passed);
-            return new RequestResult(node.path(), node.name(), method, url,
-                    response.status(), response.timing().totalMs(), null, passed, assertions);
+            List<CaptureResult> captured = response.captured();
+            return new Step(new RequestResult(node.path(), node.name(), method, url,
+                    response.status(), response.timing().totalMs(), null, passed, assertions,
+                    captured.stream().map(CaptureResult::withoutValue).toList()), captured);
         } catch (RpcException e) {
-            return error(node, method, url, e.getMessage());
+            return new Step(error(node, method, url, e.getMessage()), List.of());
         } catch (RuntimeException e) {
             // A bug in one request must not take the whole run with it.
             String detail = e.getMessage();
-            return error(node, method, url,
-                    detail == null ? e.getClass().getSimpleName() : detail);
+            return new Step(error(node, method, url,
+                    detail == null ? e.getClass().getSimpleName() : detail), List.of());
         }
     }
 
@@ -113,15 +135,16 @@ public final class Runner {
     static final int MIN_REDACTED_LENGTH = 4;
 
     /**
-     * Masks the explicitly supplied variables (the CLI's secrets and {@code --var}s) wherever
-     * they resurface. A result echoes resolved assertion values and response text, and a CI
-     * report is far more widely read than the terminal the run happened in.
+     * Masks the explicitly supplied variables (the CLI's secrets and {@code --var}s) and every
+     * captured value wherever they resurface. A result echoes resolved assertion values and
+     * response text, and a CI report is far more widely read than the terminal the run
+     * happened in.
      */
-    static RequestResult redact(RequestResult result, Map<String, String> secrets) {
+    static RequestResult redact(RequestResult result, Collection<String> secrets) {
         if (secrets == null || secrets.isEmpty()) {
             return result;
         }
-        List<String> values = secrets.values().stream()
+        List<String> values = secrets.stream()
                 .filter(v -> v != null && v.length() >= MIN_REDACTED_LENGTH)
                 .toList();
         if (values.isEmpty()) {
@@ -134,7 +157,11 @@ public final class Runner {
                 .toList();
         return new RequestResult(result.path(), result.name(), result.method(), result.url(),
                 result.status(), result.durationMs(), mask(result.error(), values),
-                result.passed(), assertions);
+                result.passed(), assertions,
+                result.captures() == null ? null : result.captures().stream()
+                        .map(c -> new CaptureResult(c.name(), c.source(), mask(c.target(), values),
+                                c.found(), null, mask(c.message(), values)))
+                        .toList());
     }
 
     private static String mask(String text, List<String> secrets) {
@@ -150,7 +177,7 @@ public final class Runner {
 
     private static RequestResult error(CollectionNode node, String method, String url, String message) {
         return new RequestResult(node.path(), node.name(), method, url,
-                null, null, message, false, List.of());
+                null, null, message, false, List.of(), List.of());
     }
 
     /**

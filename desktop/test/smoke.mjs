@@ -1296,6 +1296,70 @@ try {
   )
   check('refuses import.collection over the generic channel', direct.ok === false && /import dialog/.test(direct.error?.message ?? ''), JSON.stringify(direct))
 
+  console.log('--- 15d. capture a value and use it in the next request')
+  await evaluate(`document.querySelector('button[aria-label="New request tab"]').click()`)
+  await waitFor(
+    async () => (await evaluate(`document.querySelectorAll('[role=tab][data-path]').length`)) >= 2,
+    3000,
+    'a scratch tab'
+  )
+  await evaluate(setUrl(`${base}/capture-source`))
+  await evaluate(setMethod('GET'))
+  await evaluate(clickTab('Capture'))
+  await evaluate(clickText('+ Add capture'))
+  await evaluate(setInput('Capture variable name', 'who'))
+  await evaluate(setInput('Capture target', '$.from'))
+  await evaluate(clickText('+ Add capture'))
+  await evaluate(setInput('Capture variable name', 'gone'))
+  await evaluate(setInput('Capture target', '$.nope'))
+  await clickSend()
+  await waitFor(
+    async () => (await evaluate(`document.querySelectorAll('[data-role="capture"]').length`)) === 2,
+    5000,
+    'the capture results'
+  )
+  const captures = await evaluate(`(() => ({
+    text: document.querySelector('[data-role="captures"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? '',
+    found: [...document.querySelectorAll('[data-role="capture"]')].map(c => c.dataset.found),
+    curl: document.querySelector('[data-role="copy-curl"]')?.dataset.curl ?? ''
+  }))()`)
+  check('reports one hit and one miss', captures.found.join() === 'true,false', captures.found.join())
+  check('names the captures', captures.text.includes('who') && captures.text.includes('gone'), captures.text)
+  check('explains a miss', captures.text.includes('$.nope matched nothing'), captures.text)
+  check('never shows the captured value', !captures.text.includes('local test server'), captures.text)
+  const names = await evaluate(`window.ping.runtime.list()`)
+  check('holds the hit and not the miss', names.join() === 'who', names.join())
+
+  await evaluate(clickTab('Headers'))
+  await evaluate(clickText('+ Add header'))
+  await evaluate(setInput('Header name', 'X-Captured'))
+  await evaluate(setInput('Header value', '{{who}}'))
+  await evaluate(clickText('+ Add header'))
+  await evaluate(setInput('Header name', 'X-Missed'))
+  await evaluate(setInput('Header value', '{{gone}}'))
+  await evaluate(setUrl(`${base}/uses-capture`))
+  await clickSend()
+  await waitFor(async () => (await snap()).body.includes('x-captured'), 5000, 'the echoed request')
+  const used = echo((await snap()).body)
+  check('sends the captured value in the next request', used?.headers?.['x-captured'] === 'local test server', used?.headers?.['x-captured'] ?? 'none')
+  check('sends a missed capture as written, not empty', used?.headers?.['x-missed'] === '{{gone}}', used?.headers?.['x-missed'] ?? 'none')
+  const exported = await evaluate(`document.querySelector('[data-role="copy-curl"]')?.dataset.curl ?? ''`)
+  check('keeps the value out of the copied cURL', exported.includes('{{who}}') && !exported.includes('local test server'), exported.slice(0, 120))
+
+  // The Variables panel lists names only, and Clear empties the shell's map.
+  await evaluate(clickText('Variables'))
+  await waitFor(
+    async () => (await evaluate(`document.querySelectorAll('[data-role="runtime-name"]').length`)) === 1,
+    5000,
+    'the runtime section'
+  )
+  const runtimeText = await evaluate(`document.querySelector('[data-role="runtime"]').textContent`)
+  check('lists the runtime name but not its value', runtimeText.includes('who') && !runtimeText.includes('local test server'), runtimeText.replace(/\s+/g, ' ').slice(0, 120))
+  await evaluate(`document.querySelector('button[aria-label="Clear runtime variables"]').click()`)
+  await waitFor(async () => (await evaluate(`window.ping.runtime.list()`)).length === 0, 5000, 'Clear')
+  check('clears the runtime variables', true)
+  await evaluate(clickText('Variables'))
+
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)
   await waitFor(

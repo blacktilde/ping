@@ -25,7 +25,8 @@ public record RequestSpec(
         String redirects,
         Boolean verifyTls,
         Integer maxBodyBytes,
-        List<Assertion> asserts) {
+        List<Assertion> asserts,
+        List<Capture> capture) {
 
     /** A name/value pair the user can disable without deleting. */
     public record Param(String name, String value, Boolean enabled) {
@@ -160,6 +161,7 @@ public record RequestSpec(
         private Boolean verifyTls;
         private Integer maxBodyBytes;
         private final List<Assertion> asserts = new ArrayList<>();
+        private final List<Capture> capture = new ArrayList<>();
 
         public Builder(String url) {
             this.url = url;
@@ -252,9 +254,14 @@ public record RequestSpec(
             return this;
         }
 
+        public Builder capture(String name, String source, String target) {
+            capture.add(new Capture(name, source, target, null));
+            return this;
+        }
+
         public RequestSpec build() {
             return new RequestSpec(requestId, method, url, query, headers, body, auth,
-                    timeoutMs, redirects, verifyTls, maxBodyBytes, asserts);
+                    timeoutMs, redirects, verifyTls, maxBodyBytes, asserts, capture);
         }
     }
 }

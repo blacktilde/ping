@@ -6,6 +6,7 @@ import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
 import { finishImport, MAX_IMPORT_BYTES } from './importer'
 import { OAuthTokenStore } from './oauth'
+import { absorbCaptures, RuntimeStore } from './runtime'
 import { SecretStore } from './secrets'
 import {
   checkForUpdates,
@@ -19,6 +20,7 @@ import { Workspace } from './workspace'
 const core = new CoreClient()
 const workspace = new Workspace()
 const secrets = new SecretStore()
+const runtime = new RuntimeStore()
 const history = new HistoryStore()
 const oauthTokens = new OAuthTokenStore()
 let mainWindow: BrowserWindow | null = null
@@ -185,7 +187,9 @@ function withSecrets(params: unknown): Record<string, unknown> {
   const source = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
   const variables =
     source.variables && typeof source.variables === 'object' ? (source.variables as object) : {}
-  return { ...source, variables: { ...variables, ...secrets.all() } }
+  // Runtime values (captured from responses) outrank the files' variables; a secret with the
+  // same name still wins over both.
+  return { ...source, variables: { ...variables, ...runtime.all(), ...secrets.all() } }
 }
 
 /**
@@ -279,7 +283,15 @@ function storeOAuthTokens(params: unknown): void {
  */
 function registerIpc(): void {
   ipcMain.handle('workspace:current', () => workspace.current())
-  ipcMain.handle('workspace:choose', () => workspace.choose())
+  ipcMain.handle('workspace:choose', async () => {
+    const before = workspace.current()?.root
+    const next = await workspace.choose()
+    if (next?.root !== before) {
+      // A token captured against one folder's API should not follow the user into another.
+      runtime.clear()
+    }
+    return next
+  })
 
   // Opens a collection or folder in the OS file manager. The renderer sends a path relative
   // to the workspace; main resolves and re-checks it so it cannot reach outside the root.
@@ -383,6 +395,8 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('secrets:list', () => secrets.names())
+  ipcMain.handle('runtime:list', () => runtime.names())
+  ipcMain.handle('runtime:clear', () => runtime.clear())
   ipcMain.handle('secrets:set', (_event, name: unknown, value: unknown) => {
     if (typeof name !== 'string' || typeof value !== 'string') {
       throw new Error('secrets:set requires a name and a value')
@@ -447,7 +461,8 @@ function registerIpc(): void {
           void shell.openExternal(url)
         }
       }
-      return { ok: true, value }
+      // Captured values are stored here and stripped: the renderer sees only names and hit/miss.
+      return { ok: true, value: method === 'http.send' ? absorbCaptures(value, runtime) : value }
     } catch (cause) {
       return failure(
         cause instanceof CoreRpcError ? cause.code : null,
