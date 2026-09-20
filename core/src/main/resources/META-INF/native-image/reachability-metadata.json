@@ -426,6 +426,19 @@
       ]
     },
     {
+      "type": "dev.ping.imports.ImportResult",
+      "methods": [
+        {
+          "name": "request",
+          "parameterTypes": []
+        },
+        {
+          "name": "warnings",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "dev.ping.run.RequestResult",
       "methods": [
         {

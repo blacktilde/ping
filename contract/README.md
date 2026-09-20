@@ -51,6 +51,7 @@ not `http.send`, whose length is the user's to set.
 | `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
 | `auth.authorize`| `{ auth, variables? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
+| `import.curl` | `{ command: string }`     | `{ request: StoredRequest, warnings?: string[] }`   |
 | `run.collection`| `{ runId?, root, collection, environment?, variables? }` | `RunResult`, see `run.schema.json` |
 
 `core.info.nativeImage` reports whether the running core is the GraalVM native image or
@@ -168,6 +169,23 @@ Secrets are read from `PING_SECRET_<NAME>` environment variables, which become t
 the way the shell's `safeStorage` values do, and are masked as `***` in any result they
 resurface in. The OAuth2 authorization-code flow needs a browser, so a CLI run of a request
 using it fails with `-32004` unless it carries an `accessToken`.
+
+### Import
+
+`import.curl` turns a pasted curl command into a `StoredRequest` draft and writes nothing, so
+it takes no `root`. The query string becomes `query` params (percent-decoded, so the engine's
+own encoding is not applied twice); `Authorization: Bearer`/`Basic` and `-u` become `auth`;
+`Content-Type` and the data flags choose the body mode (`json`, `form`, `raw` or `multipart`).
+Whatever a request cannot express is reported in `warnings` instead of being dropped: file
+bodies and uploads (`-d @file`, `-F f=@file`), proxies, client certificates, HTTP version pins,
+unsupported auth schemes, unknown options, and `$VAR` shell expansions, which are left as
+written. A header whose name looks like a credential (`X-Api-Key`, `Cookie`, …) is kept and
+flagged without echoing its value. An unusable command is `-32602`.
+
+Credentials land in the auth fields, which the shell moves into `safeStorage` on save, so the
+"secrets never touch collection files" rule holds. Importers that write files (Postman,
+Insomnia, OpenAPI) will go through the store's path rules and return the secrets they lifted
+out for the shell to store; that arrives with them.
 
 ### Error codes
 

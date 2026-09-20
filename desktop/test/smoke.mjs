@@ -1145,6 +1145,58 @@ try {
   )
   check('confirms the copy', true)
 
+  console.log('--- 15b. paste a cURL command into the URL bar')
+  const paste = (text) => `(() => {
+    const input = document.querySelector('input[aria-label="Request URL"]');
+    input.focus();
+    const data = new DataTransfer();
+    data.setData('text/plain', ${JSON.stringify(text)});
+    // dispatchEvent returns false when a handler called preventDefault.
+    return input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  })()`
+  const importState = () => evaluate(`(() => ({
+    url: document.querySelector('input[aria-label="Request URL"]')?.value ?? null,
+    method: document.querySelector('select[aria-label="HTTP method"]')?.value ?? null,
+    notice: document.querySelector('[data-role="import-notice"]')?.textContent.trim() ?? null,
+    error: document.querySelector('[data-role="import-notice"]')?.dataset.error ?? null,
+    warnings: [...document.querySelectorAll('[data-role="import-warning"]')].map(w => w.textContent.trim())
+  }))()`)
+
+  const plainPasted = await evaluate(paste('https://example.com/just-a-url'))
+  check('leaves an ordinary paste alone', plainPasted === true, String(plainPasted))
+
+  const intercepted = await evaluate(
+    paste(`curl -X POST '${base}/curl-import?from=paste' -H 'X-Pasted: yes' -H 'Content-Type: application/json' -d '{"n":1}' --cert c.pem`)
+  )
+  check('intercepts a pasted curl command', intercepted === false, String(intercepted))
+  await waitFor(async () => (await importState()).notice?.startsWith('Imported from cURL'), 5000, 'the import notice')
+  const imported = await importState()
+  check('fills in the URL without the query', imported.url === `${base}/curl-import`, imported.url ?? 'none')
+  check('fills in the method', imported.method === 'POST', imported.method ?? 'none')
+  check(
+    'reports what it could not carry over',
+    imported.warnings.length === 1 && imported.warnings[0].includes('--cert'),
+    imported.warnings.join(' | ')
+  )
+
+  await clickSend()
+  await waitFor(async () => (await snap()).body.includes('x-pasted'), 5000, 'the echoed request')
+  const pasted = echo((await snap()).body)
+  check('sends the imported method', pasted?.method === 'POST', pasted?.method ?? 'none')
+  check('sends the imported query', pasted?.url?.includes('from=paste'), pasted?.url ?? 'none')
+  check('sends the imported header', pasted?.headers?.['x-pasted'] === 'yes', pasted?.headers?.['x-pasted'] ?? 'none')
+  check('sends the imported JSON body', pasted?.body === '{"n":1}', pasted?.body ?? 'none')
+
+  const rejected = await evaluate(paste(`curl 'https://unterminated.example`))
+  check('takes over a curl paste even when it cannot be read', rejected === false, String(rejected))
+  await waitFor(async () => (await importState()).error === 'true', 5000, 'the import error')
+  const fallback = await importState()
+  check(
+    'falls back to pasting the text',
+    fallback.url?.includes(`curl 'https://unterminated.example`),
+    fallback.url ?? 'none'
+  )
+
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)
   await waitFor(
