@@ -47,7 +47,6 @@ public final class HttpMethods {
         try {
             return MAPPER.treeToValue(params, RequestSpec.class);
         } catch (JsonProcessingException e) {
-            // getOriginalMessage drops Jackson's path/location noise, which the UI cannot use.
             throw RpcException.invalidParams("Malformed request: " + e.getOriginalMessage());
         } catch (IllegalArgumentException e) {
             throw RpcException.invalidParams("Malformed request: " + e.getMessage());

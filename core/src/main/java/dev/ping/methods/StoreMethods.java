@@ -44,7 +44,6 @@ public final class StoreMethods {
                         params.path("collection").asText(""),
                         requiredText(params, "name"))));
 
-        // Used once on first run; safe to call again, it never overwrites.
         server.register("store.scaffold", params -> Map.of(
                 "collection", store.scaffold(root(params),
                         params.path("collection").asText("My Collection"))));
@@ -74,7 +73,6 @@ public final class StoreMethods {
         try {
             return MAPPER.treeToValue(node, StoredRequest.class);
         } catch (Exception e) {
-            // getOriginalMessage drops Jackson's path noise, which the UI cannot use.
             throw RpcException.invalidParams("Malformed request: " + e.getMessage());
         }
     }

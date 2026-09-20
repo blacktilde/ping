@@ -30,7 +30,6 @@ export function watchUpdates(): () => void {
 }
 
 export async function checkForUpdates(): Promise<void> {
-  // A manual check re-reveals the banner even if this status was dismissed before.
   updates.dismissed = null
   updates.state = await window.ping.updates.check()
 }

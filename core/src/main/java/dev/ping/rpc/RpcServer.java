@@ -59,7 +59,6 @@ public final class RpcServer {
             handleLine(line);
         }
 
-        // Stdin closed: the parent is gone. Let in-flight work finish before the process exits.
         workers.shutdown();
         try {
             if (!workers.awaitTermination(30, TimeUnit.SECONDS)) {
@@ -101,14 +100,12 @@ public final class RpcServer {
     private void invoke(MethodHandler handler, JsonNode params, JsonNode idNode) {
         try {
             Object result = handler.handle(params);
-            // A request without an id is a notification: run it, answer nothing.
             if (idNode != null && !idNode.isNull()) {
                 writeResult(idNode, result);
             }
         } catch (RpcException e) {
             writeError(idNode, e.code(), e.getMessage());
         } catch (Throwable t) {
-            // Throwable, not Exception: an Error escaping here answers the caller nothing.
             t.printStackTrace(System.err);
             writeError(idNode, RpcException.INTERNAL_ERROR, t.toString());
         }
@@ -145,7 +142,6 @@ public final class RpcServer {
         try {
             out.println(json.writeValueAsString(message));
         } catch (Exception e) {
-            // Nothing useful to do: the channel we would report on is the broken one.
             System.err.println("ping-core: failed to write response: " + e);
         }
     }
