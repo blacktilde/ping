@@ -187,8 +187,10 @@ public final class YamlStore {
             throw RpcException.invalidParams("Folder name escapes its parent: " + name);
         }
         try {
-            if (!target.equals(directory)) {
-                // A case-only change on a case-insensitive filesystem "exists" but is the same folder.
+            // Compared by the exact name, not with Path.equals: on Windows that ignores case, so
+            // "auth" and "Auth" would read as the same path and a case-only rename would do nothing.
+            if (!target.getFileName().toString().equals(directory.getFileName().toString())) {
+                // On a case-insensitive filesystem the new name "exists" but is this same folder.
                 if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && !Files.isSameFile(target, directory)) {
                     throw RpcException.invalidParams("A folder named \"" + clean + "\" already exists here");
                 }
