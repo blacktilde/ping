@@ -186,6 +186,8 @@ export interface RequestDraft {
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
+  /** False keeps the request out of the cookie jar; absent means the jar applies. */
+  cookies?: boolean
   maxBodyBytes?: number
 }
 
@@ -211,6 +213,12 @@ export interface HttpRequestSpec {
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
+  cookies?: boolean
+  /**
+   * The active environment (relative to the workspace). With `collection` it selects the cookie jar
+   * scope; the shell validates both and builds the scope itself.
+   */
+  environment?: string
   maxBodyBytes?: number
   /** How to authenticate; values may reference variables, which secrets resolve into. */
   auth?: AuthSpec

@@ -233,6 +233,21 @@ class StoreMethodsTest {
     }
 
     @Test
+    void theCookieOptOutSurvivesAYamlRoundTripAndTheDefaultIsOmitted() throws Exception {
+        call("store.write", Map.of("root", workspace.toString(), "path", "a.yaml",
+                "request", Map.of("name", "A", "method", "GET", "url", "https://example.com", "cookies", false)));
+        String yaml = Files.readString(workspace.resolve("a.yaml"));
+        assertTrue(yaml.contains("cookies: false"), yaml);
+        assertTrue(yaml.indexOf("url:") < yaml.indexOf("cookies:"), yaml);
+        assertFalse(call("store.read", Map.of("root", workspace.toString(), "path", "a.yaml"))
+                .path("result").path("cookies").asBoolean(true));
+
+        call("store.write", Map.of("root", workspace.toString(), "path", "b.yaml",
+                "request", Map.of("name", "B", "method", "GET", "url", "https://example.com")));
+        assertFalse(Files.readString(workspace.resolve("b.yaml")).contains("cookies"));
+    }
+
+    @Test
     void writesYamlThatReadsBack() throws Exception {
         Map<String, Object> request = Map.of(
                 "name", "New request",

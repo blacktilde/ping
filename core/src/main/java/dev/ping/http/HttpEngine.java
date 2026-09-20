@@ -3,6 +3,7 @@ package dev.ping.http;
 import dev.ping.auth.Authenticator;
 import dev.ping.auth.TokenCache;
 import dev.ping.auth.TokenClient;
+import dev.ping.cookies.CookieContext;
 import dev.ping.rpc.RpcException;
 import dev.ping.vars.Interpolation;
 
@@ -156,6 +157,15 @@ public final class HttpEngine {
      * @param files where a file body or file part may be read from; see {@link FileAccess}
      */
     public ResponseData send(RequestSpec spec, Map<String, String> variables, FileAccess files) {
+        return send(spec, variables, files, CookieContext.NONE);
+    }
+
+    /**
+     * @param cookies the jar and scope this send reads and writes; {@link CookieContext#NONE}
+     *                for none. A request can still opt out with {@code cookies: false}.
+     */
+    public ResponseData send(
+            RequestSpec spec, Map<String, String> variables, FileAccess files, CookieContext cookies) {
         String requestId = spec.requestId() == null ? UUID.randomUUID().toString() : spec.requestId();
 
         // Register before doing any work at all. The renderer offers Cancel the moment it
@@ -171,7 +181,13 @@ public final class HttpEngine {
 
             Authenticator.Applied auth = authenticator.apply(spec.auth(), variables);
             URI uri = buildUri(spec, variables, auth.query());
-            HttpRequest request = buildRequest(spec, uri, variables, auth.headers(), files);
+            // The jar supplies a Cookie header only when the user did not set one: an explicit
+            // header replaces the jar's for this request rather than merging with it.
+            boolean jarOn = cookies.active() && spec.cookiesOrDefault();
+            boolean jarManaged = jarOn && !hasUserCookie(spec);
+            String jarCookie = jarManaged
+                    ? cookies.jar().header(cookies.scope(), uri, System.currentTimeMillis()) : null;
+            HttpRequest request = buildRequest(spec, uri, variables, auth.headers(), files, jarCookie);
 
             // Resolved before dispatch so the cost is attributable; the client's own lookup
             // then hits the JDK cache. Failure is not fatal: report the timing as unknown.
@@ -189,6 +205,9 @@ public final class HttpEngine {
 
             HttpResponse<InputStream> response = future.join();
             long ttfbMs = millisSince(startedAt);
+            if (jarOn) {
+                storeCookies(cookies, request, response);
+            }
 
             redirectPolicy(spec.redirects()); // validates unknown policies
             List<ResponseData.Redirect> redirects = new ArrayList<>();
@@ -210,15 +229,21 @@ public final class HttpEngine {
                 // policy drops credentials cross-host.
                 boolean dropCredentials =
                         crossHost && !"always".equals(policyName(spec.redirects()));
+                // The redirect response's cookies were stored above, so they are sent on this hop.
+                String hopCookie = jarManaged
+                        ? cookies.jar().header(cookies.scope(), location, System.currentTimeMillis()) : null;
                 request = redirectRequest(
                         request, location, response.statusCode(), spec, variables,
-                        dropCredentials, files);
+                        dropCredentials, files, jarManaged, hopCookie);
                 future = client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
                 exchange.future(future);
                 if (exchange.cancelled().get()) {
                     future.cancel(true);
                 }
                 response = future.join();
+                if (jarOn) {
+                    storeCookies(cookies, request, response);
+                }
             }
 
             long bodyStartedAt = System.nanoTime();
@@ -323,7 +348,8 @@ public final class HttpEngine {
      */
     private static HttpRequest redirectRequest(
             HttpRequest original, URI location, int status, RequestSpec spec,
-            Map<String, String> variables, boolean dropCredentials, FileAccess files) {
+            Map<String, String> variables, boolean dropCredentials, FileAccess files,
+            boolean jarManaged, String jarCookie) {
 
         String method = original.method();
         boolean keepMethod = status == 307 || status == 308
@@ -338,9 +364,16 @@ public final class HttpEngine {
             if (dropCredentials && CREDENTIAL_HEADERS.contains(header.getKey().toLowerCase(Locale.ROOT))) {
                 continue;
             }
+            // A Cookie the jar added belongs to the previous URL; it is recomputed for this one.
+            if (jarManaged && header.getKey().equalsIgnoreCase("cookie")) {
+                continue;
+            }
             for (String value : header.getValue()) {
                 builder.header(header.getKey(), value);
             }
+        }
+        if (jarCookie != null) {
+            builder.header("Cookie", jarCookie);
         }
         // The original publisher has already been subscribed to by the client, so the body
         // is rebuilt rather than replayed; a method that dropped its body sends none.
@@ -349,6 +382,18 @@ public final class HttpEngine {
                 : HttpRequest.BodyPublishers.noBody();
         builder.method(method, body);
         return builder.build();
+    }
+
+    private static boolean hasUserCookie(RequestSpec spec) {
+        return spec.headers() != null && spec.headers().stream().anyMatch(header -> header.isEnabled()
+                && header.name() != null && header.name().trim().equalsIgnoreCase("cookie"));
+    }
+
+    /** Stores what a completed response set, before any redirect is followed. */
+    private static void storeCookies(
+            CookieContext cookies, HttpRequest request, HttpResponse<InputStream> response) {
+        cookies.jar().store(cookies.scope(), request.uri(),
+                response.headers().allValues("set-cookie"), System.currentTimeMillis());
     }
 
     private static void closeQuietly(InputStream stream) {
@@ -429,7 +474,7 @@ public final class HttpEngine {
 
     private HttpRequest buildRequest(
             RequestSpec spec, URI uri, Map<String, String> variables, Map<String, String> authHeaders,
-            FileAccess files) {
+            FileAccess files, String jarCookie) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofMillis(spec.requestTimeoutMs()));
 
@@ -452,6 +497,10 @@ public final class HttpEngine {
                 builder.header(name, value);
                 contentTypeSet |= name.equalsIgnoreCase("content-type");
             }
+        }
+
+        if (jarCookie != null) {
+            builder.header("Cookie", jarCookie);
         }
 
         // Auth is applied last and replaces any header of the same name: an explicit auth

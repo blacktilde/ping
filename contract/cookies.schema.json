@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/cookies.schema.json",
+  "title": "Ping core RPC — cookie jar",
+  "$defs": {
+    "cookie": {
+      "type": "object",
+      "description": "A stored cookie as the UI may see it: everything except its value, which is a credential and never leaves the core.",
+      "required": ["name", "domain", "path", "hostOnly", "secure", "httpOnly"],
+      "properties": {
+        "name": { "type": "string" },
+        "domain": { "type": "string" },
+        "path": { "type": "string" },
+        "hostOnly": { "type": "boolean", "description": "Sent only to exactly this host, because no Domain attribute was given." },
+        "secure": { "type": "boolean" },
+        "httpOnly": { "type": "boolean" },
+        "sameSite": { "enum": ["Lax", "Strict", "None"], "description": "Recorded, not enforced: a REST client has no cross-site context." },
+        "expiresAt": { "type": "integer", "description": "Epoch millis. Absent for a session cookie." }
+      },
+      "additionalProperties": false
+    },
+
+    "cookies.list.params": {
+      "type": "object",
+      "required": ["scope"],
+      "properties": { "scope": { "type": "string" } },
+      "additionalProperties": false
+    },
+    "cookies.list.result": {
+      "type": "object",
+      "required": ["cookies"],
+      "properties": { "cookies": { "type": "array", "items": { "$ref": "#/$defs/cookie" } } },
+      "additionalProperties": false
+    },
+
+    "cookies.clear.params": {
+      "type": "object",
+      "required": ["scope"],
+      "properties": {
+        "scope": { "type": "string" },
+        "domain": { "type": "string", "description": "Only this domain. Omitted means every domain in the scope." },
+        "name": { "type": "string", "description": "Only cookies of this name. Omitted means every name." }
+      },
+      "additionalProperties": false
+    },
+    "cookies.clear.result": {
+      "type": "object",
+      "required": ["removed"],
+      "properties": { "removed": { "type": "integer" } },
+      "additionalProperties": false
+    },
+
+    "cookies.clearAll.params": { "type": "object", "additionalProperties": false },
+    "cookies.clearAll.result": { "type": "object", "additionalProperties": false }
+  }
+}

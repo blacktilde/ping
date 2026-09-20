@@ -16,6 +16,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
         body = ROUTES.get(path)
+        if path == "/session":
+            # Starts a session the way a login page does: the cookie is the only credential.
+            self._send(200, {"started": True}, {"Set-Cookie": "sid=sample-cookie-8842; Path=/; HttpOnly"})
+            return
+        if path == "/me":
+            ok = "sid=sample-cookie-8842" in (self.headers.get("Cookie") or "")
+            self._send(200 if ok else 401, {"user": "sample"} if ok else {"error": "no session"})
+            return
         if path == "/whoami":
             # Only answers when the caller presents what /login returned, so a run passes
             # only if a value captured from one response reached the next request.
@@ -62,9 +70,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(404, {"error": "not found"})
 
-    def _send(self, status, body):
+    def _send(self, status, body, headers=None):
         payload = json.dumps(body).encode()
         self.send_response(status)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()

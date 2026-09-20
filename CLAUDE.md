@@ -68,6 +68,9 @@ stored absolute and only readable if a file dialog chose it this session (`main/
 itself, `run.*` forces `allowAbsoluteFiles: false`, and paths are literal (never interpolated). New code
 that reads a file from a request must go through `FileAccess`.
 
+**A cookie's value never leaves the core.** The jar is session-only memory, `cookies.list` returns no value,
+and a run masks cookie values in its results. Keep it that way: the value is a session credential.
+
 **File-writing imports go through the shell.** `import.collection` writes new folders under
 the workspace root and returns the credentials it lifted out of the files. Only the
 `import:collection` IPC handler may call it: it picks the file, injects the root, stores the

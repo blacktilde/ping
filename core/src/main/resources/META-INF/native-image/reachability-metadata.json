@@ -82,6 +82,43 @@
       ]
     },
     {
+      "type": "dev.ping.cookies.CookieJar$CookieView",
+      "methods": [
+        {
+          "name": "domain",
+          "parameterTypes": []
+        },
+        {
+          "name": "expiresAt",
+          "parameterTypes": []
+        },
+        {
+          "name": "hostOnly",
+          "parameterTypes": []
+        },
+        {
+          "name": "httpOnly",
+          "parameterTypes": []
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "path",
+          "parameterTypes": []
+        },
+        {
+          "name": "sameSite",
+          "parameterTypes": []
+        },
+        {
+          "name": "secure",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "dev.ping.http.Assertion",
       "methods": [
         {
@@ -232,7 +269,8 @@
             "java.lang.Boolean",
             "java.lang.Integer",
             "java.util.List",
-            "java.util.List"
+            "java.util.List",
+            "java.lang.Boolean"
           ]
         }
       ]
@@ -766,7 +804,8 @@
             "java.lang.Integer",
             "java.util.List",
             "java.util.List",
-            "java.lang.String"
+            "java.lang.String",
+            "java.lang.Boolean"
           ]
         },
         {
@@ -783,6 +822,10 @@
         },
         {
           "name": "capture",
+          "parameterTypes": []
+        },
+        {
+          "name": "cookies",
           "parameterTypes": []
         },
         {

@@ -40,6 +40,14 @@
     }
   }
 
+  function setCookies(checked: boolean): void {
+    if (checked) {
+      delete draft.cookies
+    } else {
+      draft.cookies = false
+    }
+  }
+
   const bodyCap = $derived(draft.maxBodyBytes == null ? 10 * 1024 * 1024 : draft.maxBodyBytes)
 </script>
 
@@ -124,6 +132,29 @@
       </label>
       <p class="mt-1 text-xs text-fg-faint">
         Turn off only for self-signed certificates you trust; every other request still verifies.
+      </p>
+    </div>
+
+    <div>
+      <span class="block text-xs text-fg-muted">Cookies</span>
+      <label class="mt-1 flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={draft.cookies !== false}
+          onchange={(event) => setCookies(event.currentTarget.checked)}
+          aria-label="Use the cookie jar"
+          class="h-4 w-4 accent-[var(--color-accent)]"
+        />
+        <span class="text-xs text-fg-muted">
+          Use the cookie jar
+          {#if draft.cookies === false}
+            <span class="text-warning">(this request neither sends nor stores cookies)</span>
+          {/if}
+        </span>
+      </label>
+      <p class="mt-1 text-xs text-fg-faint">
+        Cookies a response sets are sent back on later requests in the same collection and
+        environment. A Cookie header you add yourself replaces the jar's for that request.
       </p>
     </div>
   </dl>

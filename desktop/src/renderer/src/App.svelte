@@ -14,6 +14,7 @@
   import { confirmDialog } from './lib/confirm.svelte'
   import { assertCount, captureCount, enabledCount, METHODS, toRequestSpec } from './lib/request'
   import { refreshRuntime } from './lib/runtime.svelte'
+  import { refreshCookies } from './lib/cookies.svelte'
   import {
     activeTab,
     activateTab,
@@ -174,6 +175,7 @@
     if (showVariables) {
       void loadSecretRows().catch((cause: Error) => (storeError = cause.message))
       void refreshRuntime()
+      void refreshCookies(variables.collection, variables.environment)
     }
   })
 
@@ -760,6 +762,10 @@
       const collectionName = tab.path ? tab.path.split('/')[0] : ''
       if (collectionName) {
         spec.collection = collectionName
+        // The cookie jar is scoped per collection and environment; the shell validates both.
+        if (variables.collection === collectionName && variables.environment) {
+          spec.environment = variables.environment
+        }
       }
       tab.response = await sendRequest(spec)
     } catch (cause) {
@@ -774,6 +780,7 @@
       tab.requestId = ''
       // A capture may have added runtime variables; the panel lists their names.
       void refreshRuntime()
+      void refreshCookies(variables.collection, variables.environment)
       const outcome = tab.cancelled ? 'cancelled' : tab.error ? 'error' : 'ok'
       // History is a convenience; a write failure must not surface as a request failure.
       void recordHistory({ draft: sent, response: tab.response, outcome }).catch(() => {})

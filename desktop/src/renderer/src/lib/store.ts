@@ -41,6 +41,7 @@ export interface StoredRequest {
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
+  cookies?: boolean
   maxBodyBytes?: number
 }
 
@@ -164,6 +165,7 @@ export function storedToDraft(stored: StoredRequest): RequestDraft {
     timeoutMs: stored.timeoutMs,
     redirects: stored.redirects,
     verifyTls: stored.verifyTls,
+    cookies: stored.cookies,
     maxBodyBytes: stored.maxBodyBytes
   }
 }
@@ -194,6 +196,7 @@ export function draftToStored(draft: RequestDraft): StoredRequest {
     timeoutMs: draft.timeoutMs,
     redirects: draft.redirects,
     verifyTls: draft.verifyTls,
+    cookies: draft.cookies,
     maxBodyBytes: draft.maxBodyBytes
   }
 }

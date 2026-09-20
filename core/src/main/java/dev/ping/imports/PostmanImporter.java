@@ -86,7 +86,7 @@ final class PostmanImporter {
             // The short form is just a URL.
             return new StoredRequest(name, "GET", ImportSupport.withScheme(request.asText()),
                     null, null, null, inherited == null ? null : inherited.auth(),
-                    null, null, null, null, null, null, docs(item, request));
+                    null, null, null, null, null, null, docs(item, request), null);
         }
 
         List<RequestSpec.Param> query = new ArrayList<>();
@@ -130,7 +130,7 @@ final class PostmanImporter {
         String method = ImportSupport.text(request, "method");
         RequestSpec.Body body = body(request.get("body"), contentType, where);
         return new StoredRequest(name, method == null || method.isBlank() ? "GET" : method.toUpperCase(Locale.ROOT),
-                url, query, headers, body, auth, null, null, null, null, null, null, docs(item, request));
+                url, query, headers, body, auth, null, null, null, null, null, null, docs(item, request), null);
     }
 
     private static final JsonNode JSON_EMPTY = ImportSupport.JSON.createObjectNode();

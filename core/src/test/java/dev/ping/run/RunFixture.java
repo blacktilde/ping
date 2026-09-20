@@ -29,6 +29,24 @@ public final class RunFixture {
         server.createContext("/who", exchange -> reply(exchange,
                 "{\"who\":\"" + exchange.getRequestHeaders().getFirst("X-Who") + "\"}"));
         server.createContext("/login", exchange -> reply(exchange, "{\"token\":\"tok-secret-99\",\"n\":3}"));
+        // A session: /session sets a cookie, /me answers with whatever Cookie header it received.
+        server.createContext("/session", exchange -> {
+            exchange.getResponseHeaders().add("Set-Cookie", "sid=run-cookie-4711; Path=/");
+            reply(exchange, "{\"started\":true}");
+        });
+        server.createContext("/me", exchange -> {
+            String cookie = exchange.getRequestHeaders().getFirst("Cookie");
+            boolean ok = cookie != null && cookie.contains("sid=run-cookie-4711");
+            byte[] payload = ("{\"cookie\":\"" + (cookie == null ? "" : cookie) + "\"}")
+                    .getBytes(StandardCharsets.UTF_8);
+            try (exchange) {
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(ok ? 200 : 401, payload.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(payload);
+                }
+            }
+        });
         // Reports what it was sent, so a test can prove a file arrived byte for byte.
         server.createContext("/upload", exchange -> {
             try (exchange) {

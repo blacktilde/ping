@@ -1,0 +1,6 @@
+name: Session start
+method: GET
+url: "{{baseUrl}}/session"
+asserts:
+- type: status
+  expected: "200"

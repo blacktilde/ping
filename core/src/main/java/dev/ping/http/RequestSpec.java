@@ -26,7 +26,8 @@ public record RequestSpec(
         Boolean verifyTls,
         Integer maxBodyBytes,
         List<Assertion> asserts,
-        List<Capture> capture) {
+        List<Capture> capture,
+        Boolean cookies) {
 
     /**
      * A name/value pair the user can disable without deleting.
@@ -188,6 +189,11 @@ public record RequestSpec(
         return maxBodyBytes == null || maxBodyBytes <= 0 ? DEFAULT_MAX_BODY_BYTES : maxBodyBytes;
     }
 
+    /** Whether the cookie jar applies to this request; absent means yes. */
+    public boolean cookiesOrDefault() {
+        return cookies == null || cookies;
+    }
+
     public boolean verifyTlsOrDefault() {
         return verifyTls == null || verifyTls;
     }
@@ -217,6 +223,7 @@ public record RequestSpec(
         private Integer maxBodyBytes;
         private final List<Assertion> asserts = new ArrayList<>();
         private final List<Capture> capture = new ArrayList<>();
+        private Boolean cookies;
 
         public Builder(String url) {
             this.url = url;
@@ -315,6 +322,12 @@ public record RequestSpec(
             return this;
         }
 
+        /** Opts this request out of (or back into) the cookie jar. */
+        public Builder cookies(boolean value) {
+            this.cookies = value;
+            return this;
+        }
+
         public Builder capture(String name, String source, String target) {
             capture.add(new Capture(name, source, target, null));
             return this;
@@ -322,7 +335,7 @@ public record RequestSpec(
 
         public RequestSpec build() {
             return new RequestSpec(requestId, method, url, query, headers, body, auth,
-                    timeoutMs, redirects, verifyTls, maxBodyBytes, asserts, capture);
+                    timeoutMs, redirects, verifyTls, maxBodyBytes, asserts, capture, cookies);
         }
     }
 }
