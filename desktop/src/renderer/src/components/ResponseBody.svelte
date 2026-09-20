@@ -16,7 +16,13 @@
   const raw = $derived(response.body.content ?? '')
   const parsed = $derived(response.body.textual ? prettyJson(raw) : null)
   const pretty = $derived(parsed ?? raw)
-  const hasPreview = $derived(isHtml(response.body.contentType))
+  const hasPreview = $derived(isHtml(response.body.contentType) || hasImageType(response.body.contentType))
+  const image = $derived(
+    hasImageType(response.body.contentType) && response.body.base64 != null
+  )
+  const imageSrc = $derived(
+    image ? `data:${response.body.contentType};base64,${response.body.base64}` : null
+  )
   const looksJson = $derived((response.body.contentType ?? '').toLowerCase().includes('json'))
   // Pretty falls back to raw; say so rather than silently showing unformatted text.
   const invalidJson = $derived(
@@ -43,6 +49,10 @@
       event.preventDefault()
       move(-1)
     }
+  }
+
+  function hasImageType(contentType: string | null | undefined): boolean {
+    return (contentType ?? '').toLowerCase().startsWith('image/')
   }
 
   // Pretty and raw persist across sends; a view that no longer applies (preview on a
@@ -87,15 +97,28 @@
   </div>
 
   {#if response.body.truncated}
-    <p class="border-b border-amber-900/50 bg-amber-950/30 px-4 py-2 text-xs text-amber-300">
+    <p class="border-b border-warning-soft bg-warning-soft px-4 py-2 text-xs text-warning">
       Response is larger than the display cap; only the beginning is shown.
     </p>
   {/if}
 
   <div class="min-h-0 flex-1">
-    {#if !response.body.textual}
-      <div class="flex h-full items-center justify-center text-sm text-fg-faint">
-        Binary response — not displayed
+    {#if !response.body.textual && imageSrc}
+      <div class="flex h-full items-center justify-center overflow-auto p-4">
+        <img
+          src={imageSrc}
+          alt="Response preview"
+          class="max-h-full max-w-full rounded-md border border-line"
+        />
+      </div>
+    {:else if !response.body.textual}
+      <div class="flex h-full flex-col items-center justify-center gap-3 text-sm text-fg-faint">
+        <p>
+          Binary response{response.body.contentType
+            ? ` (${response.body.contentType})`
+            : ''} — not displayed.
+        </p>
+        <p class="text-xs">Use Save in the response header to keep it.</p>
       </div>
     {:else if view === 'preview'}
       {#if hasPreview}

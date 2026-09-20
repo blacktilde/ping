@@ -152,6 +152,7 @@ export interface HttpHeader {
 
 export interface HttpResponseBody {
   content?: string | null
+  base64?: string | null
   truncated: boolean
   bytes: number
   textual: boolean

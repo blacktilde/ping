@@ -52,7 +52,7 @@
 
   const tone = $derived(
     current.status === 'error'
-      ? 'border-amber-900/60 bg-amber-950/30 text-amber-300'
+      ? 'border-warning-soft bg-warning-soft text-warning'
       : current.status === 'available' || current.status === 'downloaded'
         ? 'border-accent/60 bg-accent/10 text-fg'
         : 'border-line bg-panel text-fg-muted'

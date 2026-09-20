@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { writeFileSyncAtomic } from './atomic'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { HistoryEntry } from '../shared/history'
@@ -59,7 +60,7 @@ export class HistoryStore {
 
   private persist(): void {
     try {
-      writeFileSync(this.file(), JSON.stringify(this.entries))
+      writeFileSyncAtomic(this.file(), JSON.stringify(this.entries))
     } catch (error) {
       process.stderr.write(`[history] could not write the history store: ${String(error)}\n`)
     }

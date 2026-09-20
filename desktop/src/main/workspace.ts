@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { writeFileAtomic } from './atomic'
 import { join } from 'node:path'
 import { app, dialog } from 'electron'
 
@@ -62,7 +63,7 @@ export class Workspace {
     this.watch()
 
     if (persist) {
-      void writeFile(this.statePath(), JSON.stringify({ root }), 'utf8').catch(() => {
+      void writeFileAtomic(this.statePath(), JSON.stringify({ root })).catch(() => {
         // Losing the remembered folder is not worth failing the open over.
       })
     }
@@ -82,8 +83,23 @@ export class Workspace {
         // the create/write/rename/chmod burst into one refresh, so nothing needs filtering.
         this.notify()
       })
+      // An unhandled `error` event throws — deleting the open folder, a renamed root or an
+      // exhausted inotify limit would take down the whole main process, not just the watch.
+      this.watcher.on('error', (error) => {
+        process.stderr.write(`[workspace] watch error on ${this.root}: ${String(error)}\n`)
+      })
     } catch (error) {
       process.stderr.write(`[workspace] cannot watch ${this.root}: ${String(error)}\n`)
+    }
+  }
+
+  /** Stops watching the open folder; called on quit so the process can exit promptly. */
+  dispose(): void {
+    this.watcher?.close()
+    this.watcher = null
+    if (this.debounce) {
+      clearTimeout(this.debounce)
+      this.debounce = null
     }
   }
 

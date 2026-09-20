@@ -13,6 +13,12 @@
   --color-fg: #e6e9ef;
   --color-fg-muted: #9aa4b2;
   --color-fg-faint: #6b7280;
+  /* Semantic status colors: text-danger, border-danger, bg-danger-soft, etc. */
+  --color-danger: #f87171;
+  --color-danger-soft: rgb(127 29 29 / 0.4);
+  --color-warning: #fbbf24;
+  --color-warning-soft: rgb(120 53 15 / 0.3);
+  --color-success: #34d399;
 }
 
 /*
@@ -69,6 +75,11 @@
   --color-fg: #16202e;
   --color-fg-muted: #45546a;
   --color-fg-faint: #76849a;
+  --color-danger: #dc2626;
+  --color-danger-soft: rgb(254 226 226 / 0.8);
+  --color-warning: #b45309;
+  --color-warning-soft: rgb(254 243 199 / 0.8);
+  --color-success: #059669;
 }
 
 :root[data-theme='rocket-daylight'] body {
@@ -104,6 +115,11 @@
   --color-fg: #1f2933;
   --color-fg-muted: #52606d;
   --color-fg-faint: #7b8794;
+  --color-danger: #dc2626;
+  --color-danger-soft: rgb(254 226 226 / 0.8);
+  --color-warning: #b45309;
+  --color-warning-soft: rgb(254 243 199 / 0.8);
+  --color-success: #059669;
 }
 
 html,

@@ -1,5 +1,6 @@
 import { join, resolve, sep } from 'node:path'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { writeFileSyncAtomic } from './atomic'
 import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
 import { OAuthTokenStore } from './oauth'
@@ -19,6 +20,8 @@ const secrets = new SecretStore()
 const history = new HistoryStore()
 const oauthTokens = new OAuthTokenStore()
 let mainWindow: BrowserWindow | null = null
+/** Set when a close has been approved (renderer confirmed, or the updater is restarting). */
+let closeApproved = false
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -66,11 +69,51 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // The window must never become a browser: a top-level navigation away from the shell
+  // would carry the preload bridge to a remote page. External-looking URLs open in the
+  // real browser instead, same rule as new windows.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isOwnUrl(url)) {
+      return
+    }
+    event.preventDefault()
+    const safe = safeExternalUrl(url)
+    if (safe) {
+      void shell.openExternal(safe)
+    }
+  })
+
+  // Unsaved work lives in the renderer, so closing always asks it first: one confirmation
+  // covers quit, window close and the updater's restart. Once-approved quits (the updater,
+  // or a renderer answer) pass through without a second prompt.
+  mainWindow.on('close', (event) => {
+    if (closeApproved) {
+      closeApproved = false
+      return
+    }
+    event.preventDefault()
+    mainWindow?.webContents.send('app:close-request')
+  })
+
   const devServer = process.env.ELECTRON_RENDERER_URL
   if (devServer) {
     void mainWindow.loadURL(devServer)
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+/** The URLs this shell itself loads: the dev server when developing, the packaged file otherwise. */
+function isOwnUrl(url: string): boolean {
+  const devServer = process.env.ELECTRON_RENDERER_URL
+  if (devServer && url.startsWith(devServer)) {
+    return true
+  }
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'file:' && parsed.pathname.endsWith('/renderer/index.html')
+  } catch {
+    return false
   }
 }
 
@@ -84,6 +127,15 @@ function isRelativePath(value: string): boolean {
     return false
   }
   return !value.split(/[\\/]/).includes('..')
+}
+
+/**
+ * A name the OS save dialog can use: no path separators, no traversal, no invisibles.
+ * The suggestion comes from the renderer, so it is treated as untrusted.
+ */
+function safeDownloadName(value: string): string {
+  const cleaned = value.replace(/[\\/:*?"<>|\r\n]+/g, ' ').trim()
+  return cleaned.length > 0 ? cleaned.slice(0, 120) : 'response'
 }
 
 /**
@@ -232,6 +284,33 @@ function registerIpc(): void {
     }
   })
 
+  // Saves a response body to a file the user picks. The renderer sends bytes it already
+  // holds (text or base64); the destination is chosen here, and the write is atomic so a
+  // crash cannot leave a half-written file the user believes is complete.
+  ipcMain.handle('response:save', async (_event, payload: unknown) => {
+    const body = payload as { suggestedName?: unknown; text?: unknown; base64?: unknown } | null
+    if (!body || typeof body !== 'object') {
+      throw new Error('response:save requires a payload')
+    }
+    if (typeof body.text !== 'string' && typeof body.base64 !== 'string') {
+      throw new Error('response:save requires text or base64 content')
+    }
+    const data =
+      typeof body.text === 'string'
+        ? body.text
+        : Buffer.from(body.base64 as string, 'base64')
+    const result = await dialog.showSaveDialog({
+      defaultPath: safeDownloadName(
+        typeof body.suggestedName === 'string' ? body.suggestedName : 'response'
+      )
+    })
+    if (result.canceled || !result.filePath) {
+      return null
+    }
+    writeFileSyncAtomic(result.filePath, data)
+    return result.filePath
+  })
+
   // The updater runs in main and pushes its state; the renderer only asks for the next step.
   ipcMain.handle('updates:state', () => updateState())
   ipcMain.handle('updates:check', () => {
@@ -243,8 +322,17 @@ function registerIpc(): void {
     return updateState()
   })
   ipcMain.handle('updates:install', () => {
+    // The renderer asks about unsaved work after installing, so the restart must not
+    // surface a second confirmation while tearing the window down.
+    closeApproved = true
     installUpdate()
     return updateState()
+  })
+
+  // The renderer confirmed closing; allow it through.
+  ipcMain.handle('app:confirm-close', () => {
+    closeApproved = true
+    mainWindow?.close()
   })
 
   ipcMain.handle('secrets:list', () => secrets.names())
@@ -345,6 +433,7 @@ app.whenReady().then(async () => {
     }
     mainWindow?.webContents.send('core:notification', notification)
   })
+  core.stateChanges((state) => mainWindow?.webContents.send('core:state', state))
   core.start()
 
   registerIpc()
@@ -373,4 +462,7 @@ app.on('window-all-closed', () => {
 })
 
 // Closing stdin is what tells the core to exit; without this it would outlive the UI.
-app.on('will-quit', () => core.stop())
+app.on('will-quit', () => {
+  workspace.dispose()
+  core.stop()
+})

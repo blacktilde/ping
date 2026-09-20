@@ -248,6 +248,9 @@
       ]
     },
     {
+      "type": "dev.ping.http.RequestSpec$Param[]"
+    },
+    {
       "type": "dev.ping.http.ResponseData",
       "methods": [
         {
@@ -279,6 +282,10 @@
     {
       "type": "dev.ping.http.ResponseData$BodyData",
       "methods": [
+        {
+          "name": "base64",
+          "parameterTypes": []
+        },
         {
           "name": "bytes",
           "parameterTypes": []
@@ -388,6 +395,9 @@
       ]
     },
     {
+      "type": "dev.ping.store.CollectionNode[]"
+    },
+    {
       "type": "dev.ping.store.EnvironmentDoc",
       "methods": [
         {
@@ -486,6 +496,9 @@
       ]
     },
     {
+      "type": "java.io.Serializable"
+    },
+    {
       "type": "java.lang.Boolean",
       "jniAccessible": true,
       "methods": [
@@ -503,6 +516,10 @@
         {
           "name": "getRecordComponents",
           "parameterTypes": []
+        },
+        {
+          "name": "isRecord",
+          "parameterTypes": []
         }
       ]
     },
@@ -517,6 +534,9 @@
     {
       "type": "java.lang.Enum",
       "serializable": true
+    },
+    {
+      "type": "java.lang.Iterable"
     },
     {
       "type": "java.lang.Object[]",
@@ -557,12 +577,60 @@
       "type": "java.sql.Timestamp"
     },
     {
+      "type": "java.util.AbstractCollection"
+    },
+    {
+      "type": "java.util.AbstractMap"
+    },
+    {
+      "type": "java.util.AbstractSet"
+    },
+    {
+      "type": "java.util.Collection"
+    },
+    {
+      "type": "java.util.HashMap$KeySet"
+    },
+    {
       "type": "java.util.HashSet",
       "serializable": true
     },
     {
+      "type": "java.util.ImmutableCollections$AbstractImmutableCollection"
+    },
+    {
+      "type": "java.util.ImmutableCollections$AbstractImmutableList"
+    },
+    {
+      "type": "java.util.ImmutableCollections$AbstractImmutableMap"
+    },
+    {
+      "type": "java.util.ImmutableCollections$List12"
+    },
+    {
+      "type": "java.util.ImmutableCollections$ListN"
+    },
+    {
+      "type": "java.util.ImmutableCollections$Map1"
+    },
+    {
+      "type": "java.util.ImmutableCollections$MapN"
+    },
+    {
       "type": "java.util.LinkedHashSet",
       "serializable": true
+    },
+    {
+      "type": "java.util.List"
+    },
+    {
+      "type": "java.util.Map"
+    },
+    {
+      "type": "java.util.RandomAccess"
+    },
+    {
+      "type": "java.util.Set"
     },
     {
       "type": "java.util.concurrent.ArrayBlockingQueue",
@@ -594,6 +662,12 @@
     },
     {
       "type": "jdk.internal.misc.Unsafe"
+    },
+    {
+      "type": "kotlin.Metadata"
+    },
+    {
+      "type": "kotlin.jvm.JvmInline"
     },
     {
       "type": "sun.net.www.protocol.http.Handler",

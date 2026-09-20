@@ -36,6 +36,10 @@ const RESPONSE_TIMEOUT_MS = 60_000
 /** `http.send` runs until its own `timeoutMs` or Cancel, so the shell must not cut it off. */
 const UNBOUNDED_METHODS = new Set(['http.send'])
 
+/** Backoff between core restart attempts, doubling up to the cap. */
+const RESTART_BASE_MS = 500
+const RESTART_MAX_MS = 10_000
+
 /**
  * Locates the core binary.
  *
@@ -77,6 +81,10 @@ export class CoreClient {
   private buffer = ''
   private nextId = 1
   private onNotification: ((notification: CoreNotification) => void) | null = null
+  private onStateChange: ((state: 'down' | 'starting' | 'ready') => void) | null = null
+  private restarting = false
+  private stopped = false
+  private restartAttempts = 0
 
   /** Resolves when the core announces `core.ready`, so callers never race startup. */
   readonly ready: Promise<void>
@@ -91,6 +99,11 @@ export class CoreClient {
   }
 
   start(): void {
+    this.stopped = false
+    this.spawn()
+  }
+
+  private spawn(): void {
     // A missing core must not stop the window from opening: fail `ready`, so every call
     // reports it and the renderer shows the error, rather than rejecting unhandled.
     let binary: string
@@ -103,6 +116,7 @@ export class CoreClient {
 
     const child = spawn(binary, [], { stdio: ['pipe', 'pipe', 'pipe'] })
     this.child = child
+    this.onStateChange?.('starting')
 
     child.stdout.setEncoding('utf8')
     child.stdout.on('data', (chunk: string) => this.consume(chunk))
@@ -112,13 +126,18 @@ export class CoreClient {
     child.stderr.on('data', (chunk: string) => process.stderr.write(`[core] ${chunk}`))
 
     child.on('error', (error) => this.fail(new Error(`Core failed to start: ${error.message}`)))
-    child.on('exit', (code, signal) =>
+    child.on('exit', (code, signal) => {
       this.fail(new Error(`Core exited (code=${code}, signal=${signal})`))
-    )
+    })
   }
 
   notifications(listener: (notification: CoreNotification) => void): void {
     this.onNotification = listener
+  }
+
+  /** Lifecycle events for the renderer: `down` after a crash, `ready` once it answers again. */
+  stateChanges(listener: (state: 'down' | 'starting' | 'ready') => void): void {
+    this.onStateChange = listener
   }
 
   request(method: string, params?: unknown): Promise<unknown> {
@@ -133,6 +152,11 @@ export class CoreClient {
       if (!UNBOUNDED_METHODS.has(method)) {
         timer = setTimeout(() => {
           this.pending.delete(id)
+          // Tell the core to stop working: without this it finishes a slow handler nobody
+          // is waiting for, and its late reply is discarded as a response for an unknown id.
+          child.stdin.write(
+            `${JSON.stringify({ jsonrpc: '2.0', method: 'http.cancel', params: { requestId: id } })}\n`
+          )
           reject(new Error(`The core did not answer ${method} within ${RESPONSE_TIMEOUT_MS}ms`))
         }, RESPONSE_TIMEOUT_MS)
         timer.unref()
@@ -144,6 +168,7 @@ export class CoreClient {
 
   /** Closing stdin ends the core's read loop, which is how it learns to shut down. */
   stop(): void {
+    this.stopped = true
     this.child?.stdin.end()
     this.child = null
   }
@@ -174,6 +199,8 @@ export class CoreClient {
     if (message.id === undefined || message.id === null) {
       if (message.method === 'core.ready') {
         this.markReady()
+        this.restartAttempts = 0
+        this.onStateChange?.('ready')
       }
       this.onNotification?.({ method: message.method, params: message.params })
       return
@@ -207,5 +234,31 @@ export class CoreClient {
     }
     this.pending.clear()
     this.child = null
+
+    if (this.stopped || this.restarting) {
+      return
+    }
+    this.scheduleRestart()
+  }
+
+  /**
+   * Brings the core back after a crash. The native binary is the whole data layer, so a
+   * single crash must not brick the session until relaunch. `ready` stays resolved from
+   * the first successful start — the renderer re-syncs from the `core:state` events
+   * instead of re-awaiting a promise that can only settle once.
+   */
+  private scheduleRestart(): void {
+    this.restarting = true
+    this.onStateChange?.('down')
+    const delay = Math.min(RESTART_BASE_MS * 2 ** this.restartAttempts, RESTART_MAX_MS)
+    this.restartAttempts += 1
+    setTimeout(() => {
+      this.restarting = false
+      if (this.stopped) {
+        return
+      }
+      process.stderr.write(`[core] restarting (attempt ${this.restartAttempts})\n`)
+      this.spawn()
+    }, delay).unref()
   }
 }

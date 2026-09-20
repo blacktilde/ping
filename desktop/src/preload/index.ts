@@ -41,6 +41,19 @@ const api = {
     return ipcRenderer.invoke('workspace:open', path) as Promise<void>
   },
 
+  /**
+   * Saves a response body to a file the user picks. Pass exactly one of `text` (textual
+   * bodies) or `base64` (binary bodies); the chosen path is returned, or null on cancel.
+   * The renderer never picks the destination itself.
+   */
+  saveResponse(payload: {
+    suggestedName: string
+    text?: string
+    base64?: string
+  }): Promise<string | null> {
+    return ipcRenderer.invoke('response:save', payload) as Promise<string | null>
+  },
+
   /** Fires when the open folder changes on disk, so the tree can be rescanned. */
   onStoreChanged(listener: () => void): () => void {
     const handler = (): void => listener()
@@ -97,6 +110,17 @@ const api = {
   },
 
   /**
+   * Core process lifecycle: `down` after a crash, `starting` while it respawns, `ready`
+   * once it answers again. The UI uses this to explain why requests fail and when they work.
+   */
+  onCoreState(listener: (state: 'down' | 'starting' | 'ready') => void): () => void {
+    const handler = (_event: IpcRendererEvent, state: 'down' | 'starting' | 'ready'): void =>
+      listener(state)
+    ipcRenderer.on('core:state', handler)
+    return () => ipcRenderer.off('core:state', handler)
+  },
+
+  /**
    * Executed requests, kept by the shell in `userData` so they survive a restart and
    * follow the user rather than the open folder. Recording is opt-in from the renderer.
    */
@@ -110,6 +134,20 @@ const api = {
     clear(): Promise<void> {
       return ipcRenderer.invoke('history:clear') as Promise<void>
     }
+  },
+
+  /**
+   * Quit protection. The window close is intercepted in main, which asks the renderer —
+   * the only place that knows about unsaved tabs — to confirm; `confirmClose` then lets
+   * the close proceed.
+   */
+  onCloseRequest(listener: () => void): () => void {
+    const handler = (): void => listener()
+    ipcRenderer.on('app:close-request', handler)
+    return () => ipcRenderer.off('app:close-request', handler)
+  },
+  confirmClose(): Promise<void> {
+    return ipcRenderer.invoke('app:confirm-close') as Promise<void>
   }
 }
 

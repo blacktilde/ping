@@ -18,13 +18,40 @@
   let input = $state<HTMLInputElement>()
   let returnFocus: HTMLElement | null = null
 
-  const filtered = $derived(
-    query.trim()
-      ? commands.filter((command) =>
-          command.label.toLowerCase().includes(query.trim().toLowerCase())
-        )
-      : commands
-  )
+  /**
+   * Subsequence match with a bonus for contiguous runs, so "envnone" finds
+   * "Environment: none" and exact prefixes rank first. Not fuzzy in the editor sense —
+   * every typed character must appear in order — but forgiving of separators.
+   */
+  function score(label: string, query: string): number {
+    const haystack = label.toLowerCase()
+    const needle = query.toLowerCase()
+    let index = 0
+    let total = 0
+    let run = 0
+    for (const character of needle) {
+      const found = haystack.indexOf(character, index)
+      if (found === -1) {
+        return -1
+      }
+      total += found === index ? 2 + run : 1
+      run = found === index ? run + 1 : 0
+      index = found + 1
+    }
+    return total
+  }
+
+  const filtered = $derived.by(() => {
+    const needle = query.trim()
+    if (!needle) {
+      return commands
+    }
+    return commands
+      .map((command) => ({ command, score: score(command.label, needle) }))
+      .filter((entry) => entry.score >= 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.command)
+  })
 
   // The combobox owns focus: the selected option is announced through
   // aria-activedescendant rather than being focusable itself.

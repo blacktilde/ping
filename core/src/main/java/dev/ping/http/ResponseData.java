@@ -21,11 +21,13 @@ public record ResponseData(
 
     /**
      * @param content   decoded text, or null when the payload is not textual or was truncated away
+     * @param base64    the kept bytes as base64 when the payload is not textual; null otherwise
      * @param truncated true when {@code bytes} exceeded the configured cap
      * @param bytes     total bytes received, whether or not they were kept
      */
     public record BodyData(
             String content,
+            String base64,
             boolean truncated,
             long bytes,
             boolean textual,

@@ -15,10 +15,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -200,6 +202,31 @@ class HttpMethodsTest {
         List<JsonNode> out = exchange("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"http.send\"}");
 
         assertEquals(RpcException.INVALID_PARAMS, out.get(0).path("error").path("code").asInt());
+    }
+
+    @Test
+    void carriesBinaryBodiesAsBase64AcrossTheBoundary() throws Exception {
+        // A 1x1 PNG, chosen because the bytes are not valid text in any charset.
+        byte[] png = Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        server.createContext("/image", exchange -> {
+            try (exchange) {
+                exchange.getResponseHeaders().add("Content-Type", "image/png");
+                exchange.sendResponseHeaders(200, png.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(png);
+                }
+            }
+        });
+
+        List<JsonNode> out = exchange((
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"http.send\",\"params\":"
+                        + "{\"url\":\"%s/image\"}}").formatted(baseUrl));
+
+        JsonNode body = out.get(0).path("result").path("body");
+        assertFalse(body.path("textual").asBoolean());
+        assertTrue(body.hasNonNull("base64"), "binary body must carry base64");
+        assertArrayEquals(png, Base64.getDecoder().decode(body.path("base64").asText()));
     }
 
     @Test

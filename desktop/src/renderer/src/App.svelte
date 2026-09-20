@@ -47,6 +47,7 @@
   import KeyValueEditor from './components/KeyValueEditor.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
+  import RequestSettings from './components/RequestSettings.svelte'
   import ResponsePane from './components/ResponsePane.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import VariablesPanel from './components/VariablesPanel.svelte'
@@ -70,6 +71,8 @@
 
   let info = $state<CoreInfo | null>(null)
   let bootError = $state('')
+  // Lifecycle of the core process. `down` means every request will fail until it respawns.
+  let coreState = $state<'down' | 'starting' | 'ready'>('ready')
 
   let nodes = $state<StoreNode[]>([])
   let storeError = $state('')
@@ -79,6 +82,9 @@
   let sidebarCollapsed = $state(readSidebarCollapsed())
   let sidebarPanel = $state<'collections' | 'history'>('collections')
   let curlStatus = $state('')
+  // Set when Send is pressed with nothing to send; clears as soon as a URL is typed.
+  let urlRequired = $state(false)
+  let urlInput = $state<HTMLInputElement>()
 
   // The tab the editor is showing. Every per-request value lives on it, so switching tabs
   // swaps the whole editor and response state at once.
@@ -104,7 +110,8 @@
     { id: 'params', label: 'Params', badge: queryCount > 0 ? String(queryCount) : null },
     { id: 'headers', label: 'Headers', badge: headerCount > 0 ? String(headerCount) : null },
     { id: 'body', label: 'Body', badge: active.draft.body.type === 'none' ? null : '•' },
-    { id: 'auth', label: 'Auth', badge: active.draft.auth.type === 'none' ? null : 'on' }
+    { id: 'auth', label: 'Auth', badge: active.draft.auth.type === 'none' ? null : 'on' },
+    { id: 'settings', label: 'Settings', badge: null }
   ])
 
   // Proves the whole chain on startup: renderer, preload, main, core process.
@@ -162,6 +169,27 @@
     })
   })
 
+  // Follow the core process across crashes: `down` explains failing requests, `ready`
+  // clears the banner once the shell has respawned it.
+  $effect(() => {
+    return window.ping.onCoreState((state) => {
+      coreState = state
+    })
+  })
+
+  // Main intercepts every window close and asks here, so unsaved tabs can veto the exit.
+  $effect(() => {
+    return window.ping.onCloseRequest(() => {
+      if (!anyDirty) {
+        void window.ping.confirmClose()
+        return
+      }
+      if (confirm('You have unsaved changes. Close anyway?')) {
+        void window.ping.confirmClose()
+      }
+    })
+  })
+
   async function refresh(options: { autoOpen?: boolean } = {}): Promise<void> {
     try {
       const workspace = await currentWorkspace()
@@ -189,8 +217,17 @@
       if (!workspace) {
         return
       }
+      // A dismissed dialog returns the current folder; switching to the same folder is a
+      // no-op, not a reason to throw tabs away.
+      if (workspace.root === workspaceRoot) {
+        return
+      }
+      // Tabs point at paths in the old workspace, so they cannot survive the switch —
+      // but unsaved edits are the user's, not ours to discard silently.
+      if (anyDirty && !confirm('Switching folders discards unsaved changes in all tabs. Continue?')) {
+        return
+      }
       workspaceRoot = workspace.root
-      // Tabs point at paths in the old workspace, so they cannot survive the switch.
       closeAllTabs()
       nodes = await scanStore()
       const first = firstRequest(nodes)
@@ -228,6 +265,22 @@
   }
 
   async function deleteNode(node: StoreNode): Promise<void> {
+    // Deleting takes the surviving tabs' files away; dirty tabs under the deleted path
+    // cannot be saved afterwards, so they get the same veto a tab close gets.
+    const doomed = tabs.list.filter(
+      (tab) =>
+        tab.savedKey !== null &&
+        draftKey(tab.draft) !== tab.savedKey &&
+        (tab.path === node.path || tab.path?.startsWith(node.path + '/'))
+    )
+    if (
+      doomed.length > 0 &&
+      !confirm(
+        `Deleting this discards unsaved changes in ${doomed.length === 1 ? 'a tab' : `${doomed.length} tabs`}. Continue?`
+      )
+    ) {
+      return
+    }
     try {
       await deleteEntry(node.path)
       // Any tab editing the deleted file (or something under it) has nothing left to save.
@@ -410,9 +463,8 @@
     }
   }
 
-  async function onAddEnvironment(): Promise<void> {
-    const name = prompt('Environment name')
-    if (!name || !variables.collection) {
+  async function onAddEnvironment(name: string): Promise<void> {
+    if (!variables.collection) {
       return
     }
     try {
@@ -422,6 +474,23 @@
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
     }
+  }
+
+  // Shortcut hints. The keydown handler accepts Meta (macOS) or Ctrl (everything else),
+  // so the hint must not lie about which one.
+  const modKey = $derived(navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl+')
+
+  function cycleTab(delta: number): void {
+    const index = tabs.list.findIndex((tab) => tab.id === tabs.activeId)
+    const next = tabs.list[(index + delta + tabs.list.length) % tabs.list.length]
+    if (next) {
+      activateTab(next.id)
+    }
+  }
+
+  function focusUrl(): void {
+    urlInput?.focus()
+    urlInput?.select()
   }
 
   function onKeydown(event: KeyboardEvent): void {
@@ -444,6 +513,21 @@
     } else if (key === 'w') {
       event.preventDefault()
       closeRequestTab(active.id)
+    } else if (key === 'l') {
+      event.preventDefault()
+      focusUrl()
+    } else if (event.code === 'BracketRight') {
+      event.preventDefault()
+      cycleTab(1)
+    } else if (event.code === 'BracketLeft') {
+      event.preventDefault()
+      cycleTab(-1)
+    } else if (/^[1-9]$/.test(key)) {
+      event.preventDefault()
+      const target = tabs.list[Number(key) - 1]
+      if (target) {
+        activateTab(target.id)
+      }
     } else if (event.key === 'Enter') {
       event.preventDefault()
       void send()
@@ -490,7 +574,13 @@
     // response belongs to the tab that sent it, not whichever is on screen when it lands.
     const tab = active
     const target = tab.draft.url.trim()
-    if (tab.inFlight || target.length === 0) {
+    if (tab.inFlight) {
+      return
+    }
+    // Send with nowhere to go is a silent no-op otherwise — put the cursor where the fix goes.
+    if (target.length === 0) {
+      urlRequired = true
+      urlInput?.focus()
       return
     }
 
@@ -541,16 +631,19 @@
 
   const paletteCommands = $derived.by(() => {
     const commands: { id: string; label: string; hint?: string; run: () => void }[] = [
-      { id: 'send', label: 'Send request', hint: '⌘↵', run: () => void send() },
-      { id: 'save', label: 'Save request', hint: '⌘S', run: () => void save() },
+      { id: 'send', label: 'Send request', hint: `${modKey}↵`, run: () => void send() },
+      { id: 'save', label: 'Save request', hint: `${modKey}S`, run: () => void save() },
       { id: 'curl', label: 'Copy as cURL', run: () => void copyAsCurl() },
-      { id: 'new-tab', label: 'New request tab', hint: '⌘T', run: newTab },
-      { id: 'close-tab', label: 'Close request tab', hint: '⌘W', run: () => closeRequestTab(active.id) },
+      { id: 'new-tab', label: 'New request tab', hint: `${modKey}T`, run: newTab },
+      { id: 'close-tab', label: 'Close request tab', hint: `${modKey}W`, run: () => closeRequestTab(active.id) },
+      { id: 'next-tab', label: 'Next tab', hint: `${modKey}⇧]`, run: () => cycleTab(1) },
+      { id: 'previous-tab', label: 'Previous tab', hint: `${modKey}⇧[`, run: () => cycleTab(-1) },
+      { id: 'focus-url', label: 'Focus request URL', hint: `${modKey}L`, run: focusUrl },
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
       {
         id: 'sidebar',
         label: sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar',
-        hint: '⌘B',
+        hint: `${modKey}B`,
         run: toggleSidebar
       },
       {
@@ -582,6 +675,16 @@
       { id: 'tab-auth', label: 'Go to Auth', run: () => (active.editorTab = 'auth') },
       { id: 'env-none', label: 'Environment: none', run: () => void onEnvironmentChange('') }
     ]
+
+    // Direct commands for the first handful of tabs; ⌘1–⌘9 already reach them.
+    for (const [index, tab] of tabs.list.slice(0, 9).entries()) {
+      commands.push({
+        id: `switch-tab-${tab.id}`,
+        label: `Go to tab: ${tab.draft.name || 'Untitled'}`,
+        hint: `${modKey}${index + 1}`,
+        run: () => activateTab(tab.id)
+      })
+    }
 
     if (updates.state.enabled) {
       commands.push({
@@ -619,8 +722,8 @@
             onclick={toggleSidebar}
             aria-label={sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar'}
             title={sidebarCollapsed
-              ? 'Show collections sidebar (⌘B)'
-              : 'Hide collections sidebar (⌘B)'}
+              ? `Show collections sidebar (${modKey}B)`
+              : `Hide collections sidebar (${modKey}B)`}
             class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
           >
             <svg
@@ -722,14 +825,28 @@
 
         <div class="relative flex-1">
           <input
+            bind:this={urlInput}
             bind:value={active.draft.url}
             aria-label="Request URL"
+            aria-invalid={urlRequired}
             spellcheck="false"
             autocomplete="off"
             placeholder="https://api.example.com/resource"
-            class="w-full rounded-lg border border-line bg-panel py-2.5 pl-4 pr-16 font-mono
-                   text-sm outline-none transition focus:border-accent"
+            oninput={() => (urlRequired = false)}
+            class="w-full rounded-lg border bg-panel py-2.5 pl-4 pr-16 font-mono
+                   text-sm outline-none transition
+                   {urlRequired ? 'border-warning' : 'border-line focus:border-accent'}"
           />
+          {#if urlRequired}
+            <span
+              data-role="url-required"
+              role="status"
+              class="pointer-events-none absolute -top-7 left-0 whitespace-nowrap rounded-md
+                     border border-warning-soft bg-panel px-2 py-1 text-xs text-warning"
+            >
+              Enter a URL to send
+            </span>
+          {/if}
           <div class="absolute inset-y-0 right-1.5 flex items-center gap-1">
             <div class="relative">
               <button
@@ -824,11 +941,23 @@
         {/if}
       </form>
 
+      {#if coreState !== 'ready'}
+        <p
+          data-role="core-state"
+          role="status"
+          class="rounded-lg border border-warning-soft bg-warning-soft px-4 py-3 text-sm text-warning"
+        >
+          {coreState === 'down'
+            ? 'The core engine stopped and is being restarted — requests will fail until it is back.'
+            : 'Reconnecting to the core engine…'}
+        </p>
+      {/if}
+
       {#if storeError}
         <p
           data-role="store-error"
           role="alert"
-          class="rounded-lg border border-amber-900/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-300"
+          class="rounded-lg border border-warning-soft bg-warning-soft px-4 py-3 text-sm text-warning"
         >
           {storeError}
         </p>
@@ -838,7 +967,7 @@
         <p
           data-role="error"
           role="alert"
-          class="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300"
+          class="rounded-lg border border-danger-soft bg-danger-soft px-4 py-3 text-sm text-danger"
         >
           {active.error || bootError}
         </p>
@@ -883,19 +1012,25 @@
                 />
               {:else if active.editorTab === 'body'}
                 <BodyEditor body={active.draft.body} />
-              {:else}
+              {:else if active.editorTab === 'auth'}
                 <AuthEditor
                   auth={active.draft.auth}
                   status={active.authStatus}
                   onAuthorize={authorize}
                 />
+              {:else}
+                <RequestSettings draft={active.draft} />
               {/if}
             </div>
           </section>
         {/snippet}
 
         {#snippet second()}
-          <ResponsePane response={active.response} inFlight={active.inFlight} />
+          <ResponsePane
+            response={active.response}
+            inFlight={active.inFlight}
+            suggestedName={active.draft.name || 'response'}
+          />
         {/snippet}
       </SplitPane>
     </div>

@@ -19,15 +19,15 @@
 
 <div class="h-full overflow-auto p-4">
   <div class="flex h-3 w-full overflow-hidden rounded-full bg-base" aria-hidden="true">
-    <div class="bg-sky-500/70" style="width: {width(dns)}"></div>
+    <div class="bg-accent/70" style="width: {width(dns)}"></div>
     <div class="bg-accent/80" style="width: {width(timing.ttfbMs)}"></div>
-    <div class="bg-emerald-500/70" style="width: {width(timing.downloadMs)}"></div>
+    <div class="bg-success/70" style="width: {width(timing.downloadMs)}"></div>
   </div>
 
   <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
     <div>
       <dt class="flex items-center gap-1.5 text-xs text-fg-muted">
-        <span class="h-2 w-2 rounded-full bg-sky-500/70"></span> DNS
+        <span class="h-2 w-2 rounded-full bg-accent/70"></span> DNS
       </dt>
       <dd class="mt-0.5 font-mono text-fg">
         {timing.dnsMs == null ? '—' : formatDuration(timing.dnsMs)}
@@ -41,7 +41,7 @@
     </div>
     <div>
       <dt class="flex items-center gap-1.5 text-xs text-fg-muted">
-        <span class="h-2 w-2 rounded-full bg-emerald-500/70"></span> Download
+        <span class="h-2 w-2 rounded-full bg-success/70"></span> Download
       </dt>
       <dd class="mt-0.5 font-mono text-fg">{formatDuration(timing.downloadMs)}</dd>
     </div>
