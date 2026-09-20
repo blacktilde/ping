@@ -66,13 +66,10 @@
  * near-white and the panels are light, because the photograph is a bright sky and a dark
  * scrim would mud it. It is a light theme that happens to carry an image, so isDark() must
  * report false for it or the editor arrives in one-dark on a white page.
- *
- * NOTE: assets/rocket-daylight.webp is a PLACEHOLDER gradient, not the intended artwork.
- * See docs/REVIEW.md. Overwrite that one file to finish the theme; nothing else changes.
  */
 :root[data-theme='rocket-daylight'] {
-  --color-base: rgb(255 255 255 / 0.55);
-  --color-panel: rgb(255 255 255 / 0.8);
+  --color-base: rgb(255 255 255 / 0.5);
+  --color-panel: rgb(255 255 255 / 0.72);
   --color-line: rgb(15 23 42 / 0.12);
   --color-accent: #2563eb;
   --color-fg: #16202e;
@@ -92,11 +89,11 @@
     ),
     linear-gradient(
       to bottom,
-      rgb(255 255 255 / 0.1) 0%,
-      rgb(255 255 255 / 0.24) 22%,
-      rgb(248 250 252 / 0.58) 46%,
-      rgb(246 249 252 / 0.9) 68%,
-      #f5f7fa 88%
+      rgb(255 255 255 / 0.02) 0%,
+      rgb(255 255 255 / 0.1) 26%,
+      rgb(248 250 252 / 0.34) 52%,
+      rgb(246 249 252 / 0.72) 74%,
+      #f5f7fa 94%
     ),
     url('./assets/rocket-daylight.webp');
   background-repeat: repeat, no-repeat, no-repeat;
