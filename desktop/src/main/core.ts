@@ -31,23 +31,9 @@ interface PendingCall {
   timer: NodeJS.Timeout | null
 }
 
-/**
- * How long a call may go unanswered before the shell gives up on it.
- *
- * The core answers every request it can, including one whose handler threw, so silence
- * means the response was lost rather than slow — a killed worker, a corrupted line, a bug.
- * Without a deadline that call's promise never settles and the UI waits forever on a core
- * that is otherwise healthy, which is not a state the user can see or escape.
- */
 const RESPONSE_TIMEOUT_MS = 60_000
 
-/**
- * Methods that may legitimately take longer than that, so the shell must not cut them off.
- *
- * `http.send` runs until the request's own `timeoutMs` (30s by default, but the user may
- * set any value) or until Cancel, and that bound belongs to the request, not to us.
- * Everything else touches the local filesystem or memory and must answer promptly.
- */
+/** `http.send` runs until its own `timeoutMs` or Cancel, so the shell must not cut it off. */
 const UNBOUNDED_METHODS = new Set(['http.send'])
 
 /**
@@ -149,7 +135,6 @@ export class CoreClient {
           this.pending.delete(id)
           reject(new Error(`The core did not answer ${method} within ${RESPONSE_TIMEOUT_MS}ms`))
         }, RESPONSE_TIMEOUT_MS)
-        // An outstanding call must not keep the process alive at quit.
         timer.unref()
       }
       this.pending.set(id, { resolve, reject, timer })

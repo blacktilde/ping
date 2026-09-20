@@ -23,7 +23,7 @@ class RpcServerTest {
         return exchange(server -> { }, requestLines);
     }
 
-    /** As above, with a chance to register extra methods the production core does not have. */
+    /** As above, with a chance to register methods the production core does not have. */
     private List<JsonNode> exchange(Consumer<RpcServer> register, String... requestLines)
             throws Exception {
         String input = String.join("\n", requestLines) + "\n";
@@ -132,11 +132,8 @@ class RpcServerTest {
 
     @Test
     void answersEvenWhenAHandlerThrowsAnError() throws Exception {
-        // An Error is not an Exception, so catching Exception here would let it escape the
-        // worker thread: no response would be written, the caller would wait forever, and
-        // the core would carry on serving as if nothing had happened. native-image raises
-        // MissingReflectionRegistrationError, an Error, when metadata is missing, which is
-        // how a collection holding an auth block once left the app stuck on launch.
+        // native-image raises MissingReflectionRegistrationError, an Error, for missing
+        // metadata, which is how a collection with an auth block once hung the app.
         List<JsonNode> out = exchange(
                 server -> server.register("test.throwsError", params -> {
                     throw new NoSuchMethodError("no reachability metadata for dev.ping.Example");
@@ -149,8 +146,7 @@ class RpcServerTest {
                 "an Error must come back as an answered request, not silence");
         assertTrue(failed.path("error").path("message").asText().contains("NoSuchMethodError"),
                 failed.path("error").path("message").asText());
-
-        // The whole point of answering rather than dying: the next request still works.
-        assertEquals("pong", responseFor(out, 12).path("result").path("message").asText());
+        assertEquals("pong", responseFor(out, 12).path("result").path("message").asText(),
+                "the server must keep serving after a handler dies");
     }
 }
