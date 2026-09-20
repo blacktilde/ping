@@ -88,6 +88,20 @@ const api = {
   },
 
   /**
+   * Values captured from responses, kept in the main process for the session. The renderer
+   * can list their names and clear them, but never read a value: they are merged into requests
+   * on the way to the core, like secrets.
+   */
+  runtime: {
+    list(): Promise<string[]> {
+      return ipcRenderer.invoke('runtime:list') as Promise<string[]>
+    },
+    clear(): Promise<void> {
+      return ipcRenderer.invoke('runtime:clear') as Promise<void>
+    }
+  },
+
+  /**
    * The updater, owned by the shell. The renderer reads its state, asks for the next step,
    * and subscribes to changes; it can never download or install on its own.
    */

@@ -143,6 +143,33 @@ A JSON `null` counts as present. `target` and `expected` are interpolated with t
 failed result carrying a `message`, not an RPC error, so a typo in a collection file never
 stops the request from being sent.
 
+### Capture
+
+`http.send` accepts a `capture` list (see `http.schema.json`) and returns a `captured` array with
+one result per enabled capture, in order. A capture writes a named value out of the response into
+the **runtime** variable scope, which outranks collection and environment, so login-then-call
+works with no scripting: the token lands in runtime and the next request's `{{token}}` resolves
+to it without a file changing.
+
+| source     | reads                                                                   |
+|------------|-------------------------------------------------------------------------|
+| `jsonpath` | `target` is a path (the subset assertions use); a container is captured as its JSON text |
+| `header`   | `target` is the name, case-insensitive; repeated headers are joined with `, ` |
+| `status`   | the response status                                                     |
+
+- **A miss leaves the variable absent, never empty.** The result has `found: false` and a
+  message, and the next request sends `{{name}}` as written, which is visible rather than
+  silently wrong. A bad name, a bad path or a body that is not JSON is a miss, not an RPC error.
+- **Precedence.** The shell merges `{...variables, ...runtime, ...secrets}`, so a secret with the
+  same name still wins over a captured value; the runner applies `--var` and secrets after runtime
+  the same way.
+- **The value is live data and stays out of sight.** `captured[].value` exists only on the hop
+  from the core to the shell. The shell keeps the runtime map in memory for the session (never on
+  disk, cleared when the folder changes or on request) and removes `value` before the renderer
+  sees the response, so history, saved tabs, copied cURL and the UI never hold it. In a run,
+  `requests[].captures` carries names and hit/miss only, and captured values are masked as `***`
+  wherever they resurface, including in the request that captured them.
+
 ### run.collection and the CLI
 
 `run.collection` runs every request in a collection folder, one after another, in sidebar

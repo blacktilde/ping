@@ -209,6 +209,30 @@ class StoreMethodsTest {
     }
 
     @Test
+    void captureSurvivesAYamlRoundTripAndAnEmptyListIsOmitted() throws Exception {
+        call("store.write", Map.of("root", workspace.toString(), "path", "a.yaml",
+                "request", Map.of("name", "A", "method", "GET", "url", "https://example.com",
+                        "capture", List.of(
+                                Map.of("name", "token", "source", "jsonpath", "target", "$.access"),
+                                Map.of("name", "code", "source", "status", "enabled", false)))));
+
+        String yaml = Files.readString(workspace.resolve("a.yaml"));
+        assertTrue(yaml.contains("capture:"), yaml);
+        assertTrue(yaml.indexOf("url:") < yaml.indexOf("capture:"), "capture key order: " + yaml);
+
+        JsonNode capture = call("store.read",
+                Map.of("root", workspace.toString(), "path", "a.yaml")).path("result").path("capture");
+        assertEquals(2, capture.size());
+        assertEquals("$.access", capture.get(0).path("target").asText());
+        assertFalse(capture.get(1).path("enabled").asBoolean(true));
+
+        call("store.write", Map.of("root", workspace.toString(), "path", "b.yaml",
+                "request", Map.of("name", "B", "method", "GET", "url", "https://example.com",
+                        "capture", List.of())));
+        assertFalse(Files.readString(workspace.resolve("b.yaml")).contains("capture"));
+    }
+
+    @Test
     void writesYamlThatReadsBack() throws Exception {
         Map<String, Object> request = Map.of(
                 "name", "New request",

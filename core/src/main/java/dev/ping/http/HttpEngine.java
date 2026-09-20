@@ -218,7 +218,8 @@ public final class HttpEngine {
 
             ResponseData data = assemble(response, payload, new ResponseData.Timing(
                     dnsMs, ttfbMs, downloadMs, millisSince(startedAt)), redirects);
-            return data.withAssertions(Assertions.evaluate(spec.asserts(), data, variables));
+            return data.withAssertions(Assertions.evaluate(spec.asserts(), data, variables))
+                    .withCaptured(Captures.evaluate(spec.capture(), data, variables));
         } catch (CancellationException e) {
             throw cancelledException();
         } catch (CompletionException e) {
@@ -573,6 +574,7 @@ public final class HttpEngine {
                 body,
                 timing,
                 redirects,
+                List.of(),
                 List.of());
     }
 

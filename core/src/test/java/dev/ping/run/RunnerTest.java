@@ -165,4 +165,116 @@ class RunnerTest {
         assertThrows(RpcException.class,
                 () -> runner.run(root, "nope", RunOptions.none(), null));
     }
+
+    /** A three-step chain: log in and capture, use the capture, then use a capture that missed. */
+    private void writeChain() throws IOException {
+        java.nio.file.Path chain = root.resolve("chain");
+        java.nio.file.Files.createDirectories(chain);
+        java.nio.file.Files.writeString(chain.resolve("collection.yaml"), """
+                name: Chain
+                variables:
+                - name: baseUrl
+                  value: "%s"
+                  enabled: true
+                """.formatted(RunFixture.baseUrl(server)));
+        java.nio.file.Files.writeString(chain.resolve("a-login.yaml"), """
+                name: A login
+                method: GET
+                url: "{{baseUrl}}/login"
+                asserts:
+                - type: jsonpath
+                  target: $.token
+                  op: exists
+                capture:
+                - name: token
+                  source: jsonpath
+                  target: $.token
+                - name: missing
+                  source: jsonpath
+                  target: $.nope
+                - name: code
+                  source: status
+                """);
+        java.nio.file.Files.writeString(chain.resolve("b-use.yaml"), """
+                name: B use
+                method: GET
+                url: "{{baseUrl}}/who"
+                headers:
+                - name: X-Who
+                  value: "{{token}}"
+                  enabled: true
+                asserts:
+                - type: jsonpath
+                  target: $.who
+                  op: equals
+                  expected: "{{token}}"
+                """);
+        java.nio.file.Files.writeString(chain.resolve("c-miss.yaml"), """
+                name: C miss
+                method: GET
+                url: "{{baseUrl}}/who"
+                headers:
+                - name: X-Who
+                  value: "{{missing}}"
+                  enabled: true
+                asserts:
+                - type: body
+                  op: contains
+                  expected: "{{missing}}"
+                """);
+    }
+
+    @Test
+    void aCapturedValueIsOnTheWireInTheNextRequest() throws IOException {
+        writeChain();
+        RunResult result = runner.run(root, "chain", RunOptions.none(), null);
+
+        RequestResult use = result.requests().get(1);
+        assertEquals("B use", use.name());
+        // The server echoed X-Who back, so this only passes if {{token}} became the captured value.
+        assertTrue(use.passed(), use.assertions().toString());
+        assertEquals(200, use.status());
+    }
+
+    @Test
+    void aCaptureThatMissesLeavesTheVariableAbsentNotEmpty() throws IOException {
+        writeChain();
+        RunResult result = runner.run(root, "chain", RunOptions.none(), null);
+
+        RequestResult login = result.requests().get(0);
+        CaptureResultView missing = view(login, "missing");
+        assertFalse(missing.found());
+        assertTrue(missing.message().contains("matched nothing"), missing.message());
+
+        // C's server saw the placeholder itself. An empty string would have sent "who":"".
+        RequestResult miss = result.requests().get(2);
+        assertTrue(miss.passed(), "the body must hold the literal {{missing}}: " + miss.assertions());
+    }
+
+    @Test
+    void capturedValuesNeverAppearInAResult() throws Exception {
+        writeChain();
+        RunResult result = runner.run(root, "chain", RunOptions.none(), null);
+
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(result);
+        assertFalse(json.contains("tok-secret-99"), "the captured token leaked into a result: " + json);
+        // The login request's own assertion echoes the token it just captured; it is masked too.
+        assertEquals("***", result.requests().get(0).assertions().get(0).actual());
+        assertEquals("***", result.requests().get(1).assertions().get(0).expected());
+
+        CaptureResultView token = view(result.requests().get(0), "token");
+        assertTrue(token.found());
+        assertEquals(null, token.value(), "results carry names, not values");
+        // Short values are not masked (the same floor as explicit variables) and still carry no value.
+        assertTrue(view(result.requests().get(0), "code").found());
+    }
+
+    private record CaptureResultView(boolean found, String message, String value) {
+    }
+
+    private static CaptureResultView view(RequestResult request, String name) {
+        return request.captures().stream().filter(c -> c.name().equals(name)).findFirst()
+                .map(c -> new CaptureResultView(c.found(), c.message(), c.value()))
+                .orElseThrow(() -> new AssertionError("no capture named " + name));
+    }
 }

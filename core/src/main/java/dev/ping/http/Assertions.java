@@ -222,7 +222,7 @@ public final class Assertions {
         return node.isObject() && node.has(name) ? node.get(name) : null;
     }
 
-    private static String text(JsonNode node) {
+    static String text(JsonNode node) {
         return node.isValueNode() ? node.asText() : node.toString();
     }
 
@@ -272,14 +272,14 @@ public final class Assertions {
     }
 
     /** Raised for a misconfigured assertion; becomes a failed result, never an RPC error. */
-    private static final class BadAssertion extends RuntimeException {
+    static final class BadAssertion extends RuntimeException {
         BadAssertion(String message) {
             super(message);
         }
     }
 
     /** Parses the body at most once, and only if an assertion asks for it. */
-    private static final class Body {
+    static final class Body {
         private final ResponseData.BodyData data;
         private JsonNode json;
 

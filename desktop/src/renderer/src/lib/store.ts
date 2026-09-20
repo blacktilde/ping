@@ -7,8 +7,8 @@
 
 import { call } from './core'
 import { authToSpec, normalizeAuth } from './http'
-import { plainAsserts } from './request'
-import type { Assert, AuthSpec, BodyMode, HttpMethod, Param, RedirectPolicy, RequestDraft } from './http'
+import { plainAsserts, plainCaptures } from './request'
+import type { Assert, AuthSpec, Capture, BodyMode, HttpMethod, Param, RedirectPolicy, RequestDraft } from './http'
 
 export type NodeType = 'collection' | 'folder' | 'request'
 
@@ -35,6 +35,7 @@ export interface StoredRequest {
   }
   auth?: AuthSpec
   asserts?: Assert[]
+  capture?: Capture[]
   docs?: string
   timeoutMs?: number
   redirects?: RedirectPolicy
@@ -120,6 +121,7 @@ export function storedToDraft(stored: StoredRequest): RequestDraft {
     },
     auth: normalizeAuth(stored.auth),
     asserts: plainAsserts(stored.asserts),
+    capture: plainCaptures(stored.capture),
     docs: stored.docs,
     timeoutMs: stored.timeoutMs,
     redirects: stored.redirects,
@@ -143,6 +145,7 @@ export function draftToStored(draft: RequestDraft): StoredRequest {
     },
     auth: authToSpec(draft.auth),
     asserts: plainAsserts(draft.asserts),
+    capture: plainCaptures(draft.capture),
     docs: draft.docs,
     timeoutMs: draft.timeoutMs,
     redirects: draft.redirects,

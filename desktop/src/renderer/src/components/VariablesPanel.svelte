@@ -1,5 +1,6 @@
 <script lang="ts">
   import { variables } from '../lib/vars.svelte'
+  import { clearRuntime, runtime } from '../lib/runtime.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
   import SecretsEditor from './SecretsEditor.svelte'
 
@@ -118,6 +119,37 @@
           No environment selected. Choose one, or create a new one, to override collection
           variables.
         </p>
+      {/if}
+    </section>
+
+    <section data-role="runtime" class="border-t border-line">
+      <div class="flex items-center gap-2 px-3 py-2">
+        <h3 class="text-xs uppercase tracking-wide text-fg-muted">Runtime</h3>
+        {#if runtime.names.length > 0}
+          <button
+            type="button"
+            onclick={() => void clearRuntime()}
+            aria-label="Clear runtime variables"
+            class="ml-auto rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                   hover:text-fg"
+          >
+            Clear
+          </button>
+        {/if}
+      </div>
+      <p class="px-3 pb-2 text-xs text-fg-faint">
+        Captured from responses, kept for this session and never saved. Values are not shown.
+      </p>
+      {#if runtime.names.length === 0}
+        <p class="px-3 pb-3 text-sm text-fg-faint">Nothing captured yet.</p>
+      {:else}
+        <ul class="pb-2">
+          {#each runtime.names as name (name)}
+            <li data-role="runtime-name" class="px-3 py-1 font-mono text-sm text-fg-muted">
+              {name}
+            </li>
+          {/each}
+        </ul>
       {/if}
     </section>
 

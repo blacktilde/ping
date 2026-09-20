@@ -168,7 +168,7 @@ final class InsomniaImporter {
         String docs = ImportSupport.text(request, "description");
         return new StoredRequest(name, method == null || method.isBlank() ? "GET" : method.toUpperCase(Locale.ROOT),
                 address, query, headers, body(request.path("body"), where), auth,
-                null, null, null, null, null, docs == null || docs.isBlank() ? null : docs.strip());
+                null, null, null, null, null, null, docs == null || docs.isBlank() ? null : docs.strip());
     }
 
     private RequestSpec.Body body(JsonNode body, String where) {

@@ -9,6 +9,8 @@
 import type {
   Assert,
   AssertType,
+  Capture,
+  CaptureSource,
   BodyMode,
   HttpMethod,
   HttpRequestSpec,
@@ -86,6 +88,26 @@ export function plainAsserts(items: Assert[] | undefined): Assert[] {
   })
 }
 
+export const CAPTURE_SOURCES: { value: CaptureSource; label: string }[] = [
+  { value: 'jsonpath', label: 'JSON path' },
+  { value: 'header', label: 'Header' },
+  { value: 'status', label: 'Status' }
+]
+
+export function emptyCapture(): Capture {
+  return { name: '', source: 'jsonpath', target: '', enabled: true }
+}
+
+/** Copies rows into plain objects with a fixed key order; a status capture has no target. */
+export function plainCaptures(items: Capture[] | undefined): Capture[] {
+  return (items ?? []).map((item) => {
+    const row: Capture = { name: item.name ?? '', source: item.source }
+    if (item.source !== 'status') row.target = item.target ?? ''
+    row.enabled = item.enabled ?? true
+    return row
+  })
+}
+
 export function newDraft(): RequestDraft {
   return {
     name: 'Untitled request',
@@ -95,7 +117,8 @@ export function newDraft(): RequestDraft {
     headers: [],
     body: { type: 'none', content: '', contentType: '', fields: [] },
     auth: newAuth(),
-    asserts: []
+    asserts: [],
+    capture: []
   }
 }
 
@@ -149,6 +172,8 @@ export function toRequestSpec(draft: RequestDraft, requestId: string): HttpReque
   if (auth) spec.auth = auth
   const asserts = plainAsserts(draft.asserts)
   if (asserts.length > 0) spec.asserts = asserts
+  const capture = plainCaptures(draft.capture).filter((item) => item.name.trim().length > 0)
+  if (capture.length > 0) spec.capture = capture
   return spec
 }
 
@@ -160,4 +185,9 @@ export function enabledCount(items: Param[]): number {
 /** Assertions that will run: enabled ones. Used for the tab badge. */
 export function assertCount(items: Assert[]): number {
   return items.filter((item) => item.enabled !== false).length
+}
+
+/** Captures that will run: enabled and named. Used for the tab badge. */
+export function captureCount(items: Capture[]): number {
+  return items.filter((item) => item.enabled !== false && item.name.trim().length > 0).length
 }

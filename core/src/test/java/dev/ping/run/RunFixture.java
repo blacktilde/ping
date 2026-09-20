@@ -28,6 +28,7 @@ public final class RunFixture {
         server.createContext("/ok", exchange -> reply(exchange, "{\"id\":7}"));
         server.createContext("/who", exchange -> reply(exchange,
                 "{\"who\":\"" + exchange.getRequestHeaders().getFirst("X-Who") + "\"}"));
+        server.createContext("/login", exchange -> reply(exchange, "{\"token\":\"tok-secret-99\",\"n\":3}"));
         server.start();
         return server;
     }

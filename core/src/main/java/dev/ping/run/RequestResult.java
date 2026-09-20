@@ -2,6 +2,7 @@ package dev.ping.run;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import dev.ping.http.AssertionResult;
+import dev.ping.http.CaptureResult;
 
 import java.util.List;
 
@@ -15,6 +16,7 @@ import java.util.List;
  * @param durationMs total exchange time; null when it never completed
  * @param error      why no response was obtained (transport or configuration); null otherwise
  * @param passed     true when a response arrived and every assertion passed
+ * @param captures   what each capture did, by name; never the captured values, which stay in the run
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record RequestResult(
@@ -26,7 +28,8 @@ public record RequestResult(
         Long durationMs,
         String error,
         boolean passed,
-        List<AssertionResult> assertions) {
+        List<AssertionResult> assertions,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<CaptureResult> captures) {
 
     public boolean errored() {
         return error != null;

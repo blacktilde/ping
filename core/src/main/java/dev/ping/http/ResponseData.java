@@ -15,11 +15,21 @@ public record ResponseData(
         BodyData body,
         Timing timing,
         List<Redirect> redirects,
-        List<AssertionResult> assertions) {
+        List<AssertionResult> assertions,
+        List<CaptureResult> captured) {
 
     /** Assertions run after the exchange is assembled, so they see exactly what the UI will. */
     public ResponseData withAssertions(List<AssertionResult> results) {
-        return new ResponseData(status, httpVersion, headers, body, timing, redirects, results);
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, results, captured);
+    }
+
+    /**
+     * Values pulled out by the request's {@code capture} list. They hold live data (often a
+     * token), so they travel only from the core to the shell, which stores them and removes
+     * the values before anything reaches the renderer.
+     */
+    public ResponseData withCaptured(List<CaptureResult> results) {
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, assertions, results);
     }
 
     public record Header(String name, String value) {

@@ -119,7 +119,7 @@ public final class YamlStore {
         Path file = unique(directory, slugify(name));
         StoredRequest request = new StoredRequest(name, "GET", "",
                 List.of(), List.of(), new RequestSpec.Body("none", null, null, null),
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
         write(base, relative(base, file), request);
         return relative(base, file);
     }
@@ -231,7 +231,7 @@ public final class YamlStore {
                 StoredRequest starter = new StoredRequest("Get started", "GET",
                         "https://jsonplaceholder.typicode.com/todos/1",
                         List.of(), List.of(), new RequestSpec.Body("none", null, null, null),
-                        null, null, null, null, null, null, null);
+                        null, null, null, null, null, null, null, null);
                 writeValue(collection.resolve("get-started.yaml"), starter);
             }
             return relative(base, collection);
