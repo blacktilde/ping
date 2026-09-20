@@ -294,8 +294,7 @@ final class PostmanImporter {
             }
         }
         try {
-            return new RequestSpec.Body("json", ImportSupport.JSON.writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(envelope), null, null);
+            return new RequestSpec.Body("json", ImportSupport.pretty(envelope), null, null);
         } catch (Exception e) {
             return null;
         }

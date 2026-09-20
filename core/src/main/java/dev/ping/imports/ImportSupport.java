@@ -19,6 +19,19 @@ final class ImportSupport {
     static final ObjectMapper JSON = new ObjectMapper();
 
     /**
+     * Two-space indented JSON with {@code \n} line breaks on every platform. Jackson's default
+     * printer uses the operating system's separator, which would make an imported body differ
+     * between Linux and Windows for the same document.
+     */
+    private static final com.fasterxml.jackson.core.PrettyPrinter PRETTY = new com.fasterxml.jackson.core.util.DefaultPrettyPrinter()
+            .withObjectIndenter(new com.fasterxml.jackson.core.util.DefaultIndenter("  ", "\n"))
+            .withArrayIndenter(new com.fasterxml.jackson.core.util.DefaultIndenter("  ", "\n"));
+
+    static String pretty(JsonNode node) throws com.fasterxml.jackson.core.JsonProcessingException {
+        return JSON.writer(PRETTY).writeValueAsString(node);
+    }
+
+    /**
      * Specs are routinely larger than snakeyaml's 3 MB default, so the code-point limit is
      * raised. The alias limit is left at its default: it is what stops an alias bomb.
      */
