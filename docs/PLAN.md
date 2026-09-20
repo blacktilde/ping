@@ -142,7 +142,7 @@ assertions plus the runner change what the project is for.
   *Gate: CI runs a sample collection against a loopback server, once on the JVM and once as
   the native image, and a deliberately failing assertion fails the job.*
 
-- [ ] **18. Bodies that come from disk.** Multipart file parts and a binary file body. Today
+- [x] **18. Bodies that come from disk.** Multipart file parts and a binary file body. Today
   `multipart()` builds a `StringBuilder` and sends it with `ofString`, so a file part would be
   corrupted even if there were a way to name one; the publisher becomes `ofByteArrays` over
   streamed parts so a large upload is never held in memory twice.

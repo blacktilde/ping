@@ -213,6 +213,24 @@ class CollectionWriterTest {
     }
 
     @Test
+    void fileRowsSurviveBeingWrittenAndReadBack() throws IOException {
+        write("""
+                {"info": {"name": "Files", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+                 "item": [{"name": "Up", "request": {"method": "POST", "url": "https://x.io", "body": {
+                   "mode": "formdata", "formdata": [
+                     {"key": "note", "value": "hi", "type": "text"},
+                     {"key": "photo", "type": "file", "src": "fixtures/p.png", "contentType": "image/png"}]}}},
+                  {"name": "Blob", "request": {"method": "PUT", "url": "https://x.io", "body": {
+                   "mode": "file", "file": {"src": "fixtures/blob.bin"}}}}]}""");
+        StoredRequest up = store.read(root, "Files/up.yaml");
+        assertEquals(new RequestSpec.Param("photo", null, true, "fixtures/p.png", null, "image/png"),
+                up.body().fields().get(1));
+        StoredRequest blob = store.read(root, "Files/blob.yaml");
+        assertEquals("file", blob.body().type());
+        assertEquals("fixtures/blob.bin", blob.body().file());
+    }
+
+    @Test
     void theStoreHelpersAreDeterministic() {
         assertEquals("a b", YamlStore.folderName("a/b", "x").replaceAll("\\s+", " "));
         assertEquals("x", YamlStore.folderName("...", "x"));

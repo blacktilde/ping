@@ -755,6 +755,12 @@
         // A spread unwraps the reactive proxy, which cannot cross the context bridge.
         spec.variables = { ...variables.resolved }
       }
+      // Relative file paths resolve against the request's collection; the shell turns the name
+      // into a folder and ignores any base the renderer might invent.
+      const collectionName = tab.path ? tab.path.split('/')[0] : ''
+      if (collectionName) {
+        spec.collection = collectionName
+      }
       tab.response = await sendRequest(spec)
     } catch (cause) {
       tab.response = null
@@ -1251,7 +1257,7 @@
                   emptyText="No headers yet."
                 />
               {:else if active.editorTab === 'body'}
-                <BodyEditor body={active.draft.body} />
+                <BodyEditor body={active.draft.body} collection={activeCollection} />
               {:else if active.editorTab === 'auth'}
                 <AuthEditor
                   auth={active.draft.auth}

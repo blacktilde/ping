@@ -64,6 +64,19 @@ const api = {
     return ipcRenderer.invoke('import:collection') as Promise<CoreResult<ImportReport | null>>
   },
 
+  /**
+   * Opens a file dialog for an upload. `stored` is what the request should keep: relative to the
+   * collection when the file is inside it, otherwise absolute (and readable this session only).
+   * Resolves with null when the dialog is dismissed.
+   */
+  pickFile(collection: string): Promise<{ stored: string; name: string; size: number } | null> {
+    return ipcRenderer.invoke('file:pick', collection) as Promise<{
+      stored: string
+      name: string
+      size: number
+    } | null>
+  },
+
   /** Fires when the open folder changes on disk, so the tree can be rescanned. */
   onStoreChanged(listener: () => void): () => void {
     const handler = (): void => listener()

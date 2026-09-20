@@ -135,7 +135,7 @@ public final class Cli {
         try {
             Runner runner = new Runner(new YamlStore(), new HttpEngine(new TokenCache()));
             result = runner.run(directory.getParent(), directory.getFileName().toString(),
-                    new RunOptions(env, variables), null);
+                    new RunOptions(env, variables, true), null);
         } catch (RpcException e) {
             return usage(err, e.getMessage());
         }

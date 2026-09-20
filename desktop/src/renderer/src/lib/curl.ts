@@ -102,6 +102,11 @@ function authLines(
   }
 }
 
+/** curl reads `;`, `,` and `"` in a -F file name as syntax, so those need its quoted form. */
+function curlPath(path: string): string {
+  return /[;,"\\]/.test(path) ? `"${path.replace(/[\\"]/g, '\\$&')}"` : path
+}
+
 function bodyLines(draft: RequestDraft, hasHeader: (name: string) => boolean, resolve: Resolve): string[] {
   const body = bodyToSpec(draft.body)
   const lines: string[] = []
@@ -126,8 +131,26 @@ function bodyLines(draft: RequestDraft, hasHeader: (name: string) => boolean, re
       break
     case 'multipart':
       for (const field of enabled(body.fields ?? [])) {
-        lines.push(`-F ${shellQuote(`${resolve(field.name)}=${resolve(field.value)}`)}`)
+        if (field.file !== undefined || field.filename || field.contentType) {
+          // A path inside the collection is relative to it, so a command run elsewhere has to
+          // adjust it; an absolute one only works on the machine that chose it.
+          let value = `@${curlPath(field.file ?? '')}`
+          if (field.filename) value += `;filename=${field.filename}`
+          if (field.contentType) value += `;type=${field.contentType}`
+          lines.push(`-F ${shellQuote(`${resolve(field.name)}=${value}`)}`)
+        } else {
+          const text = resolve(field.value)
+          // -F reads a value that starts with @ or < as a file; --form-string never does.
+          const flag = text.startsWith('@') || text.startsWith('<') ? '--form-string' : '-F'
+          lines.push(`${flag} ${shellQuote(`${resolve(field.name)}=${text}`)}`)
+        }
       }
+      break
+    case 'file':
+      if (!hasHeader('Content-Type')) {
+        lines.push(`-H ${shellQuote(`Content-Type: ${resolve(body.contentType ?? 'application/octet-stream')}`)}`)
+      }
+      lines.push(`--data-binary ${shellQuote(`@${body.file ?? ''}`)}`)
       break
     default:
       break

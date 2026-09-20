@@ -21,6 +21,11 @@
           "type": "object",
           "additionalProperties": { "type": "string" },
           "description": "Values that outrank collection, environment and runtime scopes. Values of 4 or more characters are masked as *** wherever they resurface in results."
+        },
+        "allowAbsoluteFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether a request may read a file by absolute path. Relative paths always resolve against the collection folder and must stay inside it. The desktop shell forces this to false; the command line sets it to true."
         }
       },
       "additionalProperties": false

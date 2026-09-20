@@ -27,6 +27,8 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.UnsupportedCharsetException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -147,6 +149,13 @@ public final class HttpEngine {
     }
 
     public ResponseData send(RequestSpec spec, Map<String, String> variables) {
+        return send(spec, variables, FileAccess.LOCAL);
+    }
+
+    /**
+     * @param files where a file body or file part may be read from; see {@link FileAccess}
+     */
+    public ResponseData send(RequestSpec spec, Map<String, String> variables, FileAccess files) {
         String requestId = spec.requestId() == null ? UUID.randomUUID().toString() : spec.requestId();
 
         // Register before doing any work at all. The renderer offers Cancel the moment it
@@ -162,7 +171,7 @@ public final class HttpEngine {
 
             Authenticator.Applied auth = authenticator.apply(spec.auth(), variables);
             URI uri = buildUri(spec, variables, auth.query());
-            HttpRequest request = buildRequest(spec, uri, variables, auth.headers());
+            HttpRequest request = buildRequest(spec, uri, variables, auth.headers(), files);
 
             // Resolved before dispatch so the cost is attributable; the client's own lookup
             // then hits the JDK cache. Failure is not fatal: report the timing as unknown.
@@ -203,7 +212,7 @@ public final class HttpEngine {
                         crossHost && !"always".equals(policyName(spec.redirects()));
                 request = redirectRequest(
                         request, location, response.statusCode(), spec, variables,
-                        dropCredentials);
+                        dropCredentials, files);
                 future = client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
                 exchange.future(future);
                 if (exchange.cancelled().get()) {
@@ -314,7 +323,7 @@ public final class HttpEngine {
      */
     private static HttpRequest redirectRequest(
             HttpRequest original, URI location, int status, RequestSpec spec,
-            Map<String, String> variables, boolean dropCredentials) {
+            Map<String, String> variables, boolean dropCredentials, FileAccess files) {
 
         String method = original.method();
         boolean keepMethod = status == 307 || status == 308
@@ -336,7 +345,7 @@ public final class HttpEngine {
         // The original publisher has already been subscribed to by the client, so the body
         // is rebuilt rather than replayed; a method that dropped its body sends none.
         HttpRequest.BodyPublisher body = keepMethod
-                ? buildBody(spec.body(), variables).publisher()
+                ? buildBody(spec.body(), variables, files).publisher()
                 : HttpRequest.BodyPublishers.noBody();
         builder.method(method, body);
         return builder.build();
@@ -419,11 +428,12 @@ public final class HttpEngine {
     }
 
     private HttpRequest buildRequest(
-            RequestSpec spec, URI uri, Map<String, String> variables, Map<String, String> authHeaders) {
+            RequestSpec spec, URI uri, Map<String, String> variables, Map<String, String> authHeaders,
+            FileAccess files) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
-                .timeout(Duration.ofMillis(spec.timeoutOrDefault()));
+                .timeout(Duration.ofMillis(spec.requestTimeoutMs()));
 
-        BodyPayload body = buildBody(spec.body(), variables);
+        BodyPayload body = buildBody(spec.body(), variables, files);
         builder.method(spec.methodOrDefault(), body.publisher());
 
         boolean contentTypeSet = false;
@@ -460,7 +470,8 @@ public final class HttpEngine {
     private record BodyPayload(HttpRequest.BodyPublisher publisher, String contentType) {
     }
 
-    private static BodyPayload buildBody(RequestSpec.Body body, Map<String, String> variables) {
+    private static BodyPayload buildBody(
+            RequestSpec.Body body, Map<String, String> variables, FileAccess files) {
         if (body == null || body.type() == null || body.type().equalsIgnoreCase("none")) {
             return new BodyPayload(HttpRequest.BodyPublishers.noBody(), null);
         }
@@ -476,7 +487,10 @@ public final class HttpEngine {
             case "form" -> new BodyPayload(
                     ofString(encodeQuery(body.fields(), variables)),
                     explicit == null ? "application/x-www-form-urlencoded" : explicit);
-            case "multipart" -> multipart(body.fields(), variables);
+            case "multipart" -> multipart(body.fields(), variables, files);
+            case "file" -> new BodyPayload(
+                    ofFile(files.resolve(body.file(), "the body")),
+                    explicit == null ? "application/octet-stream" : explicit);
             default -> throw RpcException.invalidParams("Unknown body type: " + body.type());
         };
     }
@@ -486,9 +500,22 @@ public final class HttpEngine {
                 content == null ? "" : content, StandardCharsets.UTF_8);
     }
 
-    private static BodyPayload multipart(List<RequestSpec.Param> fields, Map<String, String> variables) {
+    /** Streams from disk, so an upload is never held in memory (and has an exact Content-Length). */
+    private static HttpRequest.BodyPublisher ofFile(Path file) {
+        try {
+            return HttpRequest.BodyPublishers.ofFile(file);
+        } catch (java.io.FileNotFoundException e) {
+            throw RpcException.invalidParams("File not found: " + file.getFileName());
+        }
+    }
+
+    private static BodyPayload multipart(
+            List<RequestSpec.Param> fields, Map<String, String> variables, FileAccess files) {
         String boundary = "PingBoundary" + UUID.randomUUID().toString().replace("-", "");
-        StringBuilder payload = new StringBuilder();
+        // Text between file parts accumulates in `framing`; a file part flushes it, streams the
+        // file, and starts the next chunk. concat() sums the lengths, so Content-Length is exact.
+        List<HttpRequest.BodyPublisher> parts = new ArrayList<>();
+        StringBuilder framing = new StringBuilder();
 
         if (fields != null) {
             for (RequestSpec.Param field : fields) {
@@ -501,15 +528,53 @@ public final class HttpEngine {
                             "Multipart field name must not contain quotes or line breaks: "
                                     + printable(name));
                 }
-                payload.append("--").append(boundary).append("\r\n")
-                        .append("Content-Disposition: form-data; name=\"")
-                        .append(name).append("\"\r\n\r\n")
-                        .append(interpolate(field.value(), variables)).append("\r\n");
+                framing.append("--").append(boundary).append("\r\n")
+                        .append("Content-Disposition: form-data; name=\"").append(name).append('"');
+
+                if (field.usesFile()) {
+                    Path file = files.resolve(field.file(), "the field \"" + name + "\"");
+                    String filename = field.filename() == null || field.filename().isBlank()
+                            ? file.getFileName().toString()
+                            : field.filename();
+                    framing.append("; filename=\"").append(headerSafe(filename)).append("\"\r\n")
+                            .append("Content-Type: ").append(fileContentType(field, file)).append("\r\n\r\n");
+                    parts.add(ofString(framing.toString()));
+                    framing.setLength(0);
+                    parts.add(ofFile(file));
+                    framing.append("\r\n");
+                } else {
+                    framing.append("\r\n\r\n").append(interpolate(field.value(), variables)).append("\r\n");
+                }
             }
         }
-        payload.append("--").append(boundary).append("--\r\n");
+        framing.append("--").append(boundary).append("--\r\n");
+        parts.add(ofString(framing.toString()));
 
-        return new BodyPayload(ofString(payload.toString()), "multipart/form-data; boundary=" + boundary);
+        HttpRequest.BodyPublisher publisher = parts.size() == 1
+                ? parts.get(0)
+                : HttpRequest.BodyPublishers.concat(parts.toArray(new HttpRequest.BodyPublisher[0]));
+        return new BodyPayload(publisher, "multipart/form-data; boundary=" + boundary);
+    }
+
+    /** The row's own type, else what the file system says, else the generic binary type. */
+    private static String fileContentType(RequestSpec.Param field, Path file) {
+        if (field.contentType() != null && !field.contentType().isBlank()) {
+            return headerSafe(field.contentType());
+        }
+        try {
+            String probed = Files.probeContentType(file);
+            if (probed != null && !probed.isBlank()) {
+                return probed;
+            }
+        } catch (java.io.IOException | SecurityException e) {
+            // Fall through: an unknown type is not a reason to refuse the upload.
+        }
+        return "application/octet-stream";
+    }
+
+    /** A value that goes inside a multipart header: quotes and line breaks would break the framing. */
+    private static String headerSafe(String value) {
+        return value.replace("\"", "%22").replace('\r', ' ').replace('\n', ' ');
     }
 
     // --- response handling ---------------------------------------------------------------

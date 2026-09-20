@@ -1,0 +1,23 @@
+name: Upload
+method: POST
+url: "{{baseUrl}}/upload"
+body:
+  type: multipart
+  fields:
+  - name: note
+    value: hello
+    enabled: true
+  - name: logo
+    file: fixtures/logo.bin
+    enabled: true
+asserts:
+- type: status
+  expected: "200"
+- type: jsonpath
+  target: $.filename
+  op: equals
+  expected: logo.bin
+- type: jsonpath
+  target: $.sha256
+  op: equals
+  expected: fa5f1c196433ae99bea2509acb8c80e4705c20cd592a56b9bc3a5ca7af7975ab

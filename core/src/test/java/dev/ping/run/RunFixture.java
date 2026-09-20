@@ -29,6 +29,29 @@ public final class RunFixture {
         server.createContext("/who", exchange -> reply(exchange,
                 "{\"who\":\"" + exchange.getRequestHeaders().getFirst("X-Who") + "\"}"));
         server.createContext("/login", exchange -> reply(exchange, "{\"token\":\"tok-secret-99\",\"n\":3}"));
+        // Reports what it was sent, so a test can prove a file arrived byte for byte.
+        server.createContext("/upload", exchange -> {
+            try (exchange) {
+                byte[] body = exchange.getRequestBody().readAllBytes();
+                String sha;
+                try {
+                    sha = java.util.HexFormat.of().formatHex(
+                            java.security.MessageDigest.getInstance("SHA-256").digest(body));
+                } catch (java.security.NoSuchAlgorithmException e) {
+                    throw new IOException(e);
+                }
+                String head = new String(body, 0, Math.min(body.length, 400), StandardCharsets.ISO_8859_1)
+                        .replaceAll("[^\\x20-\\x7E]", ".");
+                String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
+                        java.util.Map.of("bytes", body.length, "sha256", sha, "head", head));
+                byte[] payload = json.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, payload.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(payload);
+                }
+            }
+        });
         server.start();
         return server;
     }

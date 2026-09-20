@@ -27,7 +27,8 @@ export const BODY_MODES: { value: BodyMode; label: string }[] = [
   { value: 'json', label: 'JSON' },
   { value: 'raw', label: 'Raw' },
   { value: 'form', label: 'Form URL-encoded' },
-  { value: 'multipart', label: 'Multipart' }
+  { value: 'multipart', label: 'Multipart' },
+  { value: 'file', label: 'Binary file' }
 ]
 
 export function emptyParam(): Param {
@@ -127,7 +128,14 @@ export function newDraft(): RequestDraft {
  * be structured-cloned across the context bridge, so nothing reactive may reach the core.
  */
 function plainParams(items: Param[] | undefined): Param[] {
-  return (items ?? []).map(({ name, value, enabled }) => ({ name, value, enabled }))
+  return (items ?? []).map(({ name, value, enabled, file, filename, contentType }) => {
+    const row: Param = { name, value, enabled }
+    // File fields only travel when set, so ordinary rows keep their three-field shape.
+    if (file !== undefined) row.file = file
+    if (filename) row.filename = filename
+    if (contentType) row.contentType = contentType
+    return row
+  })
 }
 
 /**
@@ -143,6 +151,12 @@ export function bodyToSpec(body: RequestBody): HttpRequestSpec['body'] {
       return contentType
         ? { type: 'raw', content: body.content, contentType }
         : { type: 'raw', content: body.content }
+    }
+    case 'file': {
+      const contentType = body.contentType.trim()
+      return contentType
+        ? { type: 'file', file: body.file ?? '', contentType }
+        : { type: 'file', file: body.file ?? '' }
     }
     case 'form':
     case 'multipart':

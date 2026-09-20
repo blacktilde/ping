@@ -181,6 +181,13 @@ final class InsomniaImporter {
         String text = template(ImportSupport.text(body, "text"));
         String type = mime == null ? "" : mime.toLowerCase(Locale.ROOT);
 
+        // A body that is a file: Insomnia keeps its path in `fileName` and no text.
+        String fileName = ImportSupport.text(body, "fileName");
+        if (fileName != null && !fileName.isBlank()) {
+            warnings.add(ImportSupport.fileNote(where, "its body", fileName));
+            return new RequestSpec.Body("file", null, mime == null || mime.isBlank() ? null : mime, null, fileName);
+        }
+
         if (type.startsWith("application/x-www-form-urlencoded")) {
             List<RequestSpec.Param> fields = fields(body.path("params"), where, false);
             return fields.isEmpty() ? null : new RequestSpec.Body("form", null, null, fields);
@@ -207,8 +214,10 @@ final class InsomniaImporter {
                 continue;
             }
             if (allowFiles && "file".equals(ImportSupport.text(param, "type"))) {
-                warnings.add(where + " uploads a file in the form field \"" + name
-                        + "\"; file parts are not supported yet, so it was left out.");
+                String path = ImportSupport.text(param, "fileName");
+                path = path == null || path.isBlank() ? null : path;
+                warnings.add(ImportSupport.fileNote(where, "the form field \"" + name + "\"", path));
+                fields.add(new RequestSpec.Param(name, null, !ImportSupport.isDisabled(param), path, null, null));
                 continue;
             }
             String value = template(ImportSupport.text(param, "value"));

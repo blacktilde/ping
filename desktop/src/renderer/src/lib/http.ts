@@ -9,7 +9,7 @@ import { call } from './core'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
 
-export type BodyMode = 'none' | 'json' | 'raw' | 'form' | 'multipart'
+export type BodyMode = 'none' | 'json' | 'raw' | 'form' | 'multipart' | 'file'
 
 export type RedirectPolicy = 'never' | 'normal' | 'always'
 
@@ -97,11 +97,26 @@ export interface Param {
   name: string
   value: string
   enabled: boolean
+  /**
+   * A multipart file part: the path to read, relative to the collection or (for a file elsewhere)
+   * absolute. Always chosen through the file dialog, never typed.
+   */
+  file?: string
+  /** What the part is called on the wire; defaults to the file's own name. */
+  filename?: string
+  contentType?: string
+}
+
+/** True for a multipart row that sends a file rather than text. */
+export function isFileParam(param: Param): boolean {
+  return param.file !== undefined || !!param.filename || !!param.contentType
 }
 
 export interface RequestBody {
   type: BodyMode
   content: string
+  /** The file sent as the whole body, for the `file` mode. */
+  file?: string
   /** Overrides the type implied by the mode; raw only in the UI today. */
   contentType: string
   fields: Param[]
@@ -186,7 +201,13 @@ export interface HttpRequestSpec {
     content?: string
     contentType?: string
     fields?: Param[]
+    file?: string
   }
+  /**
+   * The request's collection folder (relative to the workspace). The shell turns it into the base
+   * that relative file paths resolve against; the renderer cannot supply the base itself.
+   */
+  collection?: string
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean

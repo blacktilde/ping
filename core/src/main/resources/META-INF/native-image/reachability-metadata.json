@@ -336,7 +336,8 @@
             "java.lang.String",
             "java.lang.String",
             "java.lang.String",
-            "java.util.List"
+            "java.util.List",
+            "java.lang.String"
           ]
         },
         {
@@ -349,6 +350,10 @@
         },
         {
           "name": "fields",
+          "parameterTypes": []
+        },
+        {
+          "name": "file",
           "parameterTypes": []
         },
         {
@@ -365,8 +370,23 @@
           "parameterTypes": [
             "java.lang.String",
             "java.lang.String",
-            "java.lang.Boolean"
+            "java.lang.Boolean",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String"
           ]
+        },
+        {
+          "name": "contentType",
+          "parameterTypes": []
+        },
+        {
+          "name": "file",
+          "parameterTypes": []
+        },
+        {
+          "name": "filename",
+          "parameterTypes": []
         },
         {
           "name": "isEnabled",
@@ -1331,10 +1351,17 @@
       "glob": "META-INF/services/java.nio.channels.spi.SelectorProvider"
     },
     {
+      "glob": "META-INF/services/java.nio.file.spi.FileTypeDetector"
+    },
+    {
       "glob": "META-INF/services/java.time.zone.ZoneRulesProvider"
     },
     {
       "glob": "META-INF/services/org.slf4j.spi.SLF4JServiceProvider"
+    },
+    {
+      "module": "java.base",
+      "glob": "sun/net/www/content-types.properties"
     }
   ]
 }

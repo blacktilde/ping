@@ -149,22 +149,53 @@ class CurlImporterTest {
     }
 
     @Test
-    void multipartFieldsImportAndFileUploadsAreReported() throws IOException {
-        ImportResult result = parse("curl https://x.io/up -F a=1 -F 'note=hi;type=text/plain' -F 'file=@photo.png'");
+    void multipartFieldsAndFileUploadsBecomeRows() throws IOException {
+        ImportResult result = parse("curl https://x.io/up -F a=1 -F 'note=hi;type=text/plain' "
+                + "-F 'file=@photo.png' -F 'doc=@/tmp/r.pdf;type=application/pdf;filename=report.pdf'");
         StoredRequest request = result.request();
         assertEquals("POST", request.method());
-        assertEquals(new RequestSpec.Body("multipart", null, null,
-                List.of(param("a", "1"), param("note", "hi"))), request.body());
-        assertEquals(1, result.warnings().size());
-        assertTrue(result.warnings().get(0).contains("file"), result.warnings().toString());
+        assertEquals(new RequestSpec.Body("multipart", null, null, List.of(
+                param("a", "1"), param("note", "hi"),
+                new RequestSpec.Param("file", null, true, "photo.png", null, null),
+                new RequestSpec.Param("doc", null, true, "/tmp/r.pdf", "report.pdf", "application/pdf"))),
+                request.body());
+        assertEquals(2, result.warnings().size(), "each file asks to be chosen again: " + result.warnings());
+        assertTrue(result.warnings().get(0).contains("photo.png"), result.warnings().toString());
     }
 
     @Test
-    void aFileBodyIsReportedNotSentAsTheLiteralPath() throws IOException {
-        ImportResult result = parse("curl https://x.io -d @payload.json");
+    void aTextFieldThatReadsAFileIsStillReported() throws IOException {
+        ImportResult result = parse("curl https://x.io -F 'a=<notes.txt'");
         assertNull(result.request().body());
-        assertEquals("GET", result.request().method(), "no body was imported, so nothing implies POST");
-        assertTrue(result.warnings().get(0).contains("@payload.json"), result.warnings().toString());
+        assertTrue(result.warnings().get(0).contains("takes its text from a file"), result.warnings().toString());
+    }
+
+    @Test
+    void aFileBodyBecomesAFileBodyNotTheLiteralPath() throws IOException {
+        ImportResult result = parse("curl https://x.io -d @payload.json");
+        assertEquals(new RequestSpec.Body("file", null, null, null, "payload.json"), result.request().body());
+        assertEquals("POST", result.request().method());
+        assertTrue(result.warnings().get(0).contains("Choose the file again"), result.warnings().toString());
+        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("removes line breaks")),
+                "-d strips newlines and this does not: " + result.warnings());
+    }
+
+    @Test
+    void dataBinaryAndJsonFilesKeepTheirContentType() throws IOException {
+        ImportResult binary = parse("curl https://x.io --data-binary @blob.bin -H 'Content-Type: image/png'");
+        assertEquals(new RequestSpec.Body("file", null, "image/png", null, "blob.bin"), binary.request().body());
+        assertTrue(binary.request().headers().isEmpty(), "the type moved onto the body");
+        assertTrue(binary.warnings().stream().noneMatch(w -> w.contains("removes line breaks")));
+
+        ImportResult json = parse("curl https://x.io --json @body.json");
+        assertEquals(new RequestSpec.Body("file", null, "application/json", null, "body.json"), json.request().body());
+    }
+
+    @Test
+    void aFileBodyMixedWithOtherDataIsReportedAndTheFileLeftOut() throws IOException {
+        ImportResult result = parse("curl https://x.io -d a=1 -d @extra.txt");
+        assertEquals("form", result.request().body().type());
+        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("mixes a file body")), result.warnings().toString());
     }
 
     @Test

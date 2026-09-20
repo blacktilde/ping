@@ -8,6 +8,7 @@ import dev.ping.rpc.RpcServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -89,6 +90,54 @@ class HttpMethodsTest {
                 }
             }
         });
+    }
+
+    @TempDir
+    java.nio.file.Path files;
+
+    @Test
+    void sendsAFilePartAndABinaryBodySentAsJson() throws Exception {
+        byte[] payload = {0, 1, 2, (byte) 0xFF, '\r', '\n', 42};
+        java.nio.file.Files.createDirectories(files.resolve("fixtures"));
+        java.nio.file.Files.write(files.resolve("fixtures/logo.bin"), payload);
+        AtomicReference<byte[]> received = new AtomicReference<>();
+        AtomicReference<String> contentType = new AtomicReference<>();
+        server.createContext("/up", exchange -> {
+            try (exchange) {
+                received.set(exchange.getRequestBody().readAllBytes());
+                contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
+                exchange.sendResponseHeaders(204, -1);
+            }
+        });
+        String base = files.toString().replace("\\", "\\\\");
+
+        // A relative path resolves against filesBase, which the shell sets from the collection.
+        exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{"url":"%s/up","method":"POST",\
+                "filesBase":"%s","body":{"type":"multipart","fields":[\
+                {"name":"note","value":"hi"},\
+                {"name":"logo","file":"fixtures/logo.bin","filename":"logo.png","contentType":"image/png"}]}}}"""
+                .formatted(baseUrl, base));
+        assertTrue(contentType.get().startsWith("multipart/form-data; boundary="), contentType.get());
+        String body = new String(received.get(), StandardCharsets.ISO_8859_1);
+        assertTrue(body.contains("filename=\"logo.png\""), body);
+        assertTrue(body.contains("Content-Type: image/png"), body);
+        assertTrue(body.contains(new String(payload, StandardCharsets.ISO_8859_1)), "the file's bytes are in the body");
+
+        List<JsonNode> out = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{"url":"%s/up","method":"PUT",\
+                "filesBase":"%s","body":{"type":"file","file":"fixtures/logo.bin","contentType":"image/png"}}}"""
+                .formatted(baseUrl, base));
+        assertFalse(out.get(0).has("error"), out.get(0).toString());
+        assertArrayEquals(payload, received.get());
+        assertEquals("image/png", contentType.get());
+
+        // A path that would leave the collection comes back as a normal invalid-params error.
+        JsonNode escape = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{"url":"%s/up","method":"PUT",\
+                "filesBase":"%s","body":{"type":"file","file":"../outside.bin"}}}"""
+                .formatted(baseUrl, base)).get(0);
+        assertEquals(-32602, escape.path("error").path("code").asInt());
     }
 
     @Test

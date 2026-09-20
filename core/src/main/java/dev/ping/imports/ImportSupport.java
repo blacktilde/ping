@@ -127,6 +127,24 @@ final class ImportSupport {
         }
     }
 
+    /** A Postman {@code src}: a string, or a list whose first entry is the path. Null when none. */
+    static String filePath(JsonNode src) {
+        if (src == null || src.isNull()) {
+            return null;
+        }
+        JsonNode first = src.isArray() ? (src.isEmpty() ? null : src.get(0)) : src;
+        String path = first == null ? null : first.asText(null);
+        return path == null || path.isBlank() ? null : path;
+    }
+
+    /** What to tell the user about a file an export refers to. */
+    static String fileNote(String where, String what, String path) {
+        return path == null
+                ? where + " has " + what + " with no file chosen. Choose it in the Body tab."
+                : where + " uses the file " + path + " for " + what
+                        + ". That path came from the export: choose the file again in the Body tab.";
+    }
+
     /** Text of a node that may be missing, null or a non-string scalar. */
     static String text(JsonNode node) {
         return node == null || node.isNull() || node.isMissingNode() ? null : node.asText();

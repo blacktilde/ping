@@ -2,13 +2,17 @@
   import type { RequestBody } from '../lib/http'
   import { BODY_MODES } from '../lib/request'
   import CodeEditor from './CodeEditor.svelte'
+  import FileField from './FileField.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
+  import MultipartEditor from './MultipartEditor.svelte'
 
   interface Props {
     body: RequestBody
+    /** The request's collection folder; a file inside it is stored relative to it. */
+    collection: string
   }
 
-  let { body }: Props = $props()
+  let { body, collection }: Props = $props()
 </script>
 
 <div class="flex h-full flex-col">
@@ -24,11 +28,11 @@
       {/each}
     </select>
 
-    {#if body.type === 'raw'}
+    {#if body.type === 'raw' || body.type === 'file'}
       <input
         bind:value={body.contentType}
         aria-label="Content type"
-        placeholder="text/plain"
+        placeholder={body.type === 'file' ? 'application/octet-stream' : 'text/plain'}
         class="min-w-0 flex-1 rounded-md border border-line bg-base px-3 py-1.5 font-mono
                text-sm outline-none transition focus:border-accent"
       />
@@ -42,6 +46,20 @@
       <CodeEditor bind:value={body.content} language="json" label="JSON request body" />
     {:else if body.type === 'raw'}
       <CodeEditor bind:value={body.content} language="plain" label="Raw request body" />
+    {:else if body.type === 'file'}
+      <div class="flex items-center px-4 py-4">
+        <FileField
+          path={body.file || undefined}
+          {collection}
+          label="body file"
+          onChange={(path) => (body.file = path)}
+        />
+      </div>
+      <p class="px-4 text-xs text-fg-faint">
+        The file is sent exactly as it is on disk, streamed rather than loaded into memory.
+      </p>
+    {:else if body.type === 'multipart'}
+      <MultipartEditor items={body.fields} {collection} />
     {:else}
       <KeyValueEditor
         items={body.fields}
