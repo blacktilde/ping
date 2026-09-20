@@ -15,6 +15,10 @@
     onCreate: (collectionPath: string) => void
     onDelete: (node: StoreNode) => void
     onOpenLocation: (node: StoreNode) => void
+    onRename: (node: StoreNode, name: string) => void
+    onDuplicate: (node: StoreNode) => void
+    onMove: (node: StoreNode, target: StoreNode) => void
+    onCreateFolder: (parentPath: string, name: string) => void
     onNewCollection: (name: string) => void
     onOpenFolder: () => void
     onImport: () => void
@@ -32,6 +36,10 @@
     onCreate,
     onDelete,
     onOpenLocation,
+    onRename,
+    onDuplicate,
+    onMove,
+    onCreateFolder,
     onNewCollection,
     onOpenFolder,
     onImport,
@@ -97,21 +105,173 @@
       : [...expanded, path]
   }
 
+  // --- filter --------------------------------------------------------------------------
+
+  let filter = $state('')
+  const filtering = $derived(filter.trim().length > 0)
+
+  /**
+   * The tree reduced to what matches: a request whose name or method matches, every ancestor of
+   * one, and the whole contents of a folder whose own name matches.
+   */
+  const visible = $derived.by((): StoreNode[] => {
+    const query = filter.trim().toLowerCase()
+    if (!query) {
+      return nodes
+    }
+    const keep = (list: StoreNode[], insideMatch: boolean): StoreNode[] => {
+      const out: StoreNode[] = []
+      for (const node of list) {
+        const self = `${node.name} ${node.method ?? ''}`.toLowerCase().includes(query)
+        if (node.type === 'request') {
+          if (insideMatch || self) out.push(node)
+          continue
+        }
+        const children = keep(node.children ?? [], insideMatch || self)
+        if (self || insideMatch || children.length > 0) {
+          out.push({ ...node, children })
+        }
+      }
+      return out
+    }
+    return keep(nodes, false)
+  })
+
+  // --- rename and new folder --------------------------------------------------------------
+
+  let renaming = $state<string | null>(null)
+  let renameValue = $state('')
+  let creatingIn = $state<string | null>(null)
+  let folderValue = $state('')
+
+  function startRename(node: StoreNode): void {
+    creatingIn = null
+    renaming = node.path
+    renameValue = node.name
+  }
+
+  function commitRename(node: StoreNode): void {
+    const value = renameValue.trim()
+    renaming = null
+    if (value && value !== node.name) {
+      onRename(node, value)
+    }
+  }
+
+  function startFolder(node: StoreNode): void {
+    renaming = null
+    if (!expanded.includes(node.path)) {
+      expanded = [...expanded, node.path]
+    }
+    creatingIn = node.path
+    folderValue = ''
+  }
+
+  function commitFolder(parentPath: string): void {
+    const value = folderValue.trim()
+    creatingIn = null
+    if (value) {
+      onCreateFolder(parentPath, value)
+    }
+  }
+
+  /** Focuses a freshly shown input and selects its text, so typing replaces the old name. */
+  function focusSelect(element: HTMLInputElement): void {
+    element.focus()
+    element.select()
+  }
+
+  // --- drag and drop ----------------------------------------------------------------------
+
+  // The dragged node lives in component state rather than only in `dataTransfer`, which a
+  // synthetic drag (the smoke test) does not always carry.
+  let dragging = $state<StoreNode | null>(null)
+  let dropTarget = $state<string | null>(null)
+
+  function parentOf(path: string): string {
+    const slash = path.lastIndexOf('/')
+    return slash < 0 ? '' : path.slice(0, slash)
+  }
+
+  /** Obvious mistakes are ignored here; the core refuses the same moves regardless. */
+  function canDrop(source: StoreNode | null, target: StoreNode): boolean {
+    return (
+      source !== null &&
+      source.type !== 'collection' &&
+      target.type !== 'request' &&
+      target.path !== source.path &&
+      !target.path.startsWith(`${source.path}/`) &&
+      parentOf(source.path) !== target.path
+    )
+  }
+
+  function dragStart(event: DragEvent, node: StoreNode): void {
+    dragging = node
+    if (event.dataTransfer) {
+      event.dataTransfer.setData('text/plain', node.path)
+      event.dataTransfer.effectAllowed = 'move'
+    }
+  }
+
+  function dragOver(event: DragEvent, node: StoreNode): void {
+    if (canDrop(dragging, node)) {
+      event.preventDefault()
+      dropTarget = node.path
+    }
+  }
+
+  function drop(event: DragEvent, node: StoreNode): void {
+    const source = dragging
+    dragging = null
+    dropTarget = null
+    if (source && canDrop(source, node)) {
+      event.preventDefault()
+      onMove(source, node)
+    }
+  }
+
+  // --- rows ------------------------------------------------------------------------------
+
   type Row = { node: StoreNode; depth: number }
   const rows = $derived.by(() => {
     const out: Row[] = []
     const walk = (list: StoreNode[], depth: number): void => {
       for (const node of list) {
         out.push({ node, depth })
-        if (node.type !== 'request' && expanded.includes(node.path)) {
+        // While filtering, every ancestor of a match is open so the match is visible.
+        if (node.type !== 'request' && (filtering || expanded.includes(node.path))) {
           walk(node.children ?? [], depth + 1)
         }
       }
     }
-    walk(nodes, 0)
+    walk(visible, 0)
     return out
   })
 </script>
+
+{#snippet action(label: string, run: () => void, path: string)}
+  <button
+    type="button"
+    onclick={run}
+    aria-label={label}
+    title={label}
+    class="rounded px-1 text-fg-faint opacity-0 transition group-hover:opacity-100
+           hover:text-accent focus:opacity-100"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      class="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d={path} />
+    </svg>
+  </button>
+{/snippet}
 
 <aside
   data-role="sidebar"
@@ -241,8 +401,23 @@
   {#if panel === 'history'}
     <HistoryList entries={history} onSelect={onSelectHistory} />
   {:else}
+    {#if workspaceRoot && nodes.length > 0}
+      <div class="border-b border-line px-2 py-1.5">
+        <input
+          type="search"
+          bind:value={filter}
+          aria-label="Filter requests"
+          placeholder="Filter requests"
+          class="w-full rounded-md border border-line bg-base px-2 py-1 text-xs outline-none
+                 transition focus:border-accent"
+        />
+      </div>
+    {/if}
     <div class="flex-1 overflow-auto py-1">
-      {#if rows.length === 0}
+      {#if filtering && rows.length === 0}
+        <p data-role="filter-empty" class="px-3 py-4 text-sm text-fg-faint">No matches.</p>
+      {/if}
+      {#if !filtering && rows.length === 0}
         <div class="flex flex-col items-start gap-2 px-3 py-6">
           {#if workspaceRoot}
             <p class="text-sm text-fg-faint">This folder has no collections yet.</p>
@@ -273,13 +448,50 @@
         <div
           data-path={node.path}
           data-node-type={node.type}
-          class="group flex items-center"
+          data-drop-target={dropTarget === node.path}
+          draggable={node.type !== 'collection' && renaming !== node.path}
+          role="treeitem"
+          aria-selected={activePath === node.path}
+          tabindex="-1"
+          ondragstart={(event) => dragStart(event, node)}
+          ondragend={() => {
+            dragging = null
+            dropTarget = null
+          }}
+          ondragover={(event) => dragOver(event, node)}
+          ondragleave={() => {
+            if (dropTarget === node.path) dropTarget = null
+          }}
+          ondrop={(event) => drop(event, node)}
+          class="group flex items-center {dropTarget === node.path ? 'bg-accent/15 ring-1 ring-accent' : ''}"
           style="padding-left: {row.depth * 12 + 6}px"
         >
-          {#if node.type === 'request'}
+          {#if renaming === node.path}
+            <input
+              use:focusSelect
+              bind:value={renameValue}
+              aria-label="Rename {node.name}"
+              onkeydown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  commitRename(node)
+                } else if (event.key === 'Escape') {
+                  event.preventDefault()
+                  renaming = null
+                }
+              }}
+              onblur={() => (renaming = null)}
+              class="mx-2 my-0.5 min-w-0 flex-1 rounded border border-accent bg-base px-2 py-0.5
+                     text-sm outline-none"
+            />
+          {:else if node.type === 'request'}
             <button
               type="button"
               onclick={() => onSelect(node)}
+              ondblclick={() => startRename(node)}
+              onkeydown={(event) => {
+                if (event.key === 'F2') startRename(node)
+              }}
               class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left text-sm
                      transition
                      {activePath === node.path
@@ -291,48 +503,25 @@
               </span>
               <span class="truncate">{node.name}</span>
             </button>
-            {#if confirming === node.path}
-              <button
-                type="button"
-                onclick={() => {
-                  confirming = null
-                  onDelete(node)
-                }}
-                class="mr-1 rounded px-1.5 text-xs font-medium text-danger transition
-                       hover:bg-line/60"
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                onclick={() => (confirming = null)}
-                class="mr-1 rounded px-1.5 text-xs text-fg-muted transition hover:bg-line/60"
-              >
-                Cancel
-              </button>
-            {:else}
-              <button
-                type="button"
-                onclick={() => (confirming = node.path)}
-                aria-label="Delete {node.name}"
-                class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
-                       group-hover:opacity-100 hover:text-danger"
-              >
-                ×
-              </button>
-            {/if}
           {:else}
             <button
               type="button"
               onclick={() => toggle(node.path)}
+              ondblclick={() => startRename(node)}
+              onkeydown={(event) => {
+                if (event.key === 'F2') startRename(node)
+              }}
               class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left text-sm
                      text-fg transition hover:bg-line/50"
             >
               <span class="w-3 shrink-0 text-fg-faint">
-                {expanded.includes(node.path) ? '▾' : '▸'}
+                {filtering || expanded.includes(node.path) ? '▾' : '▸'}
               </span>
               <span class="truncate">{node.name}</span>
             </button>
+          {/if}
+
+          {#if renaming !== node.path}
             {#if confirming === node.path}
               <button
                 type="button"
@@ -353,35 +542,13 @@
                 Cancel
               </button>
             {:else}
-              <button
-                type="button"
-                onclick={() => onOpenLocation(node)}
-                aria-label="Open {node.name} in the file manager"
-                class="rounded px-1.5 text-fg-faint opacity-0 transition group-hover:opacity-100
-                       hover:text-accent"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onclick={() => onCreate(node.path)}
-                aria-label="New request in {node.name}"
-                class="rounded px-1.5 text-fg-faint opacity-0 transition group-hover:opacity-100
-                       hover:text-accent"
-              >
-                +
-              </button>
+              {#if node.type !== 'request'}
+                {@render action(`Open ${node.name} in the file manager`, () => onOpenLocation(node), 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z')}
+                {@render action(`New request in ${node.name}`, () => onCreate(node.path), 'M12 5v14M5 12h14')}
+                {@render action(`New folder in ${node.name}`, () => startFolder(node), 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 10v6M9 13h6')}
+              {/if}
+              {@render action(`Rename ${node.name}`, () => startRename(node), 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z')}
+              {@render action(`Duplicate ${node.name}`, () => onDuplicate(node), 'M9 9h11v11H9zM5 15V5a1 1 0 0 1 1-1h10')}
               <button
                 type="button"
                 onclick={() => (confirming = node.path)}
@@ -394,6 +561,29 @@
             {/if}
           {/if}
         </div>
+
+        {#if creatingIn === node.path}
+          <div style="padding-left: {(row.depth + 1) * 12 + 6}px" class="flex items-center">
+            <input
+              use:focusSelect
+              bind:value={folderValue}
+              aria-label="New folder name"
+              placeholder="Folder name"
+              onkeydown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  commitFolder(node.path)
+                } else if (event.key === 'Escape') {
+                  event.preventDefault()
+                  creatingIn = null
+                }
+              }}
+              onblur={() => (creatingIn = null)}
+              class="mx-2 my-0.5 min-w-0 flex-1 rounded border border-accent bg-base px-2 py-0.5
+                     text-sm outline-none"
+            />
+          </div>
+        {/if}
       {/each}
     </div>
   {/if}

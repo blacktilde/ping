@@ -86,6 +86,34 @@ export async function scaffoldCollection(name: string): Promise<void> {
 }
 
 /** Deletes a request file, or a collection/folder and everything under it. */
+/** Creates an empty folder (sanitised and unique) and returns its relative path. */
+export async function createFolder(parent: string, name: string): Promise<string> {
+  const result = await call<{ path: string }>('store.create', {
+    collection: parent,
+    name,
+    type: 'folder'
+  })
+  return result.path
+}
+
+/** Renames a request (its name and, if needed, its file) or a folder; returns the new path. */
+export async function renameEntry(path: string, name: string): Promise<string> {
+  const result = await call<{ path: string }>('store.rename', { path, name })
+  return result.path
+}
+
+/** Moves a request or folder into an existing folder or collection; returns the new path. */
+export async function moveEntry(path: string, to: string): Promise<string> {
+  const result = await call<{ path: string }>('store.move', { path, to })
+  return result.path
+}
+
+/** Copies a request, folder or collection next to the original; returns the copy's path. */
+export async function duplicateEntry(path: string): Promise<string> {
+  const result = await call<{ path: string }>('store.duplicate', { path })
+  return result.path
+}
+
 export async function deleteEntry(path: string): Promise<void> {
   await call<Record<string, never>>('store.delete', { path })
 }

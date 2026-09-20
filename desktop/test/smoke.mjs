@@ -11,7 +11,7 @@
  * live HTTPS check, which is what CI does so the suite does not depend on a third party.
  */
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1359,6 +1359,89 @@ try {
   await waitFor(async () => (await evaluate(`window.ping.runtime.list()`)).length === 0, 5000, 'Clear')
   check('clears the runtime variables', true)
   await evaluate(clickText('Variables'))
+
+  console.log('--- 15e. rename, duplicate, move and filter from the sidebar')
+  const row = (path) => `document.querySelector('[data-path="${path}"][data-node-type]')`
+  const tabPaths = () =>
+    evaluate(`[...document.querySelectorAll('[data-role="request-tab"]')].map(t => t.dataset.path)`)
+  const dirtyShown = () => evaluate(`!!document.querySelector('[data-role="dirty"]')`)
+  const clickButton = (label) =>
+    evaluate(`(() => { const b = document.querySelector('button[aria-label="${label}"]'); if (!b) return false; b.click(); return true })()`)
+  const rowExists = (path) => evaluate(`!!${row(path)}`)
+  const drag = (fromPath, toPath) => evaluate(`(() => {
+    const from = ${row(fromPath)}; const to = ${row(toPath)};
+    if (!from || !to) return false;
+    const data = new DataTransfer();
+    const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true }));
+    fire(from, 'dragstart'); fire(to, 'dragover'); fire(to, 'drop'); fire(from, 'dragend');
+    return true;
+  })()`)
+
+  // A request with an unsaved edit is renamed from the tree: the tab must follow, dirty and intact.
+  await clickButton('New request in demo')
+  await waitFor(async () => (await tabPaths()).includes('demo/new-request.yaml'), 5000, 'the new request tab')
+  await evaluate(setUrl(`${base}/renamed`))
+  check('starts dirty', await dirtyShown())
+  await clickButton('Rename New request')
+  await evaluate(setInput('Rename New request', 'Ping rename'))
+  await evaluate(`document.querySelector('input[aria-label="Rename New request"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
+  await waitFor(async () => (await tabPaths()).includes('demo/ping-rename.yaml'), 5000, 'the tab to follow the rename')
+  check('the tab followed the file', !(await tabPaths()).includes('demo/new-request.yaml'), (await tabPaths()).join(', '))
+  check('the file moved on disk', existsSync(join(workspaceDir, 'demo', 'ping-rename.yaml')) && !existsSync(join(workspaceDir, 'demo', 'new-request.yaml')))
+  check('the rename is on disk', readFileSync(join(workspaceDir, 'demo', 'ping-rename.yaml'), 'utf8').includes('name: Ping rename'))
+  check('keeps the unsaved edit', (await evaluate(`document.querySelector('input[aria-label="Request URL"]').value`)) === `${base}/renamed`)
+  check('is still dirty', await dirtyShown())
+  await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
+  await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'ping-rename.yaml'), 'utf8').includes('/renamed'), 5000, 'the save')
+  check('a save writes to the new path, not the old one', !existsSync(join(workspaceDir, 'demo', 'new-request.yaml')))
+  check('a save clears the dirty marker', !(await dirtyShown()))
+
+  // Duplicate, create a folder, then drag the request into it.
+  await clickButton('Duplicate Ping rename')
+  await waitFor(async () => await rowExists('demo/ping-rename-copy.yaml'), 5000, 'the copy')
+  check('duplicates next to the original', readFileSync(join(workspaceDir, 'demo', 'ping-rename-copy.yaml'), 'utf8').includes('name: Ping rename copy'))
+  await clickButton('New folder in demo')
+  await evaluate(setInput('New folder name', 'Archive'))
+  await evaluate(`document.querySelector('input[aria-label="New folder name"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
+  await waitFor(async () => await rowExists('demo/Archive'), 5000, 'the new folder')
+  check('creates a folder on disk', existsSync(join(workspaceDir, 'demo', 'Archive')))
+
+  await drag('demo/ping-rename.yaml', 'demo/Archive')
+  await waitFor(async () => (await tabPaths()).includes('demo/Archive/ping-rename.yaml'), 5000, 'the tab to follow the move')
+  check('dragging moves the file', existsSync(join(workspaceDir, 'demo', 'Archive', 'ping-rename.yaml')) && !existsSync(join(workspaceDir, 'demo', 'ping-rename.yaml')))
+  await drag('demo', 'demo/Archive')
+  check('a collection cannot be dropped anywhere', existsSync(join(workspaceDir, 'demo', 'get.yaml')))
+
+  // Renaming a folder re-points every tab inside it.
+  await clickButton('Rename Archive')
+  await evaluate(setInput('Rename Archive', 'Old stuff'))
+  await evaluate(`document.querySelector('input[aria-label="Rename Archive"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
+  await waitFor(async () => (await tabPaths()).includes('demo/Old stuff/ping-rename.yaml'), 5000, 'the tab to follow the folder rename')
+  check('renaming a folder moves it on disk', existsSync(join(workspaceDir, 'demo', 'Old stuff', 'ping-rename.yaml')) && !existsSync(join(workspaceDir, 'demo', 'Archive')))
+  check('a reserved folder name is sanitised, not obeyed', await (async () => {
+    await clickButton('Rename Old stuff')
+    await evaluate(setInput('Rename Old stuff', 'environments'))
+    await evaluate(`document.querySelector('input[aria-label="Rename Old stuff"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
+    await waitFor(async () => existsSync(join(workspaceDir, 'demo', 'environments folder')), 5000, 'the sanitised rename')
+    return existsSync(join(workspaceDir, 'demo', 'environments folder'))
+  })())
+
+  // The filter narrows the tree to matches and their ancestors.
+  await evaluate(setInput('Filter requests', 'copy'))
+  await waitFor(
+    async () => (await evaluate(`document.querySelectorAll('[data-node-type="request"]').length`)) === 1,
+    5000,
+    'the filtered tree'
+  )
+  const filtered = await evaluate(`[...document.querySelectorAll('[data-node-type="request"]')].map(r => r.dataset.path)`)
+  check('shows only the matching request', filtered.join() === 'demo/ping-rename-copy.yaml', filtered.join())
+  check('keeps the ancestor visible', await rowExists('demo'))
+  await evaluate(setInput('Filter requests', 'zzz-no-such'))
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="filter-empty"]')`), 5000, 'the empty state')
+  check('says when nothing matches', true)
+  await evaluate(setInput('Filter requests', ''))
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-node-type="request"]').length`)) > 1, 5000, 'the full tree')
+  check('clearing the filter restores the tree', true)
 
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)

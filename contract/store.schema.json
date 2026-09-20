@@ -120,7 +120,12 @@
         "root": { "type": "string" },
         "collection": {
           "type": "string",
-          "description": "Relative path of an existing collection folder. Omitted means the workspace root."
+          "description": "Relative path of an existing folder to create it in. Omitted means the workspace root."
+        },
+        "type": {
+          "enum": ["request", "folder"],
+          "default": "request",
+          "description": "A folder is sanitised for every platform and made unique among its siblings (Name, Name 2)."
         },
         "name": { "type": "string" }
       },
@@ -131,6 +136,53 @@
       "required": ["path"],
       "properties": {
         "path": { "type": "string", "description": "Where the new request was written; unique even for repeated names." }
+      },
+      "additionalProperties": false
+    },
+
+    "store.rename.params": {
+      "type": "object",
+      "required": ["root", "path", "name"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string", "description": "A request file or a folder, relative to the root." },
+        "name": {
+          "type": "string",
+          "description": "A request's display name (its file follows unless it already carries that name's slug), or a folder's new name, sanitised. An existing folder of that name is an error."
+        }
+      },
+      "additionalProperties": false
+    },
+    "store.move.params": {
+      "type": "object",
+      "required": ["root", "path", "to"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string", "description": "A request file or a folder. A collection cannot be moved." },
+        "to": {
+          "type": "string",
+          "description": "An existing folder or collection, relative to the root. The workspace root, the folder itself, its descendants and any environments folder are refused."
+        }
+      },
+      "additionalProperties": false
+    },
+    "store.duplicate.params": {
+      "type": "object",
+      "required": ["root", "path"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string", "description": "A request file, folder or collection. Copied next to the original as \"<name> copy\"; symlinks are skipped." }
+      },
+      "additionalProperties": false
+    },
+    "store.rename.result": { "$ref": "#/$defs/store.pathResult" },
+    "store.move.result": { "$ref": "#/$defs/store.pathResult" },
+    "store.duplicate.result": { "$ref": "#/$defs/store.pathResult" },
+    "store.pathResult": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "description": "The new relative path. The same path when nothing needed to change." }
       },
       "additionalProperties": false
     },

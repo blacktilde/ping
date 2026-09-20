@@ -39,10 +39,27 @@ public final class StoreMethods {
             return Map.of("path", path);
         });
 
-        server.register("store.create", params ->
-                Map.of("path", store.create(root(params),
-                        params.path("collection").asText(""),
-                        requiredText(params, "name"))));
+        server.register("store.create", params -> {
+            String type = params.path("type").asText("request");
+            if (type.equals("folder")) {
+                return Map.of("path", store.newFolder(root(params),
+                        params.path("collection").asText(""), requiredText(params, "name")));
+            }
+            if (!type.equals("request")) {
+                throw RpcException.invalidParams("Unknown type: " + type);
+            }
+            return Map.of("path", store.create(root(params),
+                    params.path("collection").asText(""), requiredText(params, "name")));
+        });
+
+        server.register("store.rename", params -> Map.of("path", store.rename(
+                root(params), requiredText(params, "path"), requiredText(params, "name"))));
+
+        server.register("store.move", params -> Map.of("path", store.move(
+                root(params), requiredText(params, "path"), requiredText(params, "to"))));
+
+        server.register("store.duplicate", params -> Map.of("path", store.duplicate(
+                root(params), requiredText(params, "path"))));
 
         server.register("store.scaffold", params -> Map.of(
                 "collection", store.scaffold(root(params),

@@ -124,6 +124,240 @@ public final class YamlStore {
         return relative(base, file);
     }
 
+    // --- rename, move, duplicate -----------------------------------------------------------
+
+    /**
+     * Renames a request or a folder and returns its new relative path.
+     *
+     * <p>A request keeps every field it has: only {@code name} changes, edited in the parsed
+     * tree rather than through {@link StoredRequest}, so a field this core does not know yet
+     * survives. The file is renamed to match unless it already carries that name's slug (or
+     * the slug with a numeric suffix), so a rename never churns file names.
+     *
+     * <p>A folder that already exists under the new name is an error, not a silent
+     * {@code Name 2}: the user typed that name. Renaming a collection also renames it in
+     * {@code collection.yaml}.
+     */
+    public String rename(Path root, String relativePath, String name) {
+        Path base = normalize(root);
+        Path source = resolve(base, relativePath);
+        guardReserved(base, source);
+        String clean = name == null ? "" : name.strip();
+        if (clean.isEmpty()) {
+            throw RpcException.invalidParams("A name is required");
+        }
+        if (!Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
+            throw RpcException.storeFailed("No such path: " + relativePath);
+        }
+        return Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)
+                ? renameFolder(base, source, clean)
+                : renameRequest(base, source, clean);
+    }
+
+    private String renameRequest(Path base, Path file, String name) {
+        com.fasterxml.jackson.databind.node.ObjectNode node = readTree(base, file);
+        if (name.equals(node.path("name").asText(null))) {
+            return relative(base, file);
+        }
+        node.put("name", name);
+        writeValue(file, node);
+
+        String slug = slugify(name, "request");
+        String stem = baseName(file);
+        if (stem.equals(slug) || stem.matches(java.util.regex.Pattern.quote(slug) + "-\\d+")) {
+            return relative(base, file);
+        }
+        Path target = unique(file.getParent(), slug);
+        try {
+            moveInPlace(file, target);
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not rename " + relative(base, file) + ": " + e.getMessage(), e);
+        }
+        return relative(base, target);
+    }
+
+    private String renameFolder(Path base, Path directory, String name) {
+        String clean = folderName(name, "");
+        if (clean.isEmpty()) {
+            throw RpcException.invalidParams("That name has nothing usable for a folder name");
+        }
+        Path parent = directory.getParent();
+        Path target = parent.resolve(clean).normalize();
+        if (!target.startsWith(parent)) {
+            throw RpcException.invalidParams("Folder name escapes its parent: " + name);
+        }
+        try {
+            if (!target.equals(directory)) {
+                // A case-only change on a case-insensitive filesystem "exists" but is the same folder.
+                if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && !Files.isSameFile(target, directory)) {
+                    throw RpcException.invalidParams("A folder named \"" + clean + "\" already exists here");
+                }
+                moveInPlace(directory, target);
+            }
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not rename to " + clean + ": " + e.getMessage(), e);
+        }
+        String path = relative(base, target);
+        if (isCollection(base, target) && Files.isRegularFile(target.resolve(COLLECTION_FILE))) {
+            CollectionDoc doc = collectionDoc(base, path);
+            saveCollection(base, path, new CollectionDoc(name, doc.variables()));
+        }
+        return path;
+    }
+
+    /**
+     * Moves a request or folder into an existing folder or collection and returns its new path.
+     *
+     * <p>A collection cannot move (it would leave its {@code collection.yaml} and environments
+     * stranded inside another collection), nothing moves to the workspace root, and a folder
+     * cannot move into itself. A request that would collide takes a unique file name; a folder
+     * that would collide is an error. Nothing is ever replaced.
+     */
+    public String move(Path root, String relativePath, String toPath) {
+        Path base = normalize(root);
+        Path source = resolve(base, relativePath);
+        guardReserved(base, source);
+        if (toPath == null || toPath.isBlank()) {
+            throw RpcException.invalidParams("A destination folder is required");
+        }
+        Path destination = resolve(base, toPath);
+        if (!Files.isDirectory(destination)) {
+            throw RpcException.storeFailed("No such folder: " + toPath);
+        }
+        if (relative(base, destination).equalsIgnoreCase(ENVIRONMENTS_DIR)
+                || List.of(relative(base, destination).split("/")).stream()
+                        .anyMatch(segment -> segment.equalsIgnoreCase(ENVIRONMENTS_DIR))) {
+            throw RpcException.invalidParams("Requests cannot be moved into an environments folder");
+        }
+        if (!Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
+            throw RpcException.storeFailed("No such path: " + relativePath);
+        }
+
+        boolean folder = Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
+        if (folder && isCollection(base, source)) {
+            throw RpcException.invalidParams("A collection cannot be moved into another one");
+        }
+        if (folder && destination.startsWith(source)) {
+            throw RpcException.invalidParams("A folder cannot be moved into itself");
+        }
+        if (destination.equals(source.getParent())) {
+            return relative(base, source);
+        }
+
+        Path target;
+        if (folder) {
+            target = destination.resolve(source.getFileName());
+            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                throw RpcException.invalidParams("\"" + source.getFileName()
+                        + "\" already exists in the destination");
+            }
+        } else {
+            target = unique(destination, baseName(source));
+        }
+        try {
+            moveInPlace(source, target);
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not move " + relativePath + ": " + e.getMessage(), e);
+        }
+        return relative(base, target);
+    }
+
+    /**
+     * Copies a request or a whole folder next to the original as "<name> copy" and returns the
+     * copy's relative path. Symlinks are skipped, as {@link #delete} does not follow them either.
+     */
+    public String duplicate(Path root, String relativePath) {
+        Path base = normalize(root);
+        Path source = resolve(base, relativePath);
+        guardReserved(base, source);
+        if (!Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
+            throw RpcException.storeFailed("No such path: " + relativePath);
+        }
+        try {
+            if (!Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
+                com.fasterxml.jackson.databind.node.ObjectNode node = readTree(base, source);
+                String original = node.path("name").asText(baseName(source));
+                String name = original + " copy";
+                node.put("name", name);
+                Path target = unique(source.getParent(), slugify(name, "request"));
+                writeValue(target, node);
+                return relative(base, target);
+            }
+
+            String name = source.getFileName() + " copy";
+            String parent = relative(base, source.getParent());
+            String copy = newFolder(base, source.getParent().equals(base) ? "" : parent, name);
+            Path target = resolve(base, copy);
+            copyTree(source, target);
+            if (isCollection(base, target) && Files.isRegularFile(target.resolve(COLLECTION_FILE))) {
+                CollectionDoc doc = collectionDoc(base, copy);
+                saveCollection(base, copy, new CollectionDoc(doc.name() + " copy", doc.variables()));
+            }
+            return copy;
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not duplicate " + relativePath + ": " + e.getMessage(), e);
+        }
+    }
+
+    private static void copyTree(Path from, Path to) throws IOException {
+        Files.walkFileTree(from, new java.nio.file.SimpleFileVisitor<>() {
+            @Override
+            public java.nio.file.FileVisitResult preVisitDirectory(
+                    Path directory, java.nio.file.attribute.BasicFileAttributes attributes) throws IOException {
+                Files.createDirectories(to.resolve(from.relativize(directory).toString()));
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public java.nio.file.FileVisitResult visitFile(
+                    Path file, java.nio.file.attribute.BasicFileAttributes attributes) throws IOException {
+                // walkFileTree does not follow links, so a symlink arrives here and is left behind.
+                if (attributes.isRegularFile() && !attributes.isSymbolicLink()) {
+                    Files.copy(file, to.resolve(from.relativize(file).toString()));
+                }
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    /** {@code collection.yaml} and anything under {@code environments/} are not tree items. */
+    private static void guardReserved(Path base, Path path) {
+        if (path.getFileName().toString().equals(COLLECTION_FILE)) {
+            throw RpcException.invalidParams("collection.yaml is managed with the collection's variables");
+        }
+        for (String segment : relative(base, path).split("/")) {
+            if (segment.equalsIgnoreCase(ENVIRONMENTS_DIR)) {
+                throw RpcException.invalidParams("Environments are managed from the variables panel");
+            }
+        }
+    }
+
+    /** A collection is a folder directly under the workspace root. */
+    private static boolean isCollection(Path base, Path directory) {
+        return Files.isDirectory(directory) && base.equals(directory.getParent());
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode readTree(Path base, Path file) {
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = YAML.readTree(file.toFile());
+            if (node instanceof com.fasterxml.jackson.databind.node.ObjectNode object) {
+                return object;
+            }
+            throw RpcException.storeFailed(relative(base, file) + " is not a request file");
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not parse " + relative(base, file) + ": " + e.getMessage(), e);
+        }
+    }
+
+    /** Renames within the same filesystem; the callers have already ruled out a clash. */
+    private static void moveInPlace(Path from, Path to) throws IOException {
+        try {
+            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(from, to);
+        }
+    }
+
     /**
      * Creates a new, empty folder under {@code parentPath} and returns its relative path.
      *

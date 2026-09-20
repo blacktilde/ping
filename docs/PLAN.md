@@ -95,6 +95,10 @@ assertions plus the runner change what the project is for.
   when a path it holds changes underneath it — the conflict case phase 6 deliberately left.
   *Gate: `StoreMethodsTest` covers rename, move and duplicate including collisions; `make
   smoke` renames an open request and the tab survives with its dirty state intact.*
+  *Status: shipping in slices. **Done:** `store.rename`, `store.move` (drag and drop in the sidebar),
+  `store.duplicate`, folder-creating `store.create`, the tab retargeting that keeps dirty state, and the
+  sidebar filter. **Remaining:** the `docs` editors for a request and a collection, which need a markdown
+  rendering decision.*
 
 - [x] **14. Import.** Three sources, smallest first: a curl command pasted into the URL bar,
   an OpenAPI 3 document, and a Postman v2.1 or Insomnia v4 export. The parsers belong in the
