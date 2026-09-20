@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/run.schema.json",
+  "title": "Ping core RPC — collection runner",
+  "$defs": {
+    "run.collection.params": {
+      "type": "object",
+      "required": ["root", "collection"],
+      "properties": {
+        "runId": {
+          "type": "string",
+          "description": "Echoed on every run.progress notification so a caller can tell runs apart."
+        },
+        "root": { "type": "string", "description": "The workspace root, like the store methods." },
+        "collection": { "type": "string", "description": "The collection folder, relative to root." },
+        "environment": {
+          "type": "string",
+          "description": "An environment's name (case-insensitive), its file name without extension, or its relative path. An unknown one is -32602 and lists the available names."
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Values that outrank collection, environment and runtime scopes. Values of 4 or more characters are masked as *** wherever they resurface in results."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "requestResult": {
+      "type": "object",
+      "description": "One request's outcome. `url` is as written, placeholders unresolved, so a secret in a query string never reaches a report.",
+      "required": ["path", "name", "passed", "assertions"],
+      "properties": {
+        "path": { "type": "string" },
+        "name": { "type": "string" },
+        "method": { "type": "string" },
+        "url": { "type": "string" },
+        "status": { "type": "integer", "description": "Absent when no response arrived." },
+        "durationMs": { "type": "integer", "description": "Absent when no response arrived." },
+        "error": {
+          "type": "string",
+          "description": "Why no response was obtained: transport or configuration. Present means the request errored."
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "True when a response arrived and every assertion passed. A request with no assertions passes on any response."
+        },
+        "assertions": {
+          "type": "array",
+          "items": { "$ref": "http.schema.json#/$defs/assertionResult" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "run.collection.result": {
+      "type": "object",
+      "required": ["collection", "durationMs", "total", "passed", "failed", "errored", "requests"],
+      "properties": {
+        "collection": { "type": "string" },
+        "environment": { "type": "string", "description": "The environment's display name; absent when none was used." },
+        "durationMs": { "type": "integer" },
+        "total": { "type": "integer" },
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer", "description": "Got a response but failed an assertion." },
+        "errored": { "type": "integer", "description": "Got no response." },
+        "requests": {
+          "type": "array",
+          "description": "In run order: sidebar order, folders before requests, each group by display name.",
+          "items": { "$ref": "#/$defs/requestResult" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "run.progress": {
+      "type": "object",
+      "description": "Notification (no id), sent after each request finishes, before the run.collection response.",
+      "required": ["index", "total", "request"],
+      "properties": {
+        "runId": { "type": "string" },
+        "index": { "type": "integer", "description": "Zero-based position in the run." },
+        "total": { "type": "integer" },
+        "request": { "$ref": "#/$defs/requestResult" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

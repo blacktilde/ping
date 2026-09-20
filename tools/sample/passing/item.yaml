@@ -1,0 +1,14 @@
+name: Item
+method: GET
+url: "{{baseUrl}}/ok"
+asserts:
+- type: jsonpath
+  target: $.name
+  op: equals
+  expected: "{{expectedName}}"
+- type: header
+  target: content-type
+  op: contains
+  expected: json
+- type: duration
+  expected: "5000"

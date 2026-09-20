@@ -1,6 +1,9 @@
 package dev.ping.vars;
 
 import dev.ping.http.RequestSpec;
+import dev.ping.store.YamlStore;
+
+import java.nio.file.Path;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +37,25 @@ public final class Variables {
         merge(resolved, environment);
         merge(resolved, runtime);
         return resolved;
+    }
+
+    /**
+     * The flattened scope for one collection and optional environment. Shared by
+     * {@code vars.resolve} and the runner so the shell and the CLI cannot disagree.
+     *
+     * @param environmentPath relative path of an environment file, or null/blank for none
+     * @param runtime         highest-precedence values, or null
+     */
+    public static Map<String, String> forCollection(
+            YamlStore store, Path root, String collection, String environmentPath,
+            Map<String, String> runtime) {
+        Map<String, String> collectionVars =
+                toMap(store.collectionDoc(root, collection).variables());
+        Map<String, String> environmentVars = Map.of();
+        if (environmentPath != null && !environmentPath.isBlank()) {
+            environmentVars = toMap(store.readEnvironment(root, environmentPath).variables());
+        }
+        return resolve(collectionVars, environmentVars, runtime);
     }
 
     /** Flattens an editable variable list, dropping disabled and unnamed rows. */

@@ -35,6 +35,11 @@ jobs:
       - name: Test on the JVM
         run: ./gradlew :core:test
 
+      # The runner's gate: the real launcher against a loopback server. A deliberately
+      # failing assertion has to exit non-zero, or CI would pass on a broken collection.
+      - name: Run the sample collections
+        run: ./gradlew :core:installDist && tools/sample-run.sh core/build/install/ping-core/bin/ping-core
+
   core-cross-os:
     name: Core tests (${{ matrix.os }})
     # Platform paths and filesystem behaviour move slowly, and a macOS/Windows runner pair is
@@ -77,6 +82,9 @@ jobs:
 
       - name: Test as a native image
         run: ./gradlew :core:nativeTest
+
+      - name: Run the sample collections as a native image
+        run: ./gradlew :core:nativeCompile && tools/sample-run.sh core/build/native/nativeCompile/ping-core
 
   desktop:
     name: Desktop

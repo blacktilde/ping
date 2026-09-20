@@ -68,21 +68,9 @@ public final class VarsMethods {
             return Map.of("path", path);
         });
 
-        server.register("vars.resolve", params -> {
-            Path root = root(params);
-            String collection = requiredText(params, "collection");
-            Map<String, String> collectionVars =
-                    Variables.toMap(store.collectionDoc(root, collection).variables());
-
-            Map<String, String> environmentVars = Map.of();
-            String environment = params.path("environment").asText(null);
-            if (environment != null && !environment.isBlank()) {
-                environmentVars =
-                        Variables.toMap(store.readEnvironment(root, environment).variables());
-            }
-
-            return Map.of("variables", Variables.resolve(collectionVars, environmentVars, null));
-        });
+        server.register("vars.resolve", params -> Map.of("variables", Variables.forCollection(
+                store, root(params), requiredText(params, "collection"),
+                params.path("environment").asText(null), null)));
     }
 
     private static Path root(JsonNode params) {

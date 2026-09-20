@@ -1,0 +1,5 @@
+name: CI
+variables:
+- name: expectedName
+  value: ping
+  enabled: true

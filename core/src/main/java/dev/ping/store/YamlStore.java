@@ -166,6 +166,32 @@ public final class YamlStore {
         }
     }
 
+    /**
+     * Every request in a collection, flattened in sidebar order: folders before requests,
+     * each group by display name, depth first. The runner uses this so a run and the tree
+     * cannot disagree about order.
+     */
+    public List<CollectionNode> requestNodes(Path root, String collectionPath) {
+        Path base = normalize(root);
+        Path directory = resolve(base, collectionPath);
+        if (!Files.isDirectory(directory)) {
+            throw RpcException.storeFailed("No such collection: " + collectionPath);
+        }
+        List<CollectionNode> flat = new ArrayList<>();
+        flatten(children(base, directory), flat);
+        return flat;
+    }
+
+    private static void flatten(List<CollectionNode> nodes, List<CollectionNode> into) {
+        for (CollectionNode node : nodes) {
+            if (CollectionNode.REQUEST.equals(node.type())) {
+                into.add(node);
+            } else {
+                flatten(node.children(), into);
+            }
+        }
+    }
+
     // --- collection metadata and environments ---------------------------------------------
 
     /** The collection's name and variables, defaulting to the folder name with none. */

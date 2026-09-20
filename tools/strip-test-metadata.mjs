@@ -9,7 +9,7 @@
 import fs from 'node:fs'
 
 const path = 'core/src/main/resources/META-INF/native-image/reachability-metadata.json'
-const testOnly = /Test(\$|$)|junit|opentest4j|com\.sun\.net\.httpserver|org\.gradle|worker\./i
+const testOnly = /(Test|Fixture)(\$|$)|junit|opentest4j|com\.sun\.net\.httpserver|org\.gradle|worker\./i
 
 const metadata = JSON.parse(fs.readFileSync(path, 'utf8'))
 const before = metadata.reflection.length

@@ -125,7 +125,7 @@ assertions plus the runner change what the project is for.
   *Gate: a two-request smoke — one send captures a value the next send puts on the wire —
   plus a core test that a capture miss leaves the variable absent rather than empty.*
 
-- [ ] **17. Runner and CLI.** The core is already a standalone binary; this phase gives it a
+- [x] **17. Runner and CLI.** The core is already a standalone binary; this phase gives it a
   second mode. `run.collection` runs a folder with a chosen environment, on virtual threads,
   emitting per-request progress as notifications, and `ping run <collection> -e prod` does the
   same from a terminal with no Electron. Reporters: human-readable, JSON, and JUnit XML for CI.
