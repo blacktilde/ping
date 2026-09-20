@@ -17,6 +17,7 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -512,6 +513,21 @@ class HttpEngineTest {
 
         assertEquals(RpcException.INVALID_PARAMS, thrown.code());
         assertFalse(thrown.getMessage().contains("Exception"), thrown.getMessage());
+    }
+
+    @Test
+    void uppercasesTheMethodIndependentlyOfTheDefaultLocale() {
+        // A Turkish locale maps "i" to a dotted capital, so a default-locale uppercase turns
+        // "options" into a method no server recognises. The spec must not depend on where the
+        // machine running the core happens to be.
+        Locale original = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr"));
+            assertEquals("OPTIONS", new RequestSpec.Builder(baseUrl + "/x")
+                    .method("options").build().methodOrDefault());
+        } finally {
+            Locale.setDefault(original);
+        }
     }
 
     @Test

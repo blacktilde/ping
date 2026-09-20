@@ -278,6 +278,21 @@ class StoreMethodsTest {
     }
 
     @Test
+    void refusesToScaffoldOutsideTheWorkspace() throws Exception {
+        JsonNode relative = call("store.scaffold",
+                Map.of("root", workspace.toString(), "collection", "../escape"));
+        assertEquals(RpcException.INVALID_PARAMS, relative.path("error").path("code").asInt());
+
+        Path absolute = workspace.getParent().resolve("escape-absolute");
+        JsonNode rejected = call("store.scaffold",
+                Map.of("root", workspace.toString(), "collection", absolute.toString()));
+        assertEquals(RpcException.INVALID_PARAMS, rejected.path("error").path("code").asInt());
+
+        assertFalse(Files.exists(workspace.getParent().resolve("escape")));
+        assertFalse(Files.exists(absolute));
+    }
+
+    @Test
     void deletesACollectionRecursively() throws Exception {
         Files.createDirectories(workspace.resolve("col/users"));
         Files.writeString(workspace.resolve("col/a.yaml"), "name: a\n");

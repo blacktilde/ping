@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * A request as the UI describes it, before any of it is turned into wire format.
@@ -136,7 +137,9 @@ public record RequestSpec(
     }
 
     public String methodOrDefault() {
-        return method == null || method.isBlank() ? "GET" : method.toUpperCase();
+        // Locale.ROOT, not the default locale: "options" uppercased in a Turkish locale
+        // becomes "OPTİONS", which is not a method any server knows.
+        return method == null || method.isBlank() ? "GET" : method.toUpperCase(Locale.ROOT);
     }
 
     /**

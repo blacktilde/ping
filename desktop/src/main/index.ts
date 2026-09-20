@@ -98,7 +98,10 @@ function withWorkspaceRoot(
   const source = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
   const safe: Record<string, unknown> = { ...source, root }
 
-  for (const field of ['path', 'collection']) {
+  // Every field that names a file or folder, not just the one called `path`: `vars.resolve`
+  // and `vars.environment` address an environment file, and a field missed here would reach
+  // the core with only the core's own check left between it and the filesystem.
+  for (const field of ['path', 'collection', 'environment']) {
     const value = safe[field]
     if (value === undefined) {
       continue

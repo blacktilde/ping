@@ -133,11 +133,24 @@ public final class YamlStore {
      * @return the collection path relative to the workspace root
      */
     public String scaffold(Path root, String collectionName) {
-        Path base = root.toAbsolutePath().normalize();
         String name = collectionName == null || collectionName.isBlank()
                 ? "My Collection"
                 : collectionName.trim();
-        Path collection = base.resolve(name);
+
+        // The root is created first so the boundary check below compares two real paths: on
+        // first run the workspace does not exist yet, and resolving a symlink against a root
+        // that is still lexical would reject a name that is perfectly inside it.
+        try {
+            Files.createDirectories(root);
+        } catch (IOException e) {
+            throw RpcException.storeFailed(
+                    "Could not create the workspace folder: " + e.getMessage(), e);
+        }
+
+        Path base = normalize(root);
+        // A collection name is a path like any other: the shell rejects an absolute or
+        // escaping one, and this is the core checking the same boundary again.
+        Path collection = resolve(base, name);
 
         try {
             Files.createDirectories(collection);

@@ -55,7 +55,9 @@ argument validation and secret resolution belong.
 **The shell owns the filesystem root.** Store calls carry paths relative to the open
 folder; the main process injects that root and rejects absolute or `..` paths before they
 reach the core, which checks the same boundary again. A new store method takes a relative
-path, never an absolute one.
+path, never an absolute one — and both checks have to know about it: the field goes in the
+main process's `withWorkspaceRoot` list, and the core resolves it through the same guard
+every other method uses. A folder name is a path too.
 
 **Secrets never touch collection files.** They live in Electron `safeStorage`; YAML holds
 only the variable name.

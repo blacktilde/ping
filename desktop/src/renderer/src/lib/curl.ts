@@ -21,8 +21,13 @@ export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * Mirrors the core's `Interpolation` pattern exactly. A narrower one here would leave a name
+ * the core substitutes as a literal `{{name}}` in the copied command, so the command would
+ * not be the request Ping sent.
+ */
 function interpolate(value: string, variables: Record<string, string>): string {
-  return value.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (match, name: string) =>
+  return value.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, name: string) =>
     Object.prototype.hasOwnProperty.call(variables, name) ? variables[name] : match
   )
 }
