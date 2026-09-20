@@ -54,6 +54,7 @@ not `http.send`, whose length is the user's to set.
 | `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
 | `auth.authorize`| `{ auth, variables?, network? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
+| `net.probe`   | `{ url, verifyTls?, timeoutMs?, network? }` | `ProbeResult` (see Connection probe)   |
 | `cookies.list`| `{ scope }`               | `{ cookies }` (no values)                           |
 | `cookies.clear`| `{ scope, domain?, name? }` | `{ removed }`                                     |
 | `cookies.clearAll`| none                  | `{}`                                                |
@@ -258,6 +259,29 @@ credentials. A call with no `network` goes direct, as before.
   the process list) and `--no-proxy`. With none of them the environment's proxy variables apply, as for curl.
   `--cert FILE` (`.p12`/`.pfx` is PKCS#12, anything else PEM) and `--key FILE` add a client certificate for every
   host; its passphrase comes from `PING_CERT_PASSWORD`, never a flag.
+
+### Connection probe
+
+`java.net.http` does not report when the TCP connection or the TLS handshake finished, and phase 5 refused to
+invent a split. `net.probe` is the honest alternative: on request, it connects a **second socket** the way
+the client would and times each stage. The result is **not part of any exchange's timing** and the UI labels it
+as a probe: a different connection can take a different path or find a warm cache, so it is never added to a
+response's `totalMs`.
+
+- **Stages.** `dnsMs` (name resolution), `connectMs` (TCP), for HTTPS through a proxy `tunnelMs` (the proxy's
+  answer to `CONNECT`, sent with the same `Proxy-Authorization` as a send), then `tlsMs` (the handshake), with
+  the negotiated `protocol`, `cipherSuite` and `alpn`. Times are milliseconds to a tenth, because loopback
+  stages are well under one. A stage that did not run is absent. Through a proxy DNS and TCP are of the
+  proxy (`connectedTo`, `viaProxy`); a plain `http://` origin through a proxy stops after connecting to it.
+- **A failure is a result.** `failedStage` (`dns`, `connect`, `tunnel` or `tls`) and `error` come back with the
+  stages that finished. The certificate is recorded before it is judged, so an expired, untrusted or mismatched
+  one is still shown; `verified` is true only when it was checked and accepted.
+- **The same identity as a send.** The routed client certificate is offered on the handshake. A TLS 1.3 client
+  finishes its handshake before a server rejects a missing certificate, so a probe cannot prove that a server
+  *accepts* one; only a request can.
+- **Origin only.** `http.send` results carry `origin` (`scheme://host:port` of the final request). The probe
+  uses only that, so the path and query, which may carry a credential, never go back to the renderer.
+- **Trust.** `network` is injected by the shell and the renderer's is discarded, as for `http.send`.
 
 ### Files in a request body
 

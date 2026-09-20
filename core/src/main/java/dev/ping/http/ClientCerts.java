@@ -8,6 +8,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSocket;
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
 import java.io.InputStream;
@@ -373,9 +374,20 @@ public final class ClientCerts {
             return entries.stream().map(Loaded::alias).toArray(String[]::new);
         }
 
-        // Only used for socket-based TLS, which java.net.http does not use.
+        /** Socket-based TLS (the connection probe): the peer is named by the handshake in progress. */
         @Override
         public String chooseClientAlias(String[] keyTypes, Principal[] issuers, Socket socket) {
+            if (!(socket instanceof SSLSocket tls) || tls.getHandshakeSession() == null) {
+                return null;
+            }
+            String host = tls.getHandshakeSession().getPeerHost();
+            int port = tls.getHandshakeSession().getPeerPort();
+            for (Loaded entry : entries) {
+                if (host != null && HostPattern.matchesAny(entry.hosts(), host, port)
+                        && supports(entry, keyTypes) && issuedBy(entry, issuers)) {
+                    return entry.alias();
+                }
+            }
             return null;
         }
 

@@ -7,6 +7,9 @@ import java.util.List;
  *
  * <p>Sizes are reported separately from the body text because the body may be truncated,
  * and "how big was it" stays a useful answer even when the bytes were discarded.
+ *
+ * <p>{@code origin} is {@code scheme://host:port} of the final request: enough to probe the
+ * connection, and free of the path and query, which may carry a credential the renderer must not see.
  */
 public record ResponseData(
         int status,
@@ -16,11 +19,18 @@ public record ResponseData(
         Timing timing,
         List<Redirect> redirects,
         List<AssertionResult> assertions,
-        List<CaptureResult> captured) {
+        List<CaptureResult> captured,
+        String origin) {
+
+    public ResponseData(
+            int status, String httpVersion, List<Header> headers, BodyData body, Timing timing,
+            List<Redirect> redirects, List<AssertionResult> assertions, List<CaptureResult> captured) {
+        this(status, httpVersion, headers, body, timing, redirects, assertions, captured, null);
+    }
 
     /** Assertions run after the exchange is assembled, so they see exactly what the UI will. */
     public ResponseData withAssertions(List<AssertionResult> results) {
-        return new ResponseData(status, httpVersion, headers, body, timing, redirects, results, captured);
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, results, captured, origin);
     }
 
     /**
@@ -29,7 +39,7 @@ public record ResponseData(
      * the values before anything reaches the renderer.
      */
     public ResponseData withCaptured(List<CaptureResult> results) {
-        return new ResponseData(status, httpVersion, headers, body, timing, redirects, assertions, results);
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, assertions, results, origin);
     }
 
     public record Header(String name, String value) {

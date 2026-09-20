@@ -7,16 +7,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -28,12 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class ConnectTunnelTest {
 
-    private ServerSocket proxy;
+    private TunnelProxy proxy;
     private HttpsServer origin;
-    private final List<String> connects = new CopyOnWriteArrayList<>();
-    private final List<String> proxyAuth = new CopyOnWriteArrayList<>();
     private final AtomicReference<String> originSawProxyAuth = new AtomicReference<>("unset");
-    private volatile String requiredAuth = "";
 
     @BeforeEach
     void start() throws Exception {
@@ -52,17 +44,7 @@ class ConnectTunnelTest {
         });
         origin.start();
 
-        proxy = new ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress());
-        Thread.ofVirtual().start(() -> {
-            while (!proxy.isClosed()) {
-                try {
-                    Socket client = proxy.accept();
-                    Thread.ofVirtual().start(() -> serve(client));
-                } catch (IOException e) {
-                    return;
-                }
-            }
-        });
+        proxy = new TunnelProxy();
     }
 
     @AfterEach
@@ -71,64 +53,9 @@ class ConnectTunnelTest {
         origin.stop(0);
     }
 
-    /** A minimal CONNECT proxy: reads the request head, checks the credentials, then pipes bytes. */
-    private void serve(Socket client) {
-        try (client) {
-            InputStream in = client.getInputStream();
-            StringBuilder head = new StringBuilder();
-            int previous = 0;
-            while (!head.toString().endsWith("\r\n\r\n")) {
-                int next = in.read();
-                if (next < 0) {
-                    return;
-                }
-                head.append((char) next);
-                previous = next;
-            }
-            String[] lines = head.toString().split("\r\n");
-            connects.add(lines[0]);
-            String auth = "-";
-            for (String line : lines) {
-                if (line.toLowerCase().startsWith("proxy-authorization:")) {
-                    auth = line.substring(line.indexOf(':') + 1).trim();
-                }
-            }
-            proxyAuth.add(auth);
-            OutputStream out = client.getOutputStream();
-            String expected = requiredAuth.isEmpty() ? null
-                    : "Basic " + Base64.getEncoder().encodeToString(requiredAuth.getBytes(StandardCharsets.UTF_8));
-            if (expected != null && !expected.equals(auth)) {
-                out.write(("HTTP/1.1 407 Proxy Authentication Required\r\n"
-                        + "Proxy-Authenticate: Basic realm=\"corp\"\r\nContent-Length: 0\r\n\r\n")
-                        .getBytes(StandardCharsets.US_ASCII));
-                out.flush();
-                return;
-            }
-            String[] target = lines[0].split(" ")[1].split(":");
-            try (Socket upstream = new Socket(target[0], Integer.parseInt(target[1]))) {
-                out.write("HTTP/1.1 200 Connection established\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
-                out.flush();
-                Thread pump = Thread.ofVirtual().start(() -> copy(upstream, client));
-                copy(client, upstream);
-                pump.join();
-            }
-        } catch (IOException | InterruptedException e) {
-            // A closed tunnel ends the exchange; the assertions report what mattered.
-        }
-    }
-
-    private static void copy(Socket from, Socket to) {
-        try {
-            from.getInputStream().transferTo(to.getOutputStream());
-            to.shutdownOutput();
-        } catch (IOException e) {
-            // The other side hung up.
-        }
-    }
-
     private ResponseData send(String user, String password) {
         NetworkConfig network = new NetworkConfig(ProxyConfig.manual(
-                "127.0.0.1:" + proxy.getLocalPort(), user, password, null));
+                proxy.address(), user, password, null));
         return new HttpEngine().send(
                 new RequestSpec.Builder("https://localhost:" + origin.getAddress().getPort() + "/x")
                         .verifyTls(false).build(),
@@ -138,23 +65,23 @@ class ConnectTunnelTest {
     @Test
     void anHttpsRequestIsTunnelledThroughTheProxy() {
         assertEquals("tunnelled", send(null, null).body().content());
-        assertEquals("CONNECT localhost:" + origin.getAddress().getPort() + " HTTP/1.1", connects.get(0));
+        assertEquals("CONNECT localhost:" + origin.getAddress().getPort() + " HTTP/1.1", proxy.connects.get(0));
     }
 
     @Test
     void theProxyPasswordIsInTheConnectAndNeverInsideTheTunnel() {
-        requiredAuth = "bob:s3cret";
+        proxy.requiredAuth = "bob:s3cret";
         ResponseData response = send("bob", "s3cret");
 
         assertEquals("tunnelled", response.body().content());
         assertEquals("Basic " + Base64.getEncoder().encodeToString("bob:s3cret".getBytes(StandardCharsets.UTF_8)),
-                proxyAuth.get(0));
+                proxy.proxyAuth.get(0));
         assertEquals("null", originSawProxyAuth.get(), "the origin must never see the proxy's credentials");
     }
 
     @Test
     void aWrongProxyPasswordIsTheProxysRefusal() {
-        requiredAuth = "bob:s3cret";
+        proxy.requiredAuth = "bob:s3cret";
         ResponseData response = send("bob", "wrong");
         assertEquals(407, response.status(), "the proxy's refusal is the response");
         assertEquals("unset", originSawProxyAuth.get(), "the request never reached the origin");

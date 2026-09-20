@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/net.schema.json",
+  "title": "Ping core RPC — network diagnostics",
+  "$defs": {
+    "net.probe.params": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "description": "http:// or https:// with a host. Only the scheme, host and port are used." },
+        "verifyTls": { "type": "boolean", "default": true, "description": "False accepts any certificate; it is still reported." },
+        "timeoutMs": { "type": "integer", "default": 10000, "maximum": 60000, "description": "For the connect and for each read." },
+        "network": {
+          "$ref": "https://ping.dev/contract/http.schema.json#/$defs/network",
+          "description": "The proxy and client certificates, set by the desktop shell exactly as for http.send; the renderer's copy is discarded."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "net.probe.result": {
+      "type": "object",
+      "description": "What a separate connection found, stage by stage. Not part of any exchange's timing. A stage that did not run is absent; a failure is reported here, not as an RPC error.",
+      "required": ["origin", "connectedTo", "viaProxy"],
+      "properties": {
+        "origin": { "type": "string" },
+        "connectedTo": { "type": "string", "description": "host:port the TCP connection went to: the origin, or the proxy when there is one." },
+        "viaProxy": { "type": "boolean" },
+        "addresses": { "type": "array", "items": { "type": "string" }, "maxItems": 8, "description": "What connectedTo's name resolved to." },
+        "dnsMs": { "type": "number", "description": "Milliseconds, to a tenth." },
+        "connectMs": { "type": "number" },
+        "tunnelMs": { "type": "number", "description": "The proxy's answer to CONNECT: HTTPS through a proxy only." },
+        "tlsMs": { "type": "number" },
+        "protocol": { "type": "string", "description": "Negotiated TLS version." },
+        "cipherSuite": { "type": "string" },
+        "alpn": { "type": "string", "description": "h2 or http/1.1, when the server chose." },
+        "verified": { "type": "boolean", "description": "True only when the certificate was checked and accepted." },
+        "certificate": {
+          "type": "object",
+          "description": "The server's leaf certificate, reported even when it was not trusted.",
+          "required": ["subject", "issuer", "notBefore", "notAfter", "chainLength"],
+          "properties": {
+            "subject": { "type": "string" },
+            "issuer": { "type": "string" },
+            "notBefore": { "type": "string", "format": "date-time" },
+            "notAfter": { "type": "string", "format": "date-time" },
+            "altNames": { "type": "array", "items": { "type": "string" }, "maxItems": 10 },
+            "chainLength": { "type": "integer" }
+          },
+          "additionalProperties": false
+        },
+        "failedStage": { "enum": ["dns", "connect", "tunnel", "tls"] },
+        "error": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

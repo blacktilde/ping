@@ -273,6 +273,10 @@
       "properties": {
         "status": { "type": "integer" },
         "httpVersion": { "enum": ["HTTP_1_1", "HTTP_2"] },
+        "origin": {
+          "type": "string",
+          "description": "scheme://host[:port] of the final request, without path, query or userinfo (which may hold a credential the renderer must not see). What `net.probe` is pointed at."
+        },
         "headers": {
           "type": "array",
           "description": "Sorted by name. A header sent more than once appears more than once.",
