@@ -3,9 +3,15 @@ name: CI
 # Verifies every push and pull request. Builds nothing shippable — see release.yml for that.
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# A newer push to a pull request supersedes the run in flight. Main is never cancelled, so
+# every merged commit keeps its own verdict.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   wrapper:
