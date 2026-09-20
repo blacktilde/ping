@@ -10,7 +10,6 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -322,31 +321,14 @@ public final class CurlImporter {
 
         /** @return true when the header became the auth config and should not also be a header */
         private boolean authorization(String value) {
-            int space = value.indexOf(' ');
-            String scheme = space < 0 ? value : value.substring(0, space);
-            String credentials = space < 0 ? "" : value.substring(space + 1).trim();
-            if (scheme.equalsIgnoreCase("bearer") && !credentials.isEmpty()) {
-                if (auth == null) {
-                    auth = RequestSpec.Auth.bearer(credentials);
-                }
-                return true;
+            RequestSpec.Auth parsed = ImportSupport.authFromHeader(value);
+            if (parsed == null) {
+                return false; // Another scheme, or not decodable: keep it as a header rather than lose it.
             }
-            if (scheme.equalsIgnoreCase("basic") && !credentials.isEmpty()) {
-                try {
-                    String decoded = new String(Base64.getDecoder().decode(credentials), StandardCharsets.UTF_8);
-                    if (auth == null) {
-                        int colon = decoded.indexOf(':');
-                        String password = colon < 0 ? "" : decoded.substring(colon + 1);
-                        auth = RequestSpec.Auth.basic(
-                                colon < 0 ? decoded : decoded.substring(0, colon),
-                                password.isEmpty() ? null : password);
-                    }
-                    return true;
-                } catch (IllegalArgumentException e) {
-                    return false; // Not base64: keep it as a header rather than lose it.
-                }
+            if (auth == null) {
+                auth = parsed;
             }
-            return false;
+            return true;
         }
 
         private ImportResult build() {
@@ -388,7 +370,7 @@ public final class CurlImporter {
 
             StoredRequest request = new StoredRequest(
                     nameOf(target), resolvedMethod, target, query, headers, body, auth,
-                    timeoutMs, follow ? "normal" : null, insecure ? Boolean.FALSE : null, null, null);
+                    timeoutMs, follow ? "normal" : null, insecure ? Boolean.FALSE : null, null, null, null);
             return new ImportResult(request, warnings);
         }
 

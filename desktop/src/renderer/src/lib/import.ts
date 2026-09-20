@@ -5,7 +5,8 @@
  * renderer's view of it: a cheap check for "is this worth sending to the core", and the call.
  */
 
-import { call } from './core'
+import { call, CoreError } from './core'
+import type { ImportReport } from '../../../shared/import'
 import type { StoredRequest } from './store'
 
 export interface ImportResult {
@@ -28,4 +29,20 @@ export async function importCurl(command: string): Promise<ImportResult> {
     command
   })
   return { request: result.request, warnings: result.warnings ?? [] }
+}
+
+export type { ImportReport }
+
+/**
+ * Asks the shell to import a Postman or Insomnia file. The shell owns the file picker, the
+ * workspace root and the secret store; this only carries the outcome back.
+ *
+ * @returns the report, or null when the user dismissed the picker
+ */
+export async function importCollectionFile(): Promise<ImportReport | null> {
+  const result = await window.ping.importCollection()
+  if (result.ok) {
+    return result.value
+  }
+  throw new CoreError(result.error.code, result.error.message)
 }

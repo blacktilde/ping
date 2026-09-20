@@ -30,6 +30,60 @@
       "additionalProperties": false
     },
 
-    "import.curl.result": { "$ref": "#/$defs/importResult" }
+    "import.curl.result": { "$ref": "#/$defs/importResult" },
+
+    "import.collection.params": {
+      "type": "object",
+      "required": ["root", "content"],
+      "properties": {
+        "root": {
+          "type": "string",
+          "description": "The workspace root. The shell injects it; the renderer cannot choose it."
+        },
+        "content": {
+          "type": "string",
+          "description": "The text of a Postman collection (v2.0 or v2.1) or an Insomnia v4 export, both JSON."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "import.collection.result": {
+      "type": "object",
+      "required": ["collections"],
+      "properties": {
+        "collections": {
+          "type": "array",
+          "description": "One per collection created. An Insomnia export with several workspaces yields several.",
+          "items": {
+            "type": "object",
+            "required": ["path", "name", "requests", "environments"],
+            "properties": {
+              "path": { "type": "string", "description": "The new folder, relative to the workspace root. Never an existing one." },
+              "name": { "type": "string" },
+              "requests": { "type": "integer" },
+              "environments": { "type": "integer" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Everything the source expressed that a request cannot. Omitted when empty."
+        },
+        "secrets": {
+          "type": "array",
+          "description": "Credentials lifted out of the written files, which now refer to them as {{name}}. The shell stores them in safeStorage and strips this field before anything reaches the renderer. Omitted when empty.",
+          "items": {
+            "type": "object",
+            "required": ["name", "value"],
+            "properties": { "name": { "type": "string" }, "value": { "type": "string" } },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
   }
 }

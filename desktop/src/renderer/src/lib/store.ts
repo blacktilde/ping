@@ -35,6 +35,7 @@ export interface StoredRequest {
   }
   auth?: AuthSpec
   asserts?: Assert[]
+  docs?: string
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
@@ -119,6 +120,7 @@ export function storedToDraft(stored: StoredRequest): RequestDraft {
     },
     auth: normalizeAuth(stored.auth),
     asserts: plainAsserts(stored.asserts),
+    docs: stored.docs,
     timeoutMs: stored.timeoutMs,
     redirects: stored.redirects,
     verifyTls: stored.verifyTls,
@@ -141,6 +143,7 @@ export function draftToStored(draft: RequestDraft): StoredRequest {
     },
     auth: authToSpec(draft.auth),
     asserts: plainAsserts(draft.asserts),
+    docs: draft.docs,
     timeoutMs: draft.timeoutMs,
     redirects: draft.redirects,
     verifyTls: draft.verifyTls,

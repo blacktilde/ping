@@ -14,12 +14,16 @@ import java.util.List;
  * describe the same thing, so whoever can read one can read the other. The one addition is
  * {@code name}, which is what the sidebar shows and the filename only approximates.
  *
+ * <p>{@code docs} is free-form markdown notes about the request. It is not part of
+ * {@link RequestSpec}: nothing on the wire depends on it. Importers use it for what a request
+ * cannot express, such as a Postman script that was not carried over.
+ *
  * <p>Empty and null fields are omitted, so a freshly created request is a handful of lines
  * rather than a wall of nulls. The engine applies defaults for anything absent.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonPropertyOrder({"name", "method", "url", "query", "headers", "body", "auth",
-        "timeoutMs", "redirects", "verifyTls", "maxBodyBytes", "asserts"})
+        "timeoutMs", "redirects", "verifyTls", "maxBodyBytes", "asserts", "docs"})
 public record StoredRequest(
         String name,
         String method,
@@ -32,7 +36,8 @@ public record StoredRequest(
         String redirects,
         Boolean verifyTls,
         Integer maxBodyBytes,
-        List<Assertion> asserts) {
+        List<Assertion> asserts,
+        String docs) {
 
     public RequestSpec toSpec() {
         return new RequestSpec(null, method, url, query, headers, body, auth,
@@ -42,6 +47,6 @@ public record StoredRequest(
     public static StoredRequest fromSpec(String name, RequestSpec spec) {
         return new StoredRequest(name, spec.method(), spec.url(), spec.query(), spec.headers(),
                 spec.body(), spec.auth(), spec.timeoutMs(), spec.redirects(), spec.verifyTls(),
-                spec.maxBodyBytes(), spec.asserts());
+                spec.maxBodyBytes(), spec.asserts(), null);
     }
 }

@@ -1,8 +1,10 @@
+import { readFile, stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { writeFileSyncAtomic } from './atomic'
 import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
+import { finishImport, MAX_IMPORT_BYTES } from './importer'
 import { OAuthTokenStore } from './oauth'
 import { SecretStore } from './secrets'
 import {
@@ -113,6 +115,25 @@ function isOwnUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * The file to import. `PING_IMPORT_FILE` stands in for the dialog so the smoke test can drive
+ * the flow, like `PING_WORKSPACE` and `PING_FAKE_UPDATE`; a real user picks through the dialog.
+ */
+async function chooseImportFile(): Promise<string | null> {
+  const override = process.env.PING_IMPORT_FILE
+  if (override) {
+    return override
+  }
+  const options: Electron.OpenDialogOptions = {
+    properties: ['openFile'],
+    filters: [{ name: 'Postman or Insomnia export', extensions: ['json'] }]
+  }
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
 }
 
 function failure(code: number | null, message: string): { ok: false; error: { code: number | null; message: string } } {
@@ -305,6 +326,36 @@ function registerIpc(): void {
     return result.filePath
   })
 
+  // Imports a Postman or Insomnia export into a new collection folder. Everything that matters
+  // stays in main: the file is chosen here and read here (the renderer never names a path),
+  // the workspace root is injected here, and lifted credentials are stored here and stripped
+  // from what the renderer gets back.
+  ipcMain.handle('import:collection', async () => {
+    const current = workspace.current()
+    if (!current) {
+      return failure(null, 'No collection folder is open')
+    }
+    try {
+      const file = await chooseImportFile()
+      if (!file) {
+        return { ok: true, value: null }
+      }
+      const info = await stat(file)
+      if (info.size > MAX_IMPORT_BYTES) {
+        return failure(null, 'That file is too large to import')
+      }
+      const content = await readFile(file, 'utf8')
+      await core.ready
+      const result = await core.request('import.collection', { root: current.root, content })
+      return { ok: true, value: finishImport(result, (name, value) => secrets.set(name, value)) }
+    } catch (cause) {
+      return failure(
+        cause instanceof CoreRpcError ? cause.code : null,
+        cause instanceof Error ? cause.message : String(cause)
+      )
+    }
+  })
+
   // The updater runs in main and pushes its state; the renderer only asks for the next step.
   ipcMain.handle('updates:state', () => updateState())
   ipcMain.handle('updates:check', () => {
@@ -356,8 +407,15 @@ function registerIpc(): void {
       return failure(null, 'core:request requires a method name')
     }
 
+    // Writes new collections under the workspace root and returns credentials it lifted out of
+    // the files. Only the `import:collection` handler may call it: it picks the file, injects the
+    // root and keeps secret values away from the renderer, none of which this path would do.
+    if (method === 'import.collection') {
+      return failure(null, 'import.collection is only available through the import dialog')
+    }
+
     let args = params
-    if (method.startsWith('store.') || method.startsWith('vars.')) {
+    if (method.startsWith('store.') || method.startsWith('vars.') || method.startsWith('run.')) {
       const current = workspace.current()
       if (!current) {
         return failure(null, 'No collection folder is open')
