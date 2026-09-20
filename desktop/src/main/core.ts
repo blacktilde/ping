@@ -28,7 +28,13 @@ export class CoreRpcError extends Error {
 interface PendingCall {
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
+  timer: NodeJS.Timeout | null
 }
+
+const RESPONSE_TIMEOUT_MS = 60_000
+
+/** `http.send` runs until its own `timeoutMs` or Cancel, so the shell must not cut it off. */
+const UNBOUNDED_METHODS = new Set(['http.send'])
 
 /**
  * Locates the core binary.
@@ -123,7 +129,15 @@ export class CoreClient {
 
     const id = this.nextId++
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      let timer: NodeJS.Timeout | null = null
+      if (!UNBOUNDED_METHODS.has(method)) {
+        timer = setTimeout(() => {
+          this.pending.delete(id)
+          reject(new Error(`The core did not answer ${method} within ${RESPONSE_TIMEOUT_MS}ms`))
+        }, RESPONSE_TIMEOUT_MS)
+        timer.unref()
+      }
+      this.pending.set(id, { resolve, reject, timer })
       child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
     })
   }
@@ -171,6 +185,9 @@ export class CoreClient {
       return
     }
     this.pending.delete(message.id)
+    if (call.timer) {
+      clearTimeout(call.timer)
+    }
 
     if (message.error) {
       call.reject(new CoreRpcError(message.error.code, message.error.message))
@@ -183,6 +200,9 @@ export class CoreClient {
   private fail(error: Error): void {
     this.failReady(error)
     for (const call of this.pending.values()) {
+      if (call.timer) {
+        clearTimeout(call.timer)
+      }
       call.reject(error)
     }
     this.pending.clear()

@@ -8,6 +8,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  wrapper:
+    name: Gradle wrapper
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fails if gradle-wrapper.jar does not match a hash Gradle published, so a tampered
+      # wrapper cannot ride along in a dependency PR.
+      - uses: gradle/actions/wrapper-validation@v6
+
   core:
     name: Core tests
     runs-on: ubuntu-latest

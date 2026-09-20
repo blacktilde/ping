@@ -1,6 +1,7 @@
 package dev.ping.methods;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import dev.ping.BuildInfo;
 import dev.ping.rpc.RpcServer;
 
 import java.util.LinkedHashMap;
@@ -9,7 +10,7 @@ import java.util.Map;
 /** Lifecycle and diagnostic methods. Everything here must stay cheap: the UI calls it on startup. */
 public final class CoreMethods {
 
-    public static final String VERSION = "0.0.5";
+    public static final String VERSION = BuildInfo.VERSION;
 
     private CoreMethods() {
     }

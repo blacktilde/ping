@@ -24,13 +24,21 @@ _None._
 
 ## Closed
 
-### `rocket-daylight` shipped a placeholder photograph — phase 9
+### An `Error` in a handler left the caller waiting forever — after phase 10
 
-`desktop/src/renderer/src/assets/rocket-daylight.webp` now holds the intended artwork. The
-theme was built around a synthetic gradient while the real image could not be transferred
-into the session; swapping the asset was the whole fix, as recorded — no CSS or TypeScript
-changed with it. The theme remains outside `DARK` in `lib/theme.svelte.ts`: it carries a
-photograph but its surface is white.
+`RpcServer.invoke` caught `RpcException` and `Exception`, so an `Error` escaped the worker
+thread with no response written. The process survived — only that virtual thread died — so
+the core went on serving every other request while the caller waited on an answer that would
+never come, and `CoreClient.request` had no deadline to notice. That is how the missing
+`RequestSpec$Auth` metadata hung the app on launch: `native-image` reports missing
+reachability metadata as `MissingReflectionRegistrationError`, an `Error`. Fixing the
+metadata closed that instance; this closes the class.
+
+`invoke` now catches `Throwable`, logs the stack to stderr and answers `INTERNAL_ERROR`, and
+the shell gives every call a 60s deadline so a lost response surfaces instead of hanging —
+`http.send` is exempt, since its own `timeoutMs` and the Cancel button already bound it.
+Guarded by `RpcServerTest.answersEvenWhenAHandlerThrowsAnError`, which asserts both halves:
+the failing request is answered, and the next one still works.
 
 ### The update feed points at the project's own public repository — phase 10
 

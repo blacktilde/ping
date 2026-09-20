@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Keep the workflow actions current — several are on deprecated Node runtimes.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # The desktop shell's Electron/Vite/Svelte toolchain.
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule:
+      interval: weekly
+
+  # Gradle dependencies and the native-build plugin.
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
