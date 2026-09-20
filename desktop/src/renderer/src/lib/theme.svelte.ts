@@ -9,6 +9,17 @@ export type ThemeChoice = 'system' | ThemeName
 
 const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night', 'rocket-daylight']
 
+/** The theme targets the palette lists, in a stable order, each with the name it shows. */
+export const THEMES: { name: ThemeName; label: string }[] = NAMES.map((name) => ({
+  name,
+  label: {
+    light: 'Light',
+    dark: 'Dark',
+    'rocket-night': 'Rocket Night',
+    'rocket-daylight': 'Rocket Daylight'
+  }[name]
+}))
+
 /*
  * The order the palette cycles through. Light comes straight after dark so the long-standing
  * dark-to-light flip still works on the first press; the photo themes follow it.

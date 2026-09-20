@@ -43,7 +43,7 @@
   } from './lib/vars.svelte'
   import { loadSecretRows, persistSecretRows } from './lib/secrets.svelte'
   import { setSecret } from './lib/secrets'
-  import { cycleTheme, nextTheme } from './lib/theme.svelte'
+  import { cycleTheme, nextTheme, setTheme, THEMES } from './lib/theme.svelte'
   import KeyValueEditor from './components/KeyValueEditor.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
@@ -571,6 +571,11 @@
         label: `Theme: ${nextTheme()}`,
         run: cycleTheme
       },
+      ...THEMES.map(({ name, label }) => ({
+        id: `theme-${name}`,
+        label: `Set theme: ${label}`,
+        run: () => setTheme(name)
+      })),
       { id: 'tab-params', label: 'Go to Params', run: () => (active.editorTab = 'params') },
       { id: 'tab-headers', label: 'Go to Headers', run: () => (active.editorTab = 'headers') },
       { id: 'tab-body', label: 'Go to Body', run: () => (active.editorTab = 'body') },
