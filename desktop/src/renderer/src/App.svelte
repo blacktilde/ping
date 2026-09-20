@@ -73,6 +73,7 @@
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
+  import NetworkSettings from './components/NetworkSettings.svelte'
   import UpdateBanner from './components/UpdateBanner.svelte'
   import appIcon from '../../../build/icon.png'
   import type { HistoryEntry } from '../../shared/history'
@@ -95,6 +96,7 @@
   let storeError = $state('')
   let showVariables = $state(false)
   let paletteOpen = $state(false)
+  let showNetwork = $state(false)
   let workspaceRoot = $state<string | null>(null)
   let sidebarCollapsed = $state(readSidebarCollapsed())
   let sidebarPanel = $state<'collections' | 'history'>('collections')
@@ -810,6 +812,7 @@
       { id: 'focus-url', label: 'Focus request URL', hint: `${modKey}L`, run: focusUrl },
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
       { id: 'import', label: 'Import collection…', run: () => void importCollection() },
+      { id: 'network', label: 'Network settings…', run: () => (showNetwork = true) },
       {
         id: 'sidebar',
         label: sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar',
@@ -1349,6 +1352,10 @@
   {/if}
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
+
+  {#if showNetwork}
+    <NetworkSettings onClose={() => (showNetwork = false)} />
+  {/if}
 
   <ConfirmDialog />
 </div>

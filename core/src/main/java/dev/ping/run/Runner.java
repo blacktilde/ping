@@ -130,7 +130,7 @@ public final class Runner {
             // the collection is checked out.
             ResponseData response = engine.send(spec, variables,
                     new FileAccess(root.resolve(collection), options.allowAbsoluteFiles()),
-                    new CookieContext(jar, RUN_SCOPE));
+                    new CookieContext(jar, RUN_SCOPE), options.network());
             List<AssertionResult> assertions = response.assertions();
             boolean passed = assertions.stream().allMatch(AssertionResult::passed);
             List<CaptureResult> captured = response.captured();

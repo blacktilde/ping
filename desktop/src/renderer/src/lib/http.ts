@@ -13,6 +13,9 @@ export type BodyMode = 'none' | 'json' | 'raw' | 'form' | 'multipart' | 'file'
 
 export type RedirectPolicy = 'never' | 'normal' | 'always'
 
+/** Pins the protocol: `2` means prefer HTTP/2, the server can still answer with 1.1. */
+export type HttpVersionPin = '1.1' | '2'
+
 export type AuthType =
   | 'none'
   | 'basic'
@@ -188,6 +191,8 @@ export interface RequestDraft {
   verifyTls?: boolean
   /** False keeps the request out of the cookie jar; absent means the jar applies. */
   cookies?: boolean
+  /** Absent lets the client choose. */
+  httpVersion?: HttpVersionPin
   maxBodyBytes?: number
 }
 
@@ -214,6 +219,7 @@ export interface HttpRequestSpec {
   redirects?: RedirectPolicy
   verifyTls?: boolean
   cookies?: boolean
+  httpVersion?: HttpVersionPin
   /**
    * The active environment (relative to the workspace). With `collection` it selects the cookie jar
    * scope; the shell validates both and builds the scope itself.

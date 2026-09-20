@@ -22,6 +22,10 @@
           "additionalProperties": { "type": "string" },
           "description": "Values that outrank collection, environment and runtime scopes. Values of 4 or more characters are masked as *** wherever they resurface in results."
         },
+        "network": {
+          "$ref": "https://ping.dev/contract/http.schema.json#/$defs/network",
+          "description": "The proxy every request in the run goes through. The desktop shell sets it from the user's settings and ignores any value from the renderer."
+        },
         "allowAbsoluteFiles": {
           "type": "boolean",
           "default": false,

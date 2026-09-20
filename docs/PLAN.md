@@ -168,6 +168,18 @@ assertions plus the runner change what the project is for.
   *Gate: a loopback proxy sees the request; a loopback server requiring a client cert accepts
   it and rejects the same request without one.*
 
+  **Shipping in three slices.** Settings are app-global and shell-only (`network.json` in
+  `userData`), never part of a collection: a proxy sees every request and its credentials.
+  - [x] **19a. Proxy and HTTP version.** Manual and environment-variable ("system") HTTP proxies
+    with `Proxy-Authorization` sent to the proxy only, a bypass list, a Network settings dialog,
+    CLI `--proxy`/`--proxy-user`/`--no-proxy` (and the environment by default), and a per-request
+    `httpVersion` pin. SOCKS and TLS-to-the-proxy are refused, not ignored: `java.net.http`
+    cannot do either. *Not yet exercised: Basic proxy auth over an HTTPS `CONNECT` tunnel, which
+    needs a TLS origin; it lands with 19b's TLS fixtures.*
+  - [ ] **19b. Client certificates (mTLS).** PKCS#12 first, then PEM; the certificate path is
+    chosen only by a shell dialog, the passphrase never leaves `safeStorage`.
+  - [ ] **19c. Connect/TLS probe.** Opt-in, on a separate socket, labelled as a probe.
+
 - [x] **20. Cookie jar.** Sends are stateless today — `Set-Cookie` is parsed for display and
   then forgotten, so any session-based API takes a hand-copied header. A jar scoped per
   collection and environment, viewable and clearable in the UI, with a per-request opt-out.

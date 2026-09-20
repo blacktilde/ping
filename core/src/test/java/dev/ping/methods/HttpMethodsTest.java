@@ -387,4 +387,54 @@ class HttpMethodsTest {
 
         assertFalse(out.get(0).path("result").path("cancelled").asBoolean());
     }
+
+    @Test
+    void sendsThroughTheProxyNamedInNetworkAndPinsTheVersionSentAsJson() throws Exception {
+        // The proxy answers for a host that does not exist, so only a routed request can succeed.
+        // Keyed by the absolute URI the proxy was asked for: [Proxy-Authorization, Upgrade].
+        java.util.Map<String, List<String>> seen = new java.util.concurrent.ConcurrentHashMap<>();
+        HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        proxy.setExecutor(Executors.newCachedThreadPool());
+        proxy.createContext("/", exchange -> {
+            seen.put(exchange.getRequestURI().toString(), List.of(
+                    String.valueOf(exchange.getRequestHeaders().getFirst("Proxy-Authorization")),
+                    String.valueOf(exchange.getRequestHeaders().getFirst("Upgrade"))));
+            try (exchange) {
+                byte[] payload = "routed".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, payload.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(payload);
+                }
+            }
+        });
+        proxy.start();
+        try {
+            String address = "127.0.0.1:" + proxy.getAddress().getPort();
+            List<JsonNode> unordered = exchange("""
+                    {"jsonrpc":"2.0","id":1,"method":"http.send","params":{"url":"http://origin.invalid/x",\
+                    "httpVersion":"1.1","network":{"proxy":{"mode":"manual","url":"%s",\
+                    "username":"bob","password":"pw","bypass":["other.example"]}}}}
+                    {"jsonrpc":"2.0","id":2,"method":"http.send","params":{"url":"http://origin.invalid/y",\
+                    "network":{"proxy":{"mode":"system","env":{"HTTP_PROXY":"http://%s"}}}}}
+                    {"jsonrpc":"2.0","id":3,"method":"http.send","params":{"url":"http://origin.invalid/z",\
+                    "network":{"proxy":{"mode":"manual","url":"socks5://p:1"}}}}
+                    {"jsonrpc":"2.0","id":4,"method":"http.send","params":{"url":"http://origin.invalid/z",\
+                    "httpVersion":"9"}}"""
+                    .formatted(address, address));
+
+            // Handlers run concurrently, so responses can arrive in any order.
+            JsonNode[] responses = new JsonNode[4];
+            unordered.forEach(node -> responses[node.path("id").asInt() - 1] = node);
+            assertEquals("routed", responses[0].path("result").path("body").path("content").asText());
+            assertEquals(List.of("Basic Ym9iOnB3", "null"), seen.get("http://origin.invalid/x"),
+                    "credentials reach the proxy; 1.1 was pinned so no h2c upgrade was offered");
+            assertEquals(List.of("null", "null"), seen.get("http://origin.invalid/y"));
+            assertEquals("routed", responses[1].path("result").path("body").path("content").asText());
+            assertEquals(-32602, responses[2].path("error").path("code").asInt());
+            assertTrue(responses[2].path("error").path("message").asText().contains("SOCKS"));
+            assertEquals(-32602, responses[3].path("error").path("code").asInt());
+        } finally {
+            proxy.stop(0);
+        }
+    }
 }

@@ -166,4 +166,136 @@ class CliTest {
         assertTrue(stdout().startsWith("ping-core "), stdout());
         assertEquals(2, cli(), "Main routes no-arg to RPC; reaching Cli with none is a usage error");
     }
+
+    // --- proxy ------------------------------------------------------------------------------
+
+    /** A working HTTP proxy: records each request, then forwards it to the address it names. */
+    private HttpServer startProxy(java.util.List<String> authorizations) throws IOException {
+        HttpServer proxy = HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        proxy.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
+        java.net.http.HttpClient forward = java.net.http.HttpClient.newHttpClient();
+        proxy.createContext("/", exchange -> {
+            authorizations.add(String.valueOf(exchange.getRequestHeaders().getFirst("Proxy-Authorization")));
+            try (exchange) {
+                byte[] requestBody = exchange.getRequestBody().readAllBytes();
+                var builder = java.net.http.HttpRequest.newBuilder(exchange.getRequestURI())
+                        .method(exchange.getRequestMethod(),
+                                java.net.http.HttpRequest.BodyPublishers.ofByteArray(requestBody));
+                exchange.getRequestHeaders().forEach((name, values) -> {
+                    if (!name.toLowerCase().startsWith("proxy-") && !name.equalsIgnoreCase("content-length")
+                            && !name.equalsIgnoreCase("host") && !name.equalsIgnoreCase("connection")
+                            && !name.equalsIgnoreCase("upgrade") && !name.equalsIgnoreCase("http2-settings")) {
+                        values.forEach(value -> builder.header(name, value));
+                    }
+                });
+                try {
+                    var response = forward.send(builder.build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+                    response.headers().map().forEach((name, values) -> {
+                        if (!name.equalsIgnoreCase("content-length") && !name.equalsIgnoreCase("transfer-encoding")) {
+                            values.forEach(value -> exchange.getResponseHeaders().add(name, value));
+                        }
+                    });
+                    exchange.sendResponseHeaders(response.statusCode(), response.body().length);
+                    try (var body = exchange.getResponseBody()) {
+                        body.write(response.body());
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        proxy.start();
+        return proxy;
+    }
+
+    private static String address(HttpServer proxy) {
+        return "127.0.0.1:" + proxy.getAddress().getPort();
+    }
+
+    @Test
+    void theProxyFlagRoutesEveryRequestThroughIt() throws IOException {
+        java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer proxy = startProxy(seen);
+        try {
+            Path demo = collection(false);
+            assertEquals(0, cli("run", demo.toString(), "-e", "staging", "--proxy", address(proxy)), stdout());
+            assertEquals(2, seen.size(), "both requests, and nothing went around the proxy: " + seen);
+            assertEquals("null", seen.get(0), "no credentials were configured");
+        } finally {
+            proxy.stop(0);
+        }
+    }
+
+    @Test
+    void withoutFlagsTheEnvironmentsProxyApplies() throws IOException {
+        java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer proxy = startProxy(seen);
+        try {
+            Path demo = collection(false);
+            assertEquals(0, cli(Map.of("HTTP_PROXY", "http://" + address(proxy)),
+                    "run", demo.toString(), "-e", "staging"), stdout());
+            assertEquals(2, seen.size());
+
+            // NO_PROXY exempts the loopback address the collection talks to.
+            seen.clear();
+            assertEquals(0, cli(Map.of("http_proxy", address(proxy), "no_proxy", "127.0.0.1"),
+                    "run", demo.toString(), "-e", "staging"), stdout());
+            assertTrue(seen.isEmpty(), "the proxy must not see an exempted host: " + seen);
+        } finally {
+            proxy.stop(0);
+        }
+    }
+
+    @Test
+    void noProxyIgnoresTheEnvironment() throws IOException {
+        Path demo = collection(false);
+        // A dead proxy in the environment would fail every request if it were honoured.
+        assertEquals(0, cli(Map.of("HTTP_PROXY", "127.0.0.1:1"),
+                "run", demo.toString(), "-e", "staging", "--no-proxy"), stdout());
+    }
+
+    @Test
+    void proxyCredentialsComeFromTheFlagOrThePasswordVariable() throws IOException {
+        java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer proxy = startProxy(seen);
+        String bobPw = "Basic " + java.util.Base64.getEncoder().encodeToString("bob:pw".getBytes(StandardCharsets.UTF_8));
+        try {
+            Path demo = collection(false);
+            cli("run", demo.toString(), "-e", "staging", "--proxy", address(proxy), "--proxy-user", "bob:pw");
+            assertEquals(bobPw, seen.get(0));
+
+            seen.clear();
+            cli(Map.of("PING_PROXY_PASSWORD", "pw"),
+                    "run", demo.toString(), "-e", "staging", "--proxy", address(proxy), "--proxy-user", "bob");
+            assertEquals(bobPw, seen.get(0));
+        } finally {
+            proxy.stop(0);
+        }
+    }
+
+    @Test
+    void aProxyPasswordNeverAppearsInAReport() throws IOException {
+        java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer proxy = startProxy(seen);
+        try {
+            Path demo = collection(true);
+            cli("run", demo.toString(), "-e", "staging", "-r", "json", "--proxy", address(proxy),
+                    "--proxy-user", "bob:hunter2-proxy");
+            assertFalse(stdout().contains("hunter2-proxy"), stdout());
+            assertFalse(stderr().contains("hunter2-proxy"), stderr());
+        } finally {
+            proxy.stop(0);
+        }
+    }
+
+    @Test
+    void proxyMisuseIsAUsageError() throws IOException {
+        Path demo = collection(false);
+        assertEquals(2, cli("run", demo.toString(), "--no-proxy", "--proxy", "p:1"));
+        assertEquals(2, cli("run", demo.toString(), "--proxy-user", "bob"));
+        assertEquals(2, cli("run", demo.toString(), "--proxy"));
+        assertEquals(2, cli("run", demo.toString(), "--proxy", "socks5://p:1080"));
+        assertTrue(stderr().contains("SOCKS"), stderr());
+    }
 }

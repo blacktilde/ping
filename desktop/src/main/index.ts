@@ -6,6 +6,7 @@ import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
 import { checkBodyFiles, FileGrants, isRelativePath, storedPathFor } from './files'
 import { finishImport, MAX_IMPORT_BYTES } from './importer'
+import { NetworkStore } from './network'
 import { OAuthTokenStore } from './oauth'
 import { absorbCaptures, RuntimeStore } from './runtime'
 import { SecretStore } from './secrets'
@@ -24,6 +25,7 @@ const secrets = new SecretStore()
 const runtime = new RuntimeStore()
 const grants = new FileGrants()
 const history = new HistoryStore()
+const network = new NetworkStore()
 const oauthTokens = new OAuthTokenStore()
 let mainWindow: BrowserWindow | null = null
 /** Set when a close has been approved (renderer confirmed, or the updater is restarting). */
@@ -225,6 +227,17 @@ function withRequestContext(params: unknown): Record<string, unknown> {
     context.cookieScope = cookieScopeFor(current.root, validCollection, validEnvironment)
   }
   return context
+}
+
+/**
+ * The user's proxy, injected into every call that leaves the machine. The renderer's own
+ * `network` is discarded: a proxy sees all traffic and its credentials, so only the settings the
+ * user saved in this app may choose one, never a collection or a compromised renderer.
+ */
+function withNetwork(params: unknown): Record<string, unknown> {
+  const { network: _ignored, ...rest } = (params ?? {}) as Record<string, unknown>
+  const configured = network.forCore()
+  return configured ? { ...rest, network: configured } : rest
 }
 
 /** The scope for a renderer's collection and environment names, or null when no folder is open. */
@@ -477,6 +490,11 @@ function registerIpc(): void {
     return { stored, name: basename(chosen), size: (await stat(chosen)).size }
   })
 
+  // Network settings are the user's, app-global, and never part of a collection. The password is
+  // write-only: `get` reports whether one is set, and only `withNetwork` ever reads it.
+  ipcMain.handle('network:get', () => network.get())
+  ipcMain.handle('network:set', (_event, update: unknown) => network.set(update))
+
   ipcMain.handle('secrets:list', () => secrets.names())
   // The cookie jar lives in the core, keyed by scope. The renderer names a collection and an
   // environment; the shell builds the scope. The core never returns a cookie's value.
@@ -553,6 +571,9 @@ function registerIpc(): void {
       args = checked.params
     }
 
+    if (method === 'http.send' || method === 'auth.authorize' || method.startsWith('run.')) {
+      args = withNetwork(args)
+    }
     if (method === 'http.send' || method === 'auth.authorize') {
       // Secret values are merged last, so they win over anything the files resolved. The
       // renderer never sees them; it only ever sends the non-secret variable map.
@@ -636,6 +657,7 @@ app.whenReady().then(async () => {
   }
   secrets.load()
   history.load()
+  network.load()
   oauthTokens.load()
   createWindow()
   startUpdater((state) => mainWindow?.webContents.send('updates:state', state))

@@ -3,6 +3,8 @@ package dev.ping.run;
 import dev.ping.BuildInfo;
 import dev.ping.auth.TokenCache;
 import dev.ping.http.HttpEngine;
+import dev.ping.http.NetworkConfig;
+import dev.ping.http.ProxyConfig;
 import dev.ping.rpc.RpcException;
 import dev.ping.run.report.Reporter;
 import dev.ping.store.YamlStore;
@@ -12,7 +14,9 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,8 +49,17 @@ public final class Cli {
               -r, --reporter NAME     human (default), json or junit
               -o, --output FILE       write the report to FILE instead of stdout
                   --var NAME=VALUE    set a variable; outranks every other scope. Repeatable
+                  --proxy URL         send requests through an HTTP proxy (host:port or http://...)
+                  --proxy-user USER[:PASS]
+                                      credentials for --proxy; prefer PING_PROXY_PASSWORD to a
+                                      password here, which is visible in the process list
+                  --no-proxy          ignore HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and NO_PROXY
                   --help              show this help
                   --version           show the version
+
+            Proxy: without --proxy or --no-proxy, the HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and
+            NO_PROXY environment variables apply, as they do for curl. Loopback addresses are
+            not exempt unless NO_PROXY lists them.
 
             Secrets: any PING_SECRET_<NAME> environment variable becomes the variable NAME.
             Prefer these to --var, which is visible in the process list.
@@ -77,6 +90,9 @@ public final class Cli {
         String env = null;
         String reporterName = "human";
         String output = null;
+        String proxyUrl = null;
+        String proxyUser = null;
+        boolean noProxy = false;
         Map<String, String> variables = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : environment.entrySet()) {
             String key = entry.getKey();
@@ -104,6 +120,15 @@ public final class Cli {
                     if (i + 1 >= args.length) return usage(err, arg + " needs a value");
                     output = args[++i];
                 }
+                case "--proxy" -> {
+                    if (i + 1 >= args.length) return usage(err, "--proxy needs a value");
+                    proxyUrl = args[++i];
+                }
+                case "--proxy-user" -> {
+                    if (i + 1 >= args.length) return usage(err, "--proxy-user needs USER[:PASS]");
+                    proxyUser = args[++i];
+                }
+                case "--no-proxy" -> noProxy = true;
                 case "--var" -> {
                     if (i + 1 >= args.length) return usage(err, "--var needs NAME=VALUE");
                     String pair = args[++i];
@@ -122,6 +147,12 @@ public final class Cli {
         if (collectionDir == null) {
             return usage(err, "A collection folder is required");
         }
+        if (noProxy && (proxyUrl != null || proxyUser != null)) {
+            return usage(err, "--no-proxy cannot be combined with --proxy or --proxy-user");
+        }
+        if (proxyUser != null && proxyUrl == null) {
+            return usage(err, "--proxy-user needs --proxy");
+        }
         Reporter reporter = Reporter.named(reporterName);
         if (reporter == null) {
             return usage(err, "Unknown reporter \"" + reporterName + "\"; use human, json or junit");
@@ -131,11 +162,19 @@ public final class Cli {
             return usage(err, "Not a collection folder: " + collectionDir);
         }
 
+        NetworkConfig network = network(environment, noProxy, proxyUrl, proxyUser);
+        try {
+            network.router(); // an unusable proxy is a usage error, not one failed request per step
+        } catch (RpcException e) {
+            return usage(err, e.getMessage());
+        }
+
         RunResult result;
         try {
             Runner runner = new Runner(new YamlStore(), new HttpEngine(new TokenCache()));
             result = runner.run(directory.getParent(), directory.getFileName().toString(),
-                    new RunOptions(env, variables, true), null);
+                    new RunOptions(env, variables, true, network),
+                    null);
         } catch (RpcException e) {
             return usage(err, e.getMessage());
         }
@@ -156,6 +195,39 @@ public final class Cli {
             return usage(err, "Could not write " + output + ": " + e.getMessage());
         }
         return result.succeeded() ? EXIT_OK : EXIT_FAILED;
+    }
+
+    /** Environment variables the proxy settings read; nothing else is handed to the engine. */
+    private static final List<String> PROXY_VARIABLES = List.of(
+            "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+            "http_proxy", "https_proxy", "all_proxy", "no_proxy");
+
+    private static NetworkConfig network(
+            Map<String, String> environment, boolean noProxy, String proxyUrl, String proxyUser) {
+        if (noProxy) {
+            return NetworkConfig.NONE;
+        }
+        Map<String, String> proxyEnvironment = new LinkedHashMap<>();
+        for (String name : PROXY_VARIABLES) {
+            if (environment.containsKey(name)) {
+                proxyEnvironment.put(name, environment.get(name));
+            }
+        }
+        if (proxyUrl == null) {
+            return new NetworkConfig(ProxyConfig.system(proxyEnvironment));
+        }
+        String user = null;
+        String password = environment.get("PING_PROXY_PASSWORD");
+        if (proxyUser != null) {
+            int colon = proxyUser.indexOf(':');
+            user = colon < 0 ? proxyUser : proxyUser.substring(0, colon);
+            if (colon >= 0) {
+                password = proxyUser.substring(colon + 1);
+            }
+        }
+        String noProxyList = proxyEnvironment.getOrDefault("NO_PROXY", proxyEnvironment.get("no_proxy"));
+        List<String> bypass = noProxyList == null ? List.of() : Arrays.asList(noProxyList.split("[,\\s]+"));
+        return new NetworkConfig(ProxyConfig.manual(proxyUrl, user, password, bypass));
     }
 
     private static boolean isHelp(String arg) {

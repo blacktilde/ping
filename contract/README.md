@@ -53,7 +53,7 @@ not `http.send`, whose length is the user's to set.
 | `vars.saveCollection`| `{ root, collection, name?, variables? }` | `{}`                     |
 | `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
-| `auth.authorize`| `{ auth, variables? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
+| `auth.authorize`| `{ auth, variables?, network? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
 | `cookies.list`| `{ scope }`               | `{ cookies }` (no values)                           |
 | `cookies.clear`| `{ scope, domain?, name? }` | `{ removed }`                                     |
 | `cookies.clearAll`| none                  | `{}`                                                |
@@ -211,6 +211,38 @@ engine follows redirects itself and because an explicit header has to be able to
 - **Values are credentials.** `cookies.list` returns name, domain, path, flags and expiry, **never the value**.
   Nothing else in the app can hold one: the jar is not part of a request, so history, saved tabs and copied cURL
   never contain it.
+
+### Network
+
+`http.send`, `auth.authorize` and `run.collection` accept a `network` object (see `http.schema.json`). Today it
+holds a **proxy**; client certificates and a connection probe join it in later slices. Like `filesBase` and
+`cookieScope` it is set by the trusted side and never by a collection: the desktop shell reads it from the user's
+own settings and **overwrites whatever the renderer sent**, because a proxy sees every request and its
+credentials. A call with no `network` goes direct, as before.
+
+- **Modes.** `none`; `manual` (an address, optional credentials, a bypass list); `system`, which reads
+  `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY` (either case) from the `env` map the caller supplies.
+  The core never reads its own environment. The shell passes the environment Ping was launched with; the
+  command line passes its own.
+- **What is supported.** HTTP proxies. `java.net.http` cannot tunnel through SOCKS or speak TLS to the proxy, so
+  a `socks5://` or `https://` proxy is `-32602` with a message rather than ignored, which would send a request
+  somewhere the user did not intend. HTTPS requests are tunnelled with `CONNECT`.
+- **Bypass.** `*`, `example.com` (the host and its subdomains), `.example.com`, `*.example.com`, `host:port` and
+  an address are understood; CIDR ranges are not. **Loopback goes through the proxy unless listed**, as with
+  curl. `NO_PROXY=localhost,127.0.0.1` is the usual way to keep a local server direct.
+- **Credentials go to the proxy only.** They are sent up front as `Proxy-Authorization: Basic`, never in answer to
+  a server's `401` (a JDK authenticator hook would turn every origin `401` into a failed request, and could be
+  talked into offering the proxy's password to the origin). The JDK does not forward a `Proxy-*` header into a
+  tunnel, so an HTTPS request's password reaches the proxy in the `CONNECT` and nobody else. A wrong password
+  is the proxy's `407`, returned as the response. An explicit `Proxy-Authorization` header on the request wins.
+  The core enables Basic credentials for `CONNECT` tunnels (`jdk.http.auth.tunneling.disabledSchemes`), which the
+  JDK refuses by default, unless the property is already set.
+- **Timing.** Through a proxy the proxy resolves the origin, so `timing.dnsMs` is `null`.
+- **OAuth2.** The token exchange for a request goes through the same proxy as the request.
+- **`httpVersion`** on a request pins the protocol (`"1.1"`, or `"2"` to *prefer* HTTP/2). It is a property of the
+  request, not the machine, so it lives in the request file; the proxy does not.
+- **Command line.** `--proxy URL`, `--proxy-user USER[:PASS]` (prefer `PING_PROXY_PASSWORD`: argv is visible in
+  the process list) and `--no-proxy`. With none of them the environment's proxy variables apply, as for curl.
 
 ### Files in a request body
 

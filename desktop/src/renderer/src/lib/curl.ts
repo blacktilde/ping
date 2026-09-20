@@ -73,6 +73,11 @@ export function toCurl(draft: RequestDraft, options: CurlOptions = {}): string {
   if (draft.verifyTls === false) {
     lines.push('-k')
   }
+  if (draft.httpVersion === '1.1') {
+    lines.push('--http1.1')
+  } else if (draft.httpVersion === '2') {
+    lines.push('--http2')
+  }
 
   return lines.join(' \\\n  ')
 }

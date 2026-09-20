@@ -233,6 +233,21 @@ class StoreMethodsTest {
     }
 
     @Test
+    void thePinnedHttpVersionSurvivesAYamlRoundTripAndTheDefaultIsOmitted() throws Exception {
+        call("store.write", Map.of("root", workspace.toString(), "path", "a.yaml",
+                "request", Map.of("name", "A", "method", "GET", "url", "https://example.com", "httpVersion", "1.1")));
+        String yaml = Files.readString(workspace.resolve("a.yaml"));
+        assertTrue(yaml.contains("httpVersion: \"1.1\"") || yaml.contains("httpVersion: '1.1'")
+                || yaml.contains("httpVersion: 1.1"), yaml);
+        assertEquals("1.1", call("store.read", Map.of("root", workspace.toString(), "path", "a.yaml"))
+                .path("result").path("httpVersion").asText());
+
+        call("store.write", Map.of("root", workspace.toString(), "path", "b.yaml",
+                "request", Map.of("name", "B", "method", "GET", "url", "https://example.com")));
+        assertFalse(Files.readString(workspace.resolve("b.yaml")).contains("httpVersion"));
+    }
+
+    @Test
     void theCookieOptOutSurvivesAYamlRoundTripAndTheDefaultIsOmitted() throws Exception {
         call("store.write", Map.of("root", workspace.toString(), "path", "a.yaml",
                 "request", Map.of("name", "A", "method", "GET", "url", "https://example.com", "cookies", false)));

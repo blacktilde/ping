@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { HistoryEntry } from '../shared/history'
 import type { CookieView } from '../shared/cookies'
 import type { ImportReport } from '../shared/import'
+import type { NetworkSettings, NetworkUpdate } from '../shared/network'
 import type { UpdateState } from '../shared/updates'
 
 /** A core failure in transit. `code` is null when the failure was not a JSON-RPC error. */
@@ -98,6 +99,20 @@ const api = {
     },
     remove(name: string): Promise<void> {
       return ipcRenderer.invoke('secrets:delete', name) as Promise<void>
+    }
+  },
+
+  /**
+   * The user's proxy settings, app-global and kept by the shell. The password is write-only: `get`
+   * says whether one is set, and only the main process ever reads it, when it adds the proxy to a
+   * call. A collection cannot set any of this.
+   */
+  network: {
+    get(): Promise<NetworkSettings> {
+      return ipcRenderer.invoke('network:get') as Promise<NetworkSettings>
+    },
+    set(update: NetworkUpdate): Promise<NetworkSettings> {
+      return ipcRenderer.invoke('network:set', update) as Promise<NetworkSettings>
     }
   },
 

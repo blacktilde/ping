@@ -53,7 +53,7 @@ public final class CurlImporter {
             "--retry-max-time", "--time-cond", "--user-cert");
 
     private static final Set<String> LONG_UNSUPPORTED = Set.of(
-            "--http2", "--http1.1", "--http1.0", "--http2-prior-knowledge", "--http3",
+            "--http1.0", "--http2-prior-knowledge", "--http3",
             "--digest", "--ntlm", "--negotiate", "--anyauth", "--proxy-insecure");
 
     private static final Pattern SENSITIVE_HEADER = Pattern.compile(
@@ -102,6 +102,7 @@ public final class CurlImporter {
         private boolean get;
         private boolean follow;
         private boolean insecure;
+        private String httpVersion;
         private boolean json;
         private Integer timeoutMs;
         private RequestSpec.Auth auth;
@@ -162,8 +163,7 @@ public final class CurlImporter {
                     if (SHORT_MAPPED_ARG.indexOf(option) >= 0) {
                         mapped(name, argument);
                     } else {
-                        warnings.add("Ignored " + name + " " + argument
-                                + ": it has no equivalent in a request");
+                        warnings.add("Ignored " + name + " " + argument + ": " + ignoredReason(name));
                     }
                     return;
                 }
@@ -190,13 +190,17 @@ public final class CurlImporter {
                 mapped(name, inline != null ? inline : value(name));
             } else if (LONG_IGNORED_ARG.contains(name)) {
                 String argument = inline != null ? inline : value(name);
-                warnings.add("Ignored " + name + " " + argument + ": it has no equivalent in a request");
+                warnings.add("Ignored " + name + " " + argument + ": " + ignoredReason(name));
             } else if (LONG_UNSUPPORTED.contains(name)) {
                 warnings.add("Ignored " + name + ": not supported yet");
             } else if (name.equals("--location") || name.equals("--location-trusted")) {
                 follow = true;
             } else if (name.equals("--insecure")) {
                 insecure = true;
+            } else if (name.equals("--http1.1")) {
+                httpVersion = "1.1";
+            } else if (name.equals("--http2")) {
+                httpVersion = "2";
             } else if (name.equals("--get")) {
                 get = true;
             } else if (name.equals("--head")) {
@@ -204,6 +208,20 @@ public final class CurlImporter {
             } else if (!QUIET.contains(name)) {
                 warnings.add("Ignored unknown curl option " + name);
             }
+        }
+
+        /**
+         * A proxy or client certificate is a property of the machine, not of a request, so it is
+         * kept out of request files, which are shared; the app's Network settings hold it.
+         */
+        private static String ignoredReason(String option) {
+            return switch (option) {
+                case "-x", "--proxy", "--proxy-user", "-U", "--proxy-header" ->
+                        "a proxy is set in Network settings, not in a request";
+                case "-E", "--cert", "--key", "--cert-type", "--key-type", "--pass", "--user-cert" ->
+                        "a client certificate is not part of a request";
+                default -> "it has no equivalent in a request";
+            };
         }
 
         private void mapped(String option, String argument) {
@@ -405,7 +423,8 @@ public final class CurlImporter {
 
             StoredRequest request = new StoredRequest(
                     nameOf(target), resolvedMethod, target, query, headers, body, auth,
-                    timeoutMs, follow ? "normal" : null, insecure ? Boolean.FALSE : null, null, null, null, null, null);
+                    timeoutMs, follow ? "normal" : null, insecure ? Boolean.FALSE : null, null, null, null, null, null,
+                    httpVersion);
             return new ImportResult(request, warnings);
         }
 

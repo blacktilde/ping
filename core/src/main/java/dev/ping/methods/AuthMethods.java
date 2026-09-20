@@ -27,7 +27,8 @@ public final class AuthMethods {
                 new TokenClient(), cache, params -> server.notification("auth.completed", params));
 
         server.register("auth.authorize", params ->
-                flow.start(parseAuth(params == null ? null : params.get("auth")), variables(params)));
+                flow.start(parseAuth(params == null ? null : params.get("auth")), variables(params),
+                        HttpMethods.network(params)));
     }
 
     private static RequestSpec.Auth parseAuth(JsonNode node) {
