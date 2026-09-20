@@ -6,10 +6,37 @@
   interface Props {
     onClose: () => void
     onSave: () => void
-    onAddEnvironment: () => void
+    onAddEnvironment: (name: string) => void
   }
 
   let { onClose, onSave, onAddEnvironment }: Props = $props()
+
+  // `window.prompt` is not supported in Electron, so naming an environment happens inline,
+  // the same way the sidebar names a new collection.
+  let naming = $state(false)
+  let name = $state('')
+  let nameInput = $state<HTMLInputElement>()
+
+  function startNaming(): void {
+    naming = true
+    name = ''
+  }
+
+  function submitName(event: SubmitEvent): void {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      return
+    }
+    naming = false
+    onAddEnvironment(trimmed)
+  }
+
+  $effect(() => {
+    if (naming) {
+      queueMicrotask(() => nameInput?.focus())
+    }
+  })
 </script>
 
 <aside
@@ -53,14 +80,28 @@
     <section>
       <div class="flex items-center justify-between px-3 py-2">
         <h3 class="text-xs uppercase tracking-wide text-fg-muted">Environment</h3>
-        <button
-          type="button"
-          onclick={onAddEnvironment}
-          class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
-                 hover:text-fg"
-        >
-          + New
-        </button>
+        {#if naming}
+          <form class="flex items-center gap-1" onsubmit={submitName}>
+            <input
+              bind:this={nameInput}
+              bind:value={name}
+              aria-label="Environment name"
+              placeholder="Environment name"
+              class="min-w-0 w-36 rounded-md border border-line bg-base px-2 py-1 text-xs
+                     outline-none transition focus:border-accent"
+            />
+            <button type="submit" class="rounded-md px-2 py-1 text-xs text-accent">Create</button>
+          </form>
+        {:else}
+          <button
+            type="button"
+            onclick={startNaming}
+            class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                   hover:text-fg"
+          >
+            + New
+          </button>
+        {/if}
       </div>
       {#if variables.environment}
         <div class="h-52">

@@ -106,8 +106,15 @@ public final class RpcServer {
         } catch (RpcException e) {
             writeError(idNode, e.code(), e.getMessage());
         } catch (Throwable t) {
+            // The stack goes to stderr for the `[core]` log; the renderer gets a message
+            // that names the failure without exposing Java internals or file paths.
             t.printStackTrace(System.err);
-            writeError(idNode, RpcException.INTERNAL_ERROR, t.toString());
+            String name = t.getClass().getSimpleName();
+            String detail = t.getMessage();
+            String message = detail == null || detail.isBlank()
+                    ? "Internal error: " + name
+                    : "Internal error: " + name + ": " + detail;
+            writeError(idNode, RpcException.INTERNAL_ERROR, message);
         }
     }
 

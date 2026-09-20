@@ -31,11 +31,11 @@ import java.nio.charset.UnsupportedCharsetException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.concurrent.CancellationException;
@@ -114,7 +114,11 @@ public final class HttpEngine {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .executor(Executors.newVirtualThreadPerTaskExecutor())
                 .connectTimeout(Duration.ofMillis(spec.timeoutOrDefault()))
-                .followRedirects(redirectPolicy(spec.redirects()));
+                // Redirects are followed by {@link #send}, which rebuilds each hop so
+                // credentials can be dropped when a redirect changes host. The JDK client
+                // must not follow them itself: {@code Redirect.NORMAL} replays every
+                // header, including Authorization, to the redirect target.
+                .followRedirects(HttpClient.Redirect.NEVER);
 
         if (!spec.verifyTlsOrDefault()) {
             builder.sslContext(trustAllContext()).sslParameters(noHostnameVerification());
@@ -122,6 +126,9 @@ public final class HttpEngine {
         return builder.build();
     }
 
+    /**
+     * Parses the redirect policy, rejecting an unknown value as bad input at dispatch time.
+     */
     private static HttpClient.Redirect redirectPolicy(String value) {
         if (value == null) {
             return HttpClient.Redirect.NORMAL;
@@ -174,12 +181,43 @@ public final class HttpEngine {
             HttpResponse<InputStream> response = future.join();
             long ttfbMs = millisSince(startedAt);
 
+            redirectPolicy(spec.redirects()); // validates unknown policies
+            List<ResponseData.Redirect> redirects = new ArrayList<>();
+            int hops = 0;
+            while (follows(spec.redirects()) && isRedirect(response.statusCode())
+                    && hops < MAX_REDIRECTS) {
+                URI location = redirectLocation(response, request.uri());
+                if (location == null) {
+                    break;
+                }
+                hops++;
+                redirects.add(new ResponseData.Redirect(
+                        response.statusCode(),
+                        request.uri().toString(),
+                        response.headers().firstValue("location").orElse(null)));
+                closeQuietly(response.body());
+                boolean crossHost = !sameOrigin(location, request.uri());
+                // "always" is the escape hatch that follows without filtering; every other
+                // policy drops credentials cross-host.
+                boolean dropCredentials =
+                        crossHost && !"always".equals(policyName(spec.redirects()));
+                request = redirectRequest(
+                        request, location, response.statusCode(), spec, variables,
+                        dropCredentials);
+                future = client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
+                exchange.future(future);
+                if (exchange.cancelled().get()) {
+                    future.cancel(true);
+                }
+                response = future.join();
+            }
+
             long bodyStartedAt = System.nanoTime();
-            Payload payload = readBody(response.body(), spec.maxBodyBytesOrDefault());
+            Payload payload = readBody(response.body(), spec.maxBodyBytesOrDefault(), exchange);
             long downloadMs = millisSince(bodyStartedAt);
 
             return assemble(response, payload, new ResponseData.Timing(
-                    dnsMs, ttfbMs, downloadMs, millisSince(startedAt)));
+                    dnsMs, ttfbMs, downloadMs, millisSince(startedAt)), redirects);
         } catch (CancellationException e) {
             throw cancelledException();
         } catch (CompletionException e) {
@@ -215,6 +253,99 @@ public final class HttpEngine {
 
     private static RpcException cancelledException() {
         return new RpcException(RpcException.REQUEST_CANCELLED, "Request cancelled");
+    }
+
+    // --- redirect following ---------------------------------------------------------------
+
+    /** A chain this long is a loop, not a redirect. */
+    private static final int MAX_REDIRECTS = 20;
+
+    /** Credential headers are never replayed to a different host than the one that asked. */
+    private static final List<String> CREDENTIAL_HEADERS =
+            List.of("authorization", "proxy-authorization", "cookie");
+
+    private static boolean follows(String policy) {
+        return !"never".equalsIgnoreCase(policyName(policy));
+    }
+
+    private static String policyName(String policy) {
+        return policy == null ? "normal" : policy.toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private static URI redirectLocation(HttpResponse<?> response, URI requested) {
+        String location = response.headers().firstValue("location").orElse(null);
+        if (location == null || location.isBlank()) {
+            return null;
+        }
+        try {
+            return requested.resolve(location);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Scheme, host and effective port decide "a different host", not the path. */
+    private static boolean sameOrigin(URI a, URI b) {
+        return a.getScheme().equalsIgnoreCase(b.getScheme())
+                && a.getHost().equalsIgnoreCase(b.getHost())
+                && effectivePort(a) == effectivePort(b);
+    }
+
+    private static int effectivePort(URI uri) {
+        if (uri.getPort() != -1) {
+            return uri.getPort();
+        }
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
+    /**
+     * Rebuilds the exchange for one redirect hop.
+     *
+     * <p>301, 302 and 303 downgrade any method that carried a body to GET, the way every
+     * major client does; 307 and 308 keep the method and re-send the body. Headers are
+     * copied from the outgoing request, minus the credential headers when the hop changes
+     * host — an open redirect must not become an exfiltration channel for a bearer token.
+     */
+    private static HttpRequest redirectRequest(
+            HttpRequest original, URI location, int status, RequestSpec spec,
+            Map<String, String> variables, boolean dropCredentials) {
+
+        String method = original.method();
+        boolean keepMethod = status == 307 || status == 308
+                || method.equalsIgnoreCase("GET") || method.equalsIgnoreCase("HEAD");
+        if (!keepMethod) {
+            method = "GET";
+        }
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder(location)
+                .timeout(original.timeout().orElse(null));
+        for (Map.Entry<String, List<String>> header : original.headers().map().entrySet()) {
+            if (dropCredentials && CREDENTIAL_HEADERS.contains(header.getKey().toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            for (String value : header.getValue()) {
+                builder.header(header.getKey(), value);
+            }
+        }
+        // The original publisher has already been subscribed to by the client, so the body
+        // is rebuilt rather than replayed; a method that dropped its body sends none.
+        HttpRequest.BodyPublisher body = keepMethod
+                ? buildBody(spec.body(), variables).publisher()
+                : HttpRequest.BodyPublishers.noBody();
+        builder.method(method, body);
+        return builder.build();
+    }
+
+    private static void closeQuietly(InputStream stream) {
+        try {
+            stream.close();
+        } catch (IOException e) {
+            // The hop is over; a close failure on a discard body is not worth reporting.
+        }
     }
 
     // --- request construction ------------------------------------------------------------
@@ -387,8 +518,12 @@ public final class HttpEngine {
     /**
      * Buffers up to {@code cap} bytes and keeps counting past it, so the UI can report the
      * true size of a response it is not going to display.
+     *
+     * <p>Cancelling the exchange's future only aborts connect and headers: by the time
+     * {@code join()} returns, the body is a plain blocking stream. The read loop therefore
+     * watches the cancelled intent itself and closes the stream mid-download.
      */
-    private static Payload readBody(InputStream stream, int cap) throws IOException {
+    private Payload readBody(InputStream stream, int cap, Exchange exchange) throws IOException {
         ByteArrayOutputStream kept = new ByteArrayOutputStream();
         byte[] chunk = new byte[8192];
         long total = 0;
@@ -396,6 +531,9 @@ public final class HttpEngine {
         try (stream) {
             int read;
             while ((read = stream.read(chunk)) != -1) {
+                if (exchange.cancelled().get()) {
+                    throw cancelledException();
+                }
                 total += read;
                 int room = cap - kept.size();
                 if (room > 0) {
@@ -407,7 +545,8 @@ public final class HttpEngine {
     }
 
     private static ResponseData assemble(
-            HttpResponse<InputStream> response, Payload payload, ResponseData.Timing timing) {
+            HttpResponse<InputStream> response, Payload payload, ResponseData.Timing timing,
+            List<ResponseData.Redirect> redirects) {
 
         List<ResponseData.Header> headers = new ArrayList<>();
         response.headers().map().forEach((name, values) ->
@@ -420,9 +559,10 @@ public final class HttpEngine {
 
         // Truncated text is still worth showing; the flag tells the UI it is partial.
         String content = textual ? new String(payload.kept(), charset) : null;
+        String base64 = textual ? null : Base64.getEncoder().encodeToString(payload.kept());
 
         ResponseData.BodyData body = new ResponseData.BodyData(
-                content, payload.truncated(), payload.total(), textual,
+                content, base64, payload.truncated(), payload.total(), textual,
                 contentType, charset.name());
 
         return new ResponseData(
@@ -431,23 +571,7 @@ public final class HttpEngine {
                 headers,
                 body,
                 timing,
-                redirectChain(response));
-    }
-
-    /** {@code previousResponse} walks backwards, so the collected chain is reversed to oldest-first. */
-    private static List<ResponseData.Redirect> redirectChain(HttpResponse<?> response) {
-        List<ResponseData.Redirect> chain = new ArrayList<>();
-        Optional<? extends HttpResponse<?>> previous = response.previousResponse();
-
-        while (previous.isPresent()) {
-            HttpResponse<?> hop = previous.get();
-            chain.add(new ResponseData.Redirect(
-                    hop.statusCode(),
-                    hop.uri().toString(),
-                    hop.headers().firstValue("location").orElse(null)));
-            previous = hop.previousResponse();
-        }
-        return chain.reversed();
+                redirects);
     }
 
     private static boolean isTextual(String contentType) {

@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { writeFileSyncAtomic } from './atomic'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 
@@ -51,7 +52,7 @@ export class OAuthTokenStore {
       return
     }
     try {
-      writeFileSync(this.file(), safeStorage.encryptString(JSON.stringify(Object.fromEntries(this.tokens))))
+      writeFileSyncAtomic(this.file(), safeStorage.encryptString(JSON.stringify(Object.fromEntries(this.tokens))))
     } catch (error) {
       process.stderr.write(`[oauth] could not write tokens: ${String(error)}\n`)
     }

@@ -137,6 +137,10 @@
               "type": ["string", "null"],
               "description": "Decoded text, or null when the payload is not textual."
             },
+            "base64": {
+              "type": ["string", "null"],
+              "description": "The kept payload bytes as base64, for non-textual bodies. Null for textual bodies. Images and other binaries use this to preview and to save."
+            },
             "truncated": { "type": "boolean" },
             "bytes": {
               "type": "integer",

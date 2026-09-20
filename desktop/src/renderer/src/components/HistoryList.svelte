@@ -34,8 +34,8 @@
 
   function tone(entry: HistoryEntry): string {
     if (entry.outcome === 'cancelled') return 'text-fg-faint'
-    if (entry.outcome === 'error' || (entry.status ?? 0) >= 400) return 'text-red-400'
-    return 'text-emerald-400'
+    if (entry.outcome === 'error' || (entry.status ?? 0) >= 400) return 'text-danger'
+    return 'text-success'
   }
 
   function label(entry: HistoryEntry): string {

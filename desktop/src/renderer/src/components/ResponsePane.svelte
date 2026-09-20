@@ -11,13 +11,19 @@
   interface Props {
     response: HttpResponse | null
     inFlight: boolean
+    suggestedName?: string
   }
 
-  let { response, inFlight }: Props = $props()
+  let { response, inFlight, suggestedName = 'response' }: Props = $props()
 
   let tab = $state('body')
+  let saveStatus = $state('')
+  let saveStatusTimer: number | undefined
 
   const cookies = $derived(response ? parseCookies(response.headers) : [])
+  const extension = $derived(extensionFor(response?.body.contentType))
+  const suggestedFile = $derived(`${suggestedName}${extension}`)
+
   const tabs: { id: string; label: string; badge: string | null }[] = $derived([
     { id: 'body', label: 'Body', badge: null },
     {
@@ -28,6 +34,45 @@
     { id: 'cookies', label: 'Cookies', badge: cookies.length > 0 ? String(cookies.length) : null },
     { id: 'timing', label: 'Timing', badge: null }
   ])
+
+  async function save(): Promise<void> {
+    if (!response) {
+      return
+    }
+    const payload =
+      response.body.textual || response.body.content != null
+        ? { suggestedName: suggestedFile, text: response.body.content ?? '' }
+        : { suggestedName: suggestedFile, base64: response.body.base64 ?? '' }
+    try {
+      const path = await window.ping.saveResponse(payload)
+      showSave(path ? `Saved to ${path}` : 'Save cancelled')
+    } catch (cause) {
+      showSave(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  function showSave(message: string): void {
+    saveStatus = message
+    window.clearTimeout(saveStatusTimer)
+    saveStatusTimer = window.setTimeout(() => (saveStatus = ''), 2500)
+  }
+
+  /** Best-effort extension for the save dialog; the user can always change it there. */
+  function extensionFor(contentType: string | null | undefined): string {
+    const type = (contentType ?? '').toLowerCase()
+    if (type.includes('json')) return '.json'
+    if (type.includes('html')) return '.html'
+    if (type.includes('xml')) return '.xml'
+    if (type.includes('pdf')) return '.pdf'
+    if (type.includes('png')) return '.png'
+    if (type.includes('gif')) return '.gif'
+    if (type.includes('jpeg') || type.includes('jpg')) return '.jpg'
+    if (type.includes('svg')) return '.svg'
+    if (type.includes('webp')) return '.webp'
+    if (type.includes('zip')) return '.zip'
+    if (type.startsWith('text/')) return '.txt'
+    return ''
+  }
 </script>
 
 <section
@@ -52,6 +97,40 @@
       {#if response.body.contentType}
         <span class="truncate text-fg-faint">{response.body.contentType}</span>
       {/if}
+      <div class="relative ml-auto flex shrink-0 items-center gap-2">
+        {#if saveStatus}
+          <span
+            role="status"
+            data-role="save-status"
+            class="pointer-events-none absolute right-0 -top-7 max-w-72 truncate whitespace-nowrap
+                   rounded-md border border-line bg-panel px-2 py-1 text-xs text-fg-muted shadow-lg"
+          >
+            {saveStatus}
+          </span>
+        {/if}
+        <button
+          type="button"
+          onclick={() => void save()}
+          aria-label="Save response body"
+          title="Save response body"
+          class="rounded-md p-1 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
+      </div>
     </header>
 
     <Tabs tabs={tabs} bind:active={tab} idPrefix="response" />

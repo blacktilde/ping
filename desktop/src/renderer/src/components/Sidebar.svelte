@@ -272,7 +272,7 @@
                   confirming = null
                   onDelete(node)
                 }}
-                class="mr-1 rounded px-1.5 text-xs font-medium text-red-400 transition
+                class="mr-1 rounded px-1.5 text-xs font-medium text-danger transition
                        hover:bg-line/60"
               >
                 Delete
@@ -290,7 +290,7 @@
                 onclick={() => (confirming = node.path)}
                 aria-label="Delete {node.name}"
                 class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
-                       group-hover:opacity-100 hover:text-red-400"
+                       group-hover:opacity-100 hover:text-danger"
               >
                 ×
               </button>
@@ -314,7 +314,7 @@
                   confirming = null
                   onDelete(node)
                 }}
-                class="mr-1 rounded px-1.5 text-xs font-medium text-red-400 transition
+                class="mr-1 rounded px-1.5 text-xs font-medium text-danger transition
                        hover:bg-line/60"
               >
                 Delete
@@ -361,7 +361,7 @@
                 onclick={() => (confirming = node.path)}
                 aria-label="Delete {node.name}"
                 class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
-                       group-hover:opacity-100 hover:text-red-400"
+                       group-hover:opacity-100 hover:text-danger"
               >
                 ×
               </button>

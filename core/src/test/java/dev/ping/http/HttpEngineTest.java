@@ -234,6 +234,59 @@ class HttpEngineTest {
     }
 
     @Test
+    void keepsCredentialsOnASameHostRedirect() {
+        AtomicReference<String> seen = new AtomicReference<>();
+        handle("/start", exchange -> {
+            exchange.getResponseHeaders().add("Location", baseUrl + "/end");
+            respond(exchange, 302, null, "");
+        });
+        handle("/end", exchange -> {
+            seen.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            respond(exchange, 200, "text/plain", "arrived");
+        });
+
+        engine.send(get("/start").header("Authorization", "Bearer secret").build());
+
+        assertEquals("Bearer secret", seen.get());
+    }
+
+    @Test
+    void dropsCredentialsOnACrossHostRedirect() {
+        // A second server is the only way to make a genuine cross-host redirect on loopback.
+        HttpServer other = null;
+        try {
+            other = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            other.setExecutor(Executors.newCachedThreadPool());
+            other.start();
+            String otherUrl = "http://127.0.0.1:" + other.getAddress().getPort() + "/landing";
+            AtomicReference<String> seen = new AtomicReference<>();
+            other.createContext("/landing", exchange -> {
+                try (exchange) {
+                    seen.set(exchange.getRequestHeaders().getFirst("Authorization"));
+                    respond(exchange, 200, "text/plain", "arrived");
+                }
+            });
+
+            handle("/away", exchange -> {
+                exchange.getResponseHeaders().add("Location", otherUrl);
+                respond(exchange, 302, null, "");
+            });
+
+            ResponseData response = engine.send(get("/away").header("Authorization", "Bearer secret").build());
+
+            assertEquals(200, response.status());
+            assertEquals("arrived", response.body().content());
+            assertNull(seen.get());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (other != null) {
+                other.stop(0);
+            }
+        }
+    }
+
+    @Test
     void countsOversizedBodiesWithoutBufferingThemWhole() {
         byte[] payload = "x".repeat(5000).getBytes(StandardCharsets.UTF_8);
         handle("/big", exchange -> respond(exchange, 200, "text/plain", payload));

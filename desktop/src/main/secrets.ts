@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { writeFileSyncAtomic } from './atomic'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 
@@ -58,7 +59,7 @@ export class SecretStore {
       return
     }
     try {
-      writeFileSync(this.file(), safeStorage.encryptString(JSON.stringify(this.all())))
+      writeFileSyncAtomic(this.file(), safeStorage.encryptString(JSON.stringify(this.all())))
     } catch (error) {
       process.stderr.write(`[secrets] could not write the secret store: ${String(error)}\n`)
     }

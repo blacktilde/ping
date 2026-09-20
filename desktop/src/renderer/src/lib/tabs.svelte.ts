@@ -7,13 +7,15 @@
  * module-level value now lives on the tab it belongs to.
  *
  * The list is deeply reactive (`$state`), so `tab.draft.query` and friends stay bindable by
- * the editor components exactly as the old singleton draft was. Tabs live only for the
- * session; the files they point at are the durable part.
+ * the editor components exactly as the old singleton draft was. Open tabs and drafts
+ * persist across restarts.
  */
 
 import type { HttpResponse, RequestDraft } from './http'
 import { newDraft } from './request'
 import { draftKey } from './store'
+
+const STORAGE_KEY = 'ping.tabs'
 
 export interface RequestTab {
   id: string
@@ -92,12 +94,14 @@ export function openTab(init: Partial<Pick<RequestTab, 'draft' | 'path' | 'saved
     reused.id = current.id
     Object.assign(current, reused)
     tabs.activeId = current.id
+    persist()
     return current
   }
 
   const tab = makeTab(init)
   tabs.list.push(tab)
   tabs.activeId = tab.id
+  persist()
   return tab
 }
 
@@ -106,12 +110,14 @@ export function newTab(): RequestTab {
   const tab = makeTab()
   tabs.list.push(tab)
   tabs.activeId = tab.id
+  persist()
   return tab
 }
 
 export function activateTab(id: string): void {
   if (tabs.list.some((tab) => tab.id === id)) {
     tabs.activeId = id
+    persist()
   }
 }
 
@@ -133,6 +139,7 @@ export function closeTab(id: string): RequestTab | undefined {
   if (tabs.list.length === 0) {
     newTab()
   }
+  persist()
   return removed
 }
 
@@ -145,7 +152,91 @@ export function closeTabsUnder(path: string): RequestTab[] {
 
 /** Seeds the workspace with one empty tab so the editor is never blank. */
 export function ensureTab(): void {
-  if (tabs.list.length === 0) {
+  if (!restore()) {
     newTab()
+  }
+  persist()
+}
+
+/**
+ * Rebuilds the tab list saved by a previous session. Responses are not restored — they
+ * are stale snapshots of an exchange by definition.
+ *
+ * @returns false when there was nothing usable to restore, so the caller seeds a fresh tab
+ */
+function restore(): boolean {
+  let saved: unknown
+  try {
+    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
+  } catch {
+    return false
+  }
+  if (!saved || typeof saved !== 'object') {
+    return false
+  }
+  const { list, activeId } = saved as { list?: unknown; activeId?: unknown }
+  if (!Array.isArray(list)) {
+    return false
+  }
+  const restored: RequestTab[] = []
+  for (const item of list.slice(0, MAX_RESTORED_TABS)) {
+    const tab = revive(item)
+    if (tab) {
+      restored.push(tab)
+    }
+  }
+  if (restored.length === 0) {
+    return false
+  }
+  tabs.list = restored
+  tabs.activeId = restored.some((tab) => tab.id === activeId)
+    ? (activeId as string)
+    : restored[0].id
+  return true
+}
+
+const MAX_RESTORED_TABS = 20
+
+function revive(item: unknown): RequestTab | undefined {
+  if (!item || typeof item !== 'object') {
+    return undefined
+  }
+  const record = item as { draft?: unknown; path?: unknown; id?: unknown }
+  if (!record.draft || typeof record.draft !== 'object') {
+    return undefined
+  }
+  const draft = record.draft as RequestDraft
+  if (typeof draft.url !== 'string' || typeof draft.name !== 'string') {
+    return undefined
+  }
+  return {
+    id: typeof record.id === 'string' && record.id ? record.id : crypto.randomUUID(),
+    draft,
+    path: typeof record.path === 'string' ? record.path : null,
+    savedKey: record.path != null ? draftKey(draft) : null,
+    response: null,
+    error: '',
+    cancelled: false,
+    inFlight: false,
+    requestId: '',
+    editorTab: 'params',
+    authStatus: ''
+  }
+}
+
+/** Rebuilt tab state saved after every change; responses are left out on purpose. */
+function persist(): void {
+  const snapshot = {
+    activeId: tabs.activeId,
+    list: tabs.list.slice(0, MAX_RESTORED_TABS).map((tab) => ({
+      id: tab.id,
+      path: tab.path,
+      draft: $state.snapshot(tab.draft)
+    }))
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+  } catch {
+    // Not worth failing the UI over: the worst case is starting with a clean slate.
   }
 }

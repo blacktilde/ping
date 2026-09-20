@@ -12,6 +12,9 @@
 
   let { tabs, activeId, onActivate, onClose, onNew }: Props = $props()
 
+  /** Shortcut hints must say which modifier this machine actually uses. */
+  const mod = navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl+'
+
   // The tab whose name is being edited inline, if any.
   let renaming = $state<string | null>(null)
   let renameValue = $state('')
@@ -145,7 +148,7 @@
     type="button"
     onclick={onNew}
     aria-label="New request tab"
-    title="New request tab (⌘T)"
+    title={`New request tab (${mod}T)`}
     class="my-1 shrink-0 rounded-md px-2 text-lg leading-none text-fg-faint transition
            hover:bg-line/60 hover:text-fg"
   >
