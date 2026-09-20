@@ -6,6 +6,7 @@
     installUpdate,
     updates
   } from '../lib/updates.svelte'
+  import { confirmDialog } from '../lib/confirm.svelte'
 
   interface Props {
     /** True when a close would discard a tab with unsaved changes. */
@@ -62,9 +63,15 @@
     dismissUpdate()
   }
 
-  function install(): void {
-    if (hasUnsaved && !confirm('You have unsaved changes. Restart and install anyway?')) {
-      return
+  async function install(): Promise<void> {
+    if (hasUnsaved) {
+      const proceed = await confirmDialog('You have unsaved changes. Restart and install anyway?', {
+        confirmLabel: 'Restart & install',
+        destructive: true
+      })
+      if (!proceed) {
+        return
+      }
     }
     void installUpdate()
   }

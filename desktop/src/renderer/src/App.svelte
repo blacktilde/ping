@@ -5,6 +5,7 @@
   import { toCurl } from './lib/curl'
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
+  import { confirmDialog } from './lib/confirm.svelte'
   import { enabledCount, METHODS, toRequestSpec } from './lib/request'
   import {
     activeTab,
@@ -55,6 +56,7 @@
   import Tabs from './components/Tabs.svelte'
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
+  import ConfirmDialog from './components/ConfirmDialog.svelte'
   import UpdateBanner from './components/UpdateBanner.svelte'
   import appIcon from '../../../build/icon.png'
   import type { HistoryEntry } from '../../shared/history'
@@ -184,9 +186,14 @@
         void window.ping.confirmClose()
         return
       }
-      if (confirm('You have unsaved changes. Close anyway?')) {
-        void window.ping.confirmClose()
-      }
+      void confirmDialog('You have unsaved changes. Close anyway?', {
+        confirmLabel: 'Close',
+        destructive: true
+      }).then((answer) => {
+        if (answer) {
+          void window.ping.confirmClose()
+        }
+      })
     })
   })
 
@@ -224,8 +231,14 @@
       }
       // Tabs point at paths in the old workspace, so they cannot survive the switch —
       // but unsaved edits are the user's, not ours to discard silently.
-      if (anyDirty && !confirm('Switching folders discards unsaved changes in all tabs. Continue?')) {
-        return
+      if (anyDirty) {
+        const proceed = await confirmDialog(
+          'Switching folders discards unsaved changes in all tabs. Continue?',
+          { confirmLabel: 'Discard & switch', destructive: true }
+        )
+        if (!proceed) {
+          return
+        }
       }
       workspaceRoot = workspace.root
       closeAllTabs()
@@ -273,13 +286,14 @@
         draftKey(tab.draft) !== tab.savedKey &&
         (tab.path === node.path || tab.path?.startsWith(node.path + '/'))
     )
-    if (
-      doomed.length > 0 &&
-      !confirm(
-        `Deleting this discards unsaved changes in ${doomed.length === 1 ? 'a tab' : `${doomed.length} tabs`}. Continue?`
+    if (doomed.length > 0) {
+      const proceed = await confirmDialog(
+        `Deleting this discards unsaved changes in ${doomed.length === 1 ? 'a tab' : `${doomed.length} tabs`}. Continue?`,
+        { confirmLabel: 'Discard & delete', destructive: true }
       )
-    ) {
-      return
+      if (!proceed) {
+        return
+      }
     }
     try {
       await deleteEntry(node.path)
@@ -374,14 +388,20 @@
   }
 
   /** Closes a tab, cancelling its exchange and confirming before discarding unsaved work. */
-  function closeRequestTab(id: string): void {
+  async function closeRequestTab(id: string): Promise<void> {
     const tab = tabs.list.find((candidate) => candidate.id === id)
     if (!tab) {
       return
     }
     const unsaved = tab.savedKey !== null && draftKey(tab.draft) !== tab.savedKey
-    if (unsaved && !confirm('Discard unsaved changes?')) {
-      return
+    if (unsaved) {
+      const discard = await confirmDialog('Discard unsaved changes?', {
+        confirmLabel: 'Discard changes',
+        destructive: true
+      })
+      if (!discard) {
+        return
+      }
     }
     if (tab.requestId) {
       void cancelRequest(tab.requestId).catch(() => {})
@@ -1079,4 +1099,6 @@
   {/if}
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
+
+  <ConfirmDialog />
 </div>

@@ -293,6 +293,23 @@ try {
     throw new Error(`timed out waiting for ${label}`)
   }
 
+  /**
+   * Unsaved-changes prompts are the styled in-app dialog, not a native `confirm`, so the
+   * script answers it in the DOM the way a person would. Resolves false when no prompt
+   * turned up, so actions that may or may not need confirmation stay one call.
+   */
+  async function acceptPrompt(timeoutMs = 2000) {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (await evaluate(`!!document.querySelector('[data-role="confirm-accept"]')`)) {
+        await evaluate(`document.querySelector('[data-role="confirm-accept"]').click()`)
+        return true
+      }
+      await wait(100)
+    }
+    return false
+  }
+
   function echo(bodyText) {
     try {
       return JSON.parse(bodyText)
@@ -840,13 +857,13 @@ try {
   check('opens the first request in a tab', (await tabCount()) === 1, String(await tabCount()))
 
   // A second request from the tree opens alongside the first, not in place of it.
-  await evaluate(`window.confirm = () => true`)
   const firstTabUrl = await evaluate(
     `document.querySelector('input[aria-label="Request URL"]')?.value`
   )
   await evaluate(
     `[...document.querySelectorAll('[data-node-type="request"] button')].find(b => b.textContent.includes('Added remotely'))?.click()`
   )
+  await acceptPrompt()
   await waitFor(async () => (await tabCount()) === 2, 4000, 'a second tab')
   check('opens a request in a new tab', (await tabCount()) === 2, String(await tabCount()))
   check(
@@ -922,6 +939,7 @@ try {
   await evaluate(
     `document.querySelectorAll('[data-role="request-tab"]')[1].parentElement.querySelector('button[aria-label^="Close"]').click()`
   )
+  await acceptPrompt()
   await waitFor(async () => (await tabCount()) === 1, 3000, 'one tab left')
   check('closes a tab', (await tabCount()) === 1, String(await tabCount()))
   check(
@@ -1032,9 +1050,9 @@ try {
 
   // Selecting an entry restores it. The draft is dirty from earlier steps, so accept the
   // discard prompt the same way a person would.
-  await evaluate(`window.confirm = () => true`)
   const restoreUrl = await evaluate(`document.querySelector('[data-role="history-entry"]').dataset.url`)
   await evaluate(`document.querySelector('[data-role="history-entry"]').click()`)
+  await acceptPrompt(1000)
   await wait(300)
   check(
     'restores a request into the editor',
@@ -1132,6 +1150,8 @@ try {
   check('reports the update ready to install', true)
 
   await evaluate(`document.querySelector('[data-role="update-install"]').click()`)
+  // Unsaved work gets an in-app confirmation before the restart.
+  await acceptPrompt()
   await waitFor(
     async () =>
       await evaluate(
