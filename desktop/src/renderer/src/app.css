@@ -107,6 +107,18 @@
   background-attachment: fixed;
 }
 
+/* A purple-dark theme borrowed from the ping.dkgg.de site palette. */
+:root[data-theme='violet'] {
+  --color-base: #1d1b2c;
+  --color-panel: #201f32;
+  --color-line: #33314e;
+  --color-accent: #c294ff;
+  --color-fg: #d1d0e2;
+  --color-fg-muted: #8481a7;
+  --color-fg-faint: #625e87;
+  --color-danger: #ff7a8a;
+}
+
 :root[data-theme='light'] {
   --color-base: #f3f4f6;
   --color-panel: #ffffff;
