@@ -186,8 +186,8 @@ flagged without echoing its value. An unusable command is `-32602`.
 Credentials land in the auth fields, which the shell moves into `safeStorage` on save, so the
 "secrets never touch collection files" rule holds.
 
-`import.collection` reads a Postman collection (v2.0/v2.1) or an Insomnia v4 export (JSON) and
-writes a **new** collection folder under `root`: `collection.yaml`, subfolders, one file per
+`import.collection` reads a Postman collection (v2.0/v2.1), an Insomnia v4 export (JSON) or an
+OpenAPI 3.0/3.1 document (JSON or YAML), detecting the format from the content, and writes a **new** collection folder under `root`: `collection.yaml`, subfolders, one file per
 request, and `environments/`. A name that is already taken becomes `Name 2`, so nothing is
 ever merged into or overwritten, and every name is sanitised for all platforms and written
 through the store's path rules. Requests are listed alphabetically, as everywhere in the tree;
@@ -201,6 +201,17 @@ the source's order is not kept. A failure part-way removes what the call created
   Hawk, NTLM), Postman `:path` variables, Insomnia `{% %}` tags and folder environments, and
   scripts. A request's scripts and description are kept in its `docs` so the logic can be
   ported by hand.
+- **OpenAPI.** One request per operation, in a folder named for its first tag. The server URL
+  becomes the `baseUrl` variable (server variables replaced by their defaults), and more than one
+  server makes one environment each; every URL is `{{baseUrl}}/path` with `{id}` written as
+  `{{id}}`. Required query and header parameters are enabled rows and optional ones are listed
+  disabled. A body comes from the document's example, else is generated from its schema (`$ref`s,
+  `allOf`, `oneOf`, formats; self-referential schemas are cut where they close); JSON is preferred,
+  then form encodings, then the first type listed. A request's `docs` holds its description,
+  parameters and response codes. Authentication is written as **references** (`{{bearerAuth}}`,
+  `{{basicAuth_username}}`) because a spec holds no credentials; the report says which secret names
+  to set. Only `$ref`s inside the document are followed. Swagger 2.0, `oauth2`, `openIdConnect`,
+  cookie parameters, callbacks and webhooks are reported.
 - **Secrets.** Before a request is written, a literal `auth` token, password or API key value,
   and the value of any header, query parameter or form field whose name looks like a
   credential (`token`, `api_key`, `password`, `secret`, `cookie`, `authorization`), is replaced
@@ -209,9 +220,9 @@ the source's order is not kept. A failure part-way removes what the call created
   `safeStorage` and strips `secrets` from the result before the renderer sees it; the renderer
   cannot call `import.collection` through the generic channel, because that would let it pick
   the root and read the values back.
-- Rejected with `-32602`, and a specific reason: not JSON, a Postman environment export,
-  Postman v1, an Insomnia format other than 4 (including v5 YAML), or an export with no
-  workspace.
+- Rejected with `-32602`, and a specific reason: not JSON or YAML, a Postman environment export,
+  Postman v1, an Insomnia format other than 4 (including v5 YAML), Swagger 2.0, or an export
+  with no workspace.
 
 ### Error codes
 

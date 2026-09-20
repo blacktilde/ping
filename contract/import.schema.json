@@ -42,7 +42,7 @@
         },
         "content": {
           "type": "string",
-          "description": "The text of a Postman collection (v2.0 or v2.1) or an Insomnia v4 export, both JSON."
+          "description": "The text of a Postman collection (v2.0 or v2.1), an Insomnia v4 export (both JSON) or an OpenAPI 3.0/3.1 document (JSON or YAML). The format is detected from the content."
         }
       },
       "additionalProperties": false

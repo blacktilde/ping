@@ -2,6 +2,8 @@ package dev.ping.imports;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.yaml.snakeyaml.LoaderOptions;
 import dev.ping.http.RequestSpec;
 
 import java.net.URLDecoder;
@@ -15,6 +17,30 @@ import java.util.regex.Pattern;
 final class ImportSupport {
 
     static final ObjectMapper JSON = new ObjectMapper();
+
+    /**
+     * Specs are routinely larger than snakeyaml's 3 MB default, so the code-point limit is
+     * raised. The alias limit is left at its default: it is what stops an alias bomb.
+     */
+    private static final ObjectMapper YAML = new ObjectMapper(YAMLFactory.builder()
+            .loaderOptions(yamlLimits())
+            .build());
+
+    private static LoaderOptions yamlLimits() {
+        LoaderOptions options = new LoaderOptions();
+        options.setCodePointLimit(32 * 1024 * 1024);
+        return options;
+    }
+
+    /**
+     * Reads a JSON or YAML document. JSON is tried as JSON, not as YAML, because a JSON file
+     * indented with tabs is not valid YAML.
+     */
+    static JsonNode parseDocument(String content) throws java.io.IOException {
+        String head = content.stripLeading();
+        boolean json = head.startsWith("{") || head.startsWith("[");
+        return (json ? JSON : YAML).readTree(content);
+    }
 
     /** Names that usually carry a credential: their values are lifted out before a file is written. */
     static final Pattern SENSITIVE_NAME = Pattern.compile(
