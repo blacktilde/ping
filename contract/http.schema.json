@@ -52,6 +52,15 @@
           "default": true,
           "description": "False disables certificate and hostname checks, for self-signed development servers."
         },
+        "cookies": {
+          "type": "boolean",
+          "default": true,
+          "description": "False keeps this request out of the cookie jar: it neither sends the jar's cookies nor stores the ones it receives."
+        },
+        "cookieScope": {
+          "type": "string",
+          "description": "Names the cookie jar scope this send reads and writes. Absent means no jar, so a send is stateless. The desktop shell builds it from the workspace, collection and environment and ignores any value from the renderer."
+        },
         "maxBodyBytes": {
           "type": "integer",
           "default": 10485760,

@@ -405,7 +405,7 @@ public final class CurlImporter {
 
             StoredRequest request = new StoredRequest(
                     nameOf(target), resolvedMethod, target, query, headers, body, auth,
-                    timeoutMs, follow ? "normal" : null, insecure ? Boolean.FALSE : null, null, null, null, null);
+                    timeoutMs, follow ? "normal" : null, insecure ? Boolean.FALSE : null, null, null, null, null, null);
             return new ImportResult(request, warnings);
         }
 

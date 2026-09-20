@@ -1,5 +1,7 @@
 package dev.ping.run;
 
+import dev.ping.cookies.CookieContext;
+import dev.ping.cookies.CookieJar;
 import dev.ping.http.AssertionResult;
 import dev.ping.http.CaptureResult;
 import dev.ping.http.FileAccess;
@@ -34,6 +36,9 @@ import java.util.Map;
  */
 public final class Runner {
 
+    /** The single scope of a run's own jar. */
+    private static final String RUN_SCOPE = "run";
+
     /** Called after each request finishes, on the thread that is running the collection. */
     @FunctionalInterface
     public interface Listener {
@@ -56,6 +61,9 @@ public final class Runner {
         // Held for the length of the run. A request's captures land here, so the next request
         // sees them (runtime outranks environment and collection). Never written into a result.
         Map<String, String> runtime = new HashMap<>();
+        // A fresh jar per run: cookies carry from step to step, but a run never sees a session
+        // from an earlier run or from the UI, so it behaves the same on every machine.
+        CookieJar jar = new CookieJar();
         List<CollectionNode> nodes = store.requestNodes(root, collection);
         List<RequestResult> results = new ArrayList<>();
 
@@ -68,7 +76,7 @@ public final class Runner {
                 variables.putAll(options.variables());
             }
 
-            Step step = runOne(root, collection, nodes.get(index), variables, options);
+            Step step = runOne(root, collection, nodes.get(index), variables, options, jar);
             for (CaptureResult captured : step.captured()) {
                 // A miss puts nothing here, so a later {{name}} stays as written rather than empty.
                 if (captured.found() && captured.value() != null) {
@@ -79,6 +87,7 @@ public final class Runner {
             // Captured values are masked too, this request's included: an assertion that
             // echoes the token it just captured would otherwise print it into the report.
             List<String> hidden = new ArrayList<>(runtime.values());
+            hidden.addAll(jar.values(RUN_SCOPE));
             if (options.variables() != null) {
                 hidden.addAll(options.variables().values());
             }
@@ -108,7 +117,7 @@ public final class Runner {
 
     private Step runOne(
             Path root, String collection, CollectionNode node, Map<String, String> variables,
-            RunOptions options) {
+            RunOptions options, CookieJar jar) {
         String url = null;
         String method = node.method();
         try {
@@ -120,7 +129,8 @@ public final class Runner {
             // Files resolve against the collection folder, so a request keeps working wherever
             // the collection is checked out.
             ResponseData response = engine.send(spec, variables,
-                    new FileAccess(root.resolve(collection), options.allowAbsoluteFiles()));
+                    new FileAccess(root.resolve(collection), options.allowAbsoluteFiles()),
+                    new CookieContext(jar, RUN_SCOPE));
             List<AssertionResult> assertions = response.assertions();
             boolean passed = assertions.stream().allMatch(AssertionResult::passed);
             List<CaptureResult> captured = response.captured();

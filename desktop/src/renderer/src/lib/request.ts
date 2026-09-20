@@ -180,6 +180,7 @@ export function toRequestSpec(draft: RequestDraft, requestId: string): HttpReque
   if (draft.timeoutMs != null) spec.timeoutMs = draft.timeoutMs
   if (draft.redirects != null) spec.redirects = draft.redirects
   if (draft.verifyTls != null) spec.verifyTls = draft.verifyTls
+  if (draft.cookies === false) spec.cookies = false
   if (draft.maxBodyBytes != null) spec.maxBodyBytes = draft.maxBodyBytes
 
   const auth = authToSpec(draft.auth)

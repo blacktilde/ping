@@ -44,6 +44,7 @@
         "timeoutMs": { "type": "integer" },
         "redirects": { "enum": ["never", "normal", "always"] },
         "verifyTls": { "type": "boolean" },
+        "cookies": { "type": "boolean", "description": "False opts the request out of the cookie jar. Absent means on." },
         "maxBodyBytes": { "type": "integer" },
         "asserts": {
           "type": "array",

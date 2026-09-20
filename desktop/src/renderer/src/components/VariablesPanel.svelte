@@ -1,5 +1,6 @@
 <script lang="ts">
   import { variables } from '../lib/vars.svelte'
+  import { clearCookies, cookies } from '../lib/cookies.svelte'
   import { clearRuntime, runtime } from '../lib/runtime.svelte'
   import DocsEditor from './DocsEditor.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
@@ -159,6 +160,55 @@
           {#each runtime.names as name (name)}
             <li data-role="runtime-name" class="px-3 py-1 font-mono text-sm text-fg-muted">
               {name}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+
+    <section data-role="cookies" class="border-t border-line">
+      <div class="flex items-center gap-2 px-3 py-2">
+        <h3 class="text-xs uppercase tracking-wide text-fg-muted">Cookies</h3>
+        {#if cookies.items.length > 0}
+          <button
+            type="button"
+            onclick={() => void clearCookies(variables.collection, variables.environment)}
+            aria-label="Clear cookies"
+            class="ml-auto rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                   hover:text-fg"
+          >
+            Clear
+          </button>
+        {/if}
+      </div>
+      <p class="px-3 pb-2 text-xs text-fg-faint">
+        Set by responses in this collection and environment, kept for this session and never
+        saved. Values are not shown.
+      </p>
+      {#if cookies.items.length === 0}
+        <p class="px-3 pb-3 text-sm text-fg-faint">No cookies yet.</p>
+      {:else}
+        <ul class="pb-2">
+          {#each cookies.items as cookie (`${cookie.domain}|${cookie.path}|${cookie.name}`)}
+            <li data-role="cookie" class="flex items-baseline gap-2 px-3 py-1 text-sm">
+              <span class="font-mono text-fg-muted">{cookie.name}</span>
+              <span class="min-w-0 truncate text-xs text-fg-faint">
+                {cookie.domain}{cookie.path}
+              </span>
+              <span class="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-fg-faint">
+                {cookie.expiresAt ? 'expires' : 'session'}{cookie.secure ? ' · secure' : ''}{cookie.httpOnly
+                  ? ' · httponly'
+                  : ''}
+              </span>
+              <button
+                type="button"
+                onclick={() =>
+                  void clearCookies(variables.collection, variables.environment, cookie.domain, cookie.name)}
+                aria-label="Delete cookie {cookie.name}"
+                class="shrink-0 rounded px-1 text-fg-faint transition hover:text-danger"
+              >
+                ×
+              </button>
             </li>
           {/each}
         </ul>

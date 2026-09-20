@@ -194,17 +194,53 @@ function withWorkspaceRoot(
 }
 
 /**
+ * Per-request context the shell decides: where relative file paths resolve, and which cookie
+ * jar scope the send uses.
+ *
  * Relative file paths resolve against the request's collection. The renderer names the collection;
  * the shell turns it into a folder under the workspace root and overwrites anything the renderer
  * sent as `filesBase`, so a compromised renderer cannot point relative paths anywhere else.
  */
-function withFilesBase(params: unknown): Record<string, unknown> {
-  const { collection, filesBase: _ignored, ...rest } = (params ?? {}) as Record<string, unknown>
+function withRequestContext(params: unknown): Record<string, unknown> {
+  const {
+    collection,
+    environment,
+    filesBase: _ignoredBase,
+    cookieScope: _ignoredScope,
+    ...rest
+  } = (params ?? {}) as Record<string, unknown>
   const current = workspace.current()
-  if (current && typeof collection === 'string' && collection && isRelativePath(collection)) {
-    return { ...rest, filesBase: join(current.root, collection) }
+  const validCollection =
+    typeof collection === 'string' && collection && isRelativePath(collection) ? collection : ''
+  const validEnvironment =
+    typeof environment === 'string' && environment && isRelativePath(environment) ? environment : ''
+
+  const context: Record<string, unknown> = { ...rest }
+  if (current && validCollection) {
+    context.filesBase = join(current.root, validCollection)
   }
-  return rest
+  if (current) {
+    // One jar scope per collection and environment, so switching environment switches session. A
+    // scratch tab (no collection) gets its own bucket. Built here, never taken from the renderer.
+    context.cookieScope = cookieScopeFor(current.root, validCollection, validEnvironment)
+  }
+  return context
+}
+
+/** The scope for a renderer's collection and environment names, or null when no folder is open. */
+function scopeFrom(collection: unknown, environment: unknown): string | null {
+  const current = workspace.current()
+  if (!current) {
+    return null
+  }
+  const valid = (value: unknown): string =>
+    typeof value === 'string' && value && isRelativePath(value) ? value : ''
+  return cookieScopeFor(current.root, valid(collection), valid(environment))
+}
+
+/** The jar scope for a collection and environment; the core treats it as an opaque key. */
+function cookieScopeFor(root: string, collection: string, environment: string): string {
+  return [root, collection, environment].join('|')
 }
 
 /** Merges secret values into an outgoing request's variables; secrets always win. */
@@ -312,8 +348,10 @@ function registerIpc(): void {
     const before = workspace.current()?.root
     const next = await workspace.choose()
     if (next?.root !== before) {
-      // A token captured against one folder's API should not follow the user into another.
+      // A token captured against one folder's API should not follow the user into another, and
+      // neither should its session cookies.
       runtime.clear()
+      void core.request('cookies.clearAll', {}).catch(() => undefined)
     }
     return next
   })
@@ -440,6 +478,33 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('secrets:list', () => secrets.names())
+  // The cookie jar lives in the core, keyed by scope. The renderer names a collection and an
+  // environment; the shell builds the scope. The core never returns a cookie's value.
+  ipcMain.handle('cookies:list', async (_event, collection: unknown, environment: unknown) => {
+    const scope = scopeFrom(collection, environment)
+    if (!scope) {
+      return []
+    }
+    await core.ready
+    const result = (await core.request('cookies.list', { scope })) as { cookies?: unknown[] }
+    return result.cookies ?? []
+  })
+  ipcMain.handle(
+    'cookies:clear',
+    async (_event, collection: unknown, environment: unknown, domain: unknown, name: unknown) => {
+      const scope = scopeFrom(collection, environment)
+      if (!scope) {
+        return 0
+      }
+      await core.ready
+      const result = (await core.request('cookies.clear', {
+        scope,
+        domain: typeof domain === 'string' ? domain : undefined,
+        name: typeof name === 'string' ? name : undefined
+      })) as { removed?: number }
+      return result.removed ?? 0
+    }
+  )
   ipcMain.handle('runtime:list', () => runtime.names())
   ipcMain.handle('runtime:clear', () => runtime.clear())
   ipcMain.handle('secrets:set', (_event, name: unknown, value: unknown) => {
@@ -502,7 +567,7 @@ function registerIpc(): void {
       if (refused) {
         return failure(null, refused)
       }
-      args = withFilesBase(args)
+      args = withRequestContext(args)
     }
     if (method.startsWith('run.')) {
       // A collection is data from disk and possibly from someone else: it must not be able to make

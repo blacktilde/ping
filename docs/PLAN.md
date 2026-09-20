@@ -168,7 +168,7 @@ assertions plus the runner change what the project is for.
   *Gate: a loopback proxy sees the request; a loopback server requiring a client cert accepts
   it and rejects the same request without one.*
 
-- [ ] **20. Cookie jar.** Sends are stateless today — `Set-Cookie` is parsed for display and
+- [x] **20. Cookie jar.** Sends are stateless today — `Set-Cookie` is parsed for display and
   then forgotten, so any session-based API takes a hand-copied header. A jar scoped per
   collection and environment, viewable and clearable in the UI, with a per-request opt-out.
   The jar lives in the core so the runner behaves identically across a multi-step run, and

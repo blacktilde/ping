@@ -1602,6 +1602,54 @@ try {
   const insideOk = await attempt({ type: 'file', file: 'fixtures/logo.bin' }, { collection: 'demo' })
   check('a relative path in the collection needs no grant', insideOk.ok === true, JSON.stringify(insideOk).slice(0, 140))
 
+  console.log('--- 15h. the cookie jar')
+  const DEV = 'demo/environments/dev.yaml'
+  const OTHER = 'demo/environments/other.yaml'
+  const sendRaw = async (extra = {}) => {
+    const result = await evaluate(`window.ping.request('http.send', ${JSON.stringify({ url: `${base}/data`, method: 'GET', collection: 'demo', environment: DEV, ...extra })})`)
+    return { ok: result.ok, echo: result.ok ? echo(result.value.body.content) : null, error: result.error }
+  }
+  await evaluate(`window.ping.cookies.clear('demo', '${DEV}')`)
+  await evaluate(`window.ping.cookies.clear('demo', '${OTHER}')`)
+
+  const sent1 = await sendRaw()
+  check('the first request carries no cookie', sent1.ok && sent1.echo?.headers?.cookie === undefined, String(sent1.echo?.headers?.cookie))
+  const sent2 = await sendRaw()
+  check('the next request carries the cookie the first one set', sent2.echo?.headers?.cookie === 'smoke=yes', String(sent2.echo?.headers?.cookie))
+  const otherEnv = await sendRaw({ environment: OTHER })
+  check('another environment does not see it', otherEnv.echo?.headers?.cookie === undefined, String(otherEnv.echo?.headers?.cookie))
+  const explicit = await sendRaw({ headers: [{ name: 'Cookie', value: 'manual=1', enabled: true }] })
+  check('an explicit Cookie header replaces the jar', explicit.echo?.headers?.cookie === 'manual=1', String(explicit.echo?.headers?.cookie))
+  const optedOut = await sendRaw({ cookies: false })
+  check('a request can opt out of the jar', optedOut.echo?.headers?.cookie === undefined, String(optedOut.echo?.headers?.cookie))
+  // The dev scope holds a cookie; asking for it by name from another environment must not reach it.
+  await evaluate(`window.ping.cookies.clear('demo', '${OTHER}')`)
+  const invented = await sendRaw({ cookieScope: `${workspaceDir}|demo|${DEV}`, environment: OTHER })
+  check('ignores a scope the renderer invents', invented.echo?.headers?.cookie === undefined, String(invented.echo?.headers?.cookie))
+
+  const listed = await evaluate(`window.ping.cookies.list('demo', '${DEV}')`)
+  check('lists the stored cookie', listed.length === 1 && listed[0].name === 'smoke' && listed[0].httpOnly === true, JSON.stringify(listed))
+  check('the list never carries a value', !JSON.stringify(listed).includes('yes') && listed.every((c) => !('value' in c)), JSON.stringify(listed))
+
+  await evaluate(clickText('Variables'))
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="cookie"]').length`)) === 1, 5000, 'the cookie list')
+  const jarText = await evaluate(`document.querySelector('[data-role="cookies"]').textContent.replace(/\\s+/g, ' ')`)
+  check('the panel shows the name but not the value', jarText.includes('smoke') && !jarText.includes('=yes') && !jarText.includes('yes;'), jarText.slice(0, 160))
+  await evaluate(`document.querySelector('button[aria-label="Clear cookies"]').click()`)
+  await waitFor(async () => (await evaluate(`window.ping.cookies.list('demo', '${DEV}')`)).length === 0, 5000, 'Clear')
+  check('Clear empties the jar', true)
+
+  // The per-request switch is saved with the request.
+  await evaluate(clickTab('Settings'))
+  await evaluate(`document.querySelector('input[aria-label="Use the cookie jar"]').click()`)
+  await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
+  await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'new-request.yaml'), 'utf8').includes('cookies: false'), 5000, 'the setting on disk')
+  check('the opt-out is saved in the request file', true)
+  await clickSend()
+  await waitFor(async () => (await snap()).status === '200', 5000, 'an opted-out send')
+  check('an opted-out send stores nothing', (await evaluate(`window.ping.cookies.list('demo', '${DEV}')`)).length === 0)
+  await evaluate(clickText('Variables'))
+
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)
   await waitFor(

@@ -45,11 +45,11 @@ expect 0 "passing collection passes" \
 # reached the next request. The captured value itself must never appear in a report.
 for reporter in json junit human; do
   "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=$BASE" -r "$reporter" -o "$WORK/report-$reporter" >/dev/null 2>&1
-  if grep -q 'tok-sample-4711' "$WORK/report-$reporter"; then
-    echo "FAIL the $reporter report contains a captured value"
+  if grep -q 'tok-sample-4711\|sample-cookie-8842' "$WORK/report-$reporter"; then
+    echo "FAIL the $reporter report contains a captured value or a cookie"
     failures=$((failures + 1))
   else
-    echo "ok   the $reporter report holds no captured value"
+    echo "ok   the $reporter report holds no captured value or cookie"
   fi
 done
 expect 1 "a failing assertion fails the run" \

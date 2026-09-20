@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.ping.auth.TokenCache;
+import dev.ping.cookies.CookieContext;
+import dev.ping.cookies.CookieJar;
 import dev.ping.http.FileAccess;
 import dev.ping.http.HttpEngine;
 import dev.ping.http.RequestSpec;
@@ -33,9 +35,19 @@ public final class HttpMethods {
     }
 
     public static void registerOn(RpcServer server, TokenCache tokenCache) {
+        registerOn(server, tokenCache, new CookieJar());
+    }
+
+    /**
+     * @param jar the interactive jar, shared with {@code cookies.*}. A send uses it only when the
+     *            caller names a {@code cookieScope}; the desktop shell builds that from the
+     *            request's collection and environment and never takes it from the renderer.
+     */
+    public static void registerOn(RpcServer server, TokenCache tokenCache, CookieJar jar) {
         HttpEngine engine = new HttpEngine(tokenCache);
 
-        server.register("http.send", params -> engine.send(parse(params), variables(params), files(params)));
+        server.register("http.send", params -> engine.send(parse(params), variables(params), files(params),
+                cookies(params, jar)));
         server.register("http.cancel", params -> {
             String requestId = requireRequestId(params);
             return Map.of("cancelled", engine.cancel(requestId));
@@ -64,6 +76,11 @@ public final class HttpMethods {
     private static FileAccess files(JsonNode params) {
         String base = params == null ? null : params.path("filesBase").asText(null);
         return base == null || base.isBlank() ? FileAccess.LOCAL : new FileAccess(Path.of(base), true);
+    }
+
+    private static CookieContext cookies(JsonNode params, CookieJar jar) {
+        String scope = params == null ? null : params.path("cookieScope").asText(null);
+        return scope == null || scope.isBlank() ? CookieContext.NONE : new CookieContext(jar, scope);
     }
 
     private static Map<String, String> variables(JsonNode params) {

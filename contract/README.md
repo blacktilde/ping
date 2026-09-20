@@ -54,6 +54,9 @@ not `http.send`, whose length is the user's to set.
 | `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
 | `auth.authorize`| `{ auth, variables? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
+| `cookies.list`| `{ scope }`               | `{ cookies }` (no values)                           |
+| `cookies.clear`| `{ scope, domain?, name? }` | `{ removed }`                                     |
+| `cookies.clearAll`| none                  | `{}`                                                |
 | `import.curl` | `{ command: string }`     | `{ request: StoredRequest, warnings?: string[] }`   |
 | `import.collection`| `{ root, content }`  | `{ collections, warnings?, secrets? }`, see `import.schema.json` |
 | `run.collection`| `{ runId?, root, collection, environment?, variables? }` | `RunResult`, see `run.schema.json` |
@@ -180,6 +183,34 @@ A JSON `null` counts as present. `target` and `expected` are interpolated with t
 `variables`. A misconfigured assertion (unknown type or op, bad path, non-JSON body) is a
 failed result carrying a `message`, not an RPC error, so a typo in a collection file never
 stops the request from being sent.
+
+### Cookies
+
+A send that names a `cookieScope` reads and writes an in-memory **cookie jar**; a send without one is
+stateless, as before. The jar follows RFC 6265 and is hand-rolled rather than the JDK's, because the
+engine follows redirects itself and because an explicit header has to be able to replace the jar's.
+
+- **Storing.** `Set-Cookie` values are stored when a response *completes* — including each hop of a redirect
+  chain, before the next hop is followed — so a 302 that sets a session still delivers it. A failed or cancelled
+  exchange stores nothing. `Domain` must domain-match the request host (never a bare top-level label, never on an
+  IP address), otherwise the cookie is host-only. `Max-Age` beats `Expires`; zero or a past date deletes. A
+  `Secure` cookie is accepted only from https or loopback. Same name, domain and path replace each other, and
+  the jar is capped (4096 bytes a cookie, 50 per domain, 3000 in all; the oldest go first).
+- **Sending.** Matching cookies are joined into one `Cookie` header, longest path first: host-only cookies to their
+  exact host, domain cookies to subdomains, RFC path matching (`/foo` does not match `/foobar`), `Secure` only
+  over https or loopback. A redirect to another host is matched against the new host, so a host-only cookie does
+  not follow it. `SameSite` is recorded and shown but not enforced: there is no cross-site context in a REST client.
+- **Explicit beats implicit.** An enabled `Cookie` header on the request **replaces** the jar's for that request
+  (it is not merged). `cookies: false` on a request skips the jar in both directions.
+- **Scope.** The desktop shell builds `cookieScope` from the workspace, collection and environment, so
+  switching environment switches session, and clears the jar when the folder changes. The renderer cannot choose it.
+- **Session-only.** The jar lives in the core's memory and is never written to disk, so a restart forgets it.
+- **Runs.** Every collection run (the CLI and `run.collection`) starts with a **fresh jar** and carries cookies
+  across its own steps only, so a run is reproducible and never depends on a login done in the UI. Cookie values
+  are masked as `***` wherever they resurface in a report.
+- **Values are credentials.** `cookies.list` returns name, domain, path, flags and expiry, **never the value**.
+  Nothing else in the app can hold one: the jar is not part of a request, so history, saved tabs and copied cURL
+  never contain it.
 
 ### Files in a request body
 

@@ -1,0 +1,7 @@
+name: Session without jar
+method: GET
+url: "{{baseUrl}}/me"
+cookies: false
+asserts:
+- type: status
+  expected: "401"

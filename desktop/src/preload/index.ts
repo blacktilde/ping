@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { HistoryEntry } from '../shared/history'
+import type { CookieView } from '../shared/cookies'
 import type { ImportReport } from '../shared/import'
 import type { UpdateState } from '../shared/updates'
 
@@ -111,6 +112,20 @@ const api = {
     },
     clear(): Promise<void> {
       return ipcRenderer.invoke('runtime:clear') as Promise<void>
+    }
+  },
+
+  /**
+   * The cookie jar for a collection and environment. The jar lives in the core and the shell
+   * names the scope, so the renderer can list what is stored and clear it. A cookie's value is a
+   * session credential and is never returned.
+   */
+  cookies: {
+    list(collection: string, environment: string): Promise<CookieView[]> {
+      return ipcRenderer.invoke('cookies:list', collection, environment) as Promise<CookieView[]>
+    },
+    clear(collection: string, environment: string, domain?: string, name?: string): Promise<number> {
+      return ipcRenderer.invoke('cookies:clear', collection, environment, domain, name) as Promise<number>
     }
   },
 

@@ -233,7 +233,7 @@ final class OpenApiImporter {
         String docs = docs(operation, summary, name, parameters);
 
         return new StoredRequest(name, method.toUpperCase(Locale.ROOT), url, query, headers, body, auth,
-                null, null, null, null, null, null, docs);
+                null, null, null, null, null, null, docs, null);
     }
 
     /** Path-item parameters, overridden by operation parameters of the same name and location. */

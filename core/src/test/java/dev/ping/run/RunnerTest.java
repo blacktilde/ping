@@ -358,4 +358,76 @@ class RunnerTest {
         RunResult allowed = runner.run(root, "upload", new RunOptions(null, Map.of(), true), null);
         assertTrue(allowed.succeeded(), allowed.requests().toString());
     }
+
+    // --- cookies -------------------------------------------------------------------------------
+
+    /** {@code name} is the collection folder; {@code requests} maps file name to YAML. */
+    private void writeCollection(String name, Map<String, String> requests) throws Exception {
+        java.nio.file.Path dir = root.resolve(name);
+        java.nio.file.Files.createDirectories(dir);
+        java.nio.file.Files.writeString(dir.resolve("collection.yaml"), """
+                name: %s
+                variables:
+                - name: baseUrl
+                  value: "%s"
+                  enabled: true
+                """.formatted(name, RunFixture.baseUrl(server)));
+        for (Map.Entry<String, String> request : requests.entrySet()) {
+            java.nio.file.Files.writeString(dir.resolve(request.getKey()), request.getValue());
+        }
+    }
+
+    private static final String START = """
+            name: A start
+            method: GET
+            url: "{{baseUrl}}/session"
+            """;
+
+    private static final String USE = """
+            name: B use
+            method: GET
+            url: "{{baseUrl}}/me"
+            asserts:
+            - type: status
+              expected: "200"
+            - type: jsonpath
+              target: $.cookie
+              op: equals
+              expected: sid=run-cookie-4711
+            """;
+
+    @Test
+    void aCookieSetByOneStepIsSentByTheNext() throws Exception {
+        writeCollection("session", Map.of("a-start.yaml", START, "b-use.yaml", USE));
+        RunResult result = runner.run(root, "session", RunOptions.none(), null);
+        assertTrue(result.succeeded(), result.requests().toString());
+    }
+
+    @Test
+    void aRunNeverSeesAnEarlierRunsSession() throws Exception {
+        writeCollection("login", Map.of("a-start.yaml", START, "b-use.yaml", USE));
+        writeCollection("useonly", Map.of("b-use.yaml", USE));
+        assertTrue(runner.run(root, "login", RunOptions.none(), null).succeeded());
+
+        RunResult second = runner.run(root, "useonly", RunOptions.none(), null);
+        assertFalse(second.succeeded(), "a fresh jar per run: the earlier login must not carry over");
+        assertEquals(401, second.requests().get(0).status());
+    }
+
+    @Test
+    void aRequestCanOptOutOfTheJar() throws Exception {
+        writeCollection("optout", Map.of("a-start.yaml", START,
+                "b-use.yaml", USE.replace("method: GET", "method: GET\ncookies: false")));
+        RunResult result = runner.run(root, "optout", RunOptions.none(), null);
+        assertEquals(401, result.requests().get(1).status(), "cookies: false sends none");
+    }
+
+    @Test
+    void aCookieValueEchoedByAnAssertionIsMaskedInTheReport() throws Exception {
+        writeCollection("mask", Map.of("a-start.yaml", START, "b-use.yaml", USE));
+        RunResult result = runner.run(root, "mask", RunOptions.none(), null);
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(result);
+        assertFalse(json.contains("run-cookie-4711"), "a session id leaked into a result: " + json);
+        assertEquals("sid=***", result.requests().get(1).assertions().get(1).actual());
+    }
 }
