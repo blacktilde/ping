@@ -3,6 +3,9 @@ package dev.ping.http;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import dev.ping.rpc.RpcException;
+
+import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +30,8 @@ public record RequestSpec(
         Integer maxBodyBytes,
         List<Assertion> asserts,
         List<Capture> capture,
-        Boolean cookies) {
+        Boolean cookies,
+        String httpVersion) {
 
     /**
      * A name/value pair the user can disable without deleting.
@@ -194,6 +198,23 @@ public record RequestSpec(
         return cookies == null || cookies;
     }
 
+    /**
+     * The pinned protocol version, or null for the client's own choice. {@code "2"} means
+     * "prefer HTTP/2": ALPN can still settle on 1.1, and a plain-text {@code http://} exchange
+     * upgrades or stays on 1.1 regardless.
+     */
+    public HttpClient.Version httpVersionOrNull() {
+        if (httpVersion == null || httpVersion.isBlank()) {
+            return null;
+        }
+        return switch (httpVersion.trim()) {
+            case "1.1" -> HttpClient.Version.HTTP_1_1;
+            case "2" -> HttpClient.Version.HTTP_2;
+            default -> throw RpcException.invalidParams(
+                    "Unknown HTTP version: " + httpVersion + " (use \"1.1\" or \"2\")");
+        };
+    }
+
     public boolean verifyTlsOrDefault() {
         return verifyTls == null || verifyTls;
     }
@@ -224,6 +245,7 @@ public record RequestSpec(
         private final List<Assertion> asserts = new ArrayList<>();
         private final List<Capture> capture = new ArrayList<>();
         private Boolean cookies;
+        private String httpVersion;
 
         public Builder(String url) {
             this.url = url;
@@ -328,6 +350,12 @@ public record RequestSpec(
             return this;
         }
 
+        /** Pins the protocol version: {@code "1.1"} or {@code "2"} (preferred). */
+        public Builder httpVersion(String value) {
+            this.httpVersion = value;
+            return this;
+        }
+
         public Builder capture(String name, String source, String target) {
             capture.add(new Capture(name, source, target, null));
             return this;
@@ -335,7 +363,7 @@ public record RequestSpec(
 
         public RequestSpec build() {
             return new RequestSpec(requestId, method, url, query, headers, body, auth,
-                    timeoutMs, redirects, verifyTls, maxBodyBytes, asserts, capture, cookies);
+                    timeoutMs, redirects, verifyTls, maxBodyBytes, asserts, capture, cookies, httpVersion);
         }
     }
 }

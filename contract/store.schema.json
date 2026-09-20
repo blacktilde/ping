@@ -45,6 +45,7 @@
         "redirects": { "enum": ["never", "normal", "always"] },
         "verifyTls": { "type": "boolean" },
         "cookies": { "type": "boolean", "description": "False opts the request out of the cookie jar. Absent means on." },
+        "httpVersion": { "enum": ["1.1", "2"], "description": "Pins the protocol version; 2 means prefer HTTP/2. Absent lets the client choose." },
         "maxBodyBytes": { "type": "integer" },
         "asserts": {
           "type": "array",

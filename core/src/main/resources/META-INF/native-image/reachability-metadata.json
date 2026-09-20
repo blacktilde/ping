@@ -252,6 +252,33 @@
       "type": "dev.ping.http.CaptureResult[]"
     },
     {
+      "type": "dev.ping.http.NetworkConfig",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "dev.ping.http.ProxyConfig"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.http.ProxyConfig",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.util.List",
+            "java.util.Map"
+          ]
+        }
+      ]
+    },
+    {
       "type": "dev.ping.http.RequestSpec",
       "methods": [
         {
@@ -270,7 +297,8 @@
             "java.lang.Integer",
             "java.util.List",
             "java.util.List",
-            "java.lang.Boolean"
+            "java.lang.Boolean",
+            "java.lang.String"
           ]
         }
       ]
@@ -805,7 +833,8 @@
             "java.util.List",
             "java.util.List",
             "java.lang.String",
-            "java.lang.Boolean"
+            "java.lang.Boolean",
+            "java.lang.String"
           ]
         },
         {
@@ -834,6 +863,10 @@
         },
         {
           "name": "headers",
+          "parameterTypes": []
+        },
+        {
+          "name": "httpVersion",
           "parameterTypes": []
         },
         {

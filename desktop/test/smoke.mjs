@@ -87,6 +87,17 @@ const server = http.createServer(async (req, res) => {
 })
 await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
 
+// A stand-in HTTP proxy: it answers for any host, and records what it was asked and the
+// credentials it was shown, so the test can prove a request went through it (or did not).
+const PROXY_PORT = 8792
+const proxied = []
+const proxy = http.createServer((req, res) => {
+  proxied.push({ target: req.url, auth: req.headers['proxy-authorization'] })
+  res.writeHead(200, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ from: 'smoke proxy', target: req.url }))
+})
+await new Promise((resolve) => proxy.listen(PROXY_PORT, '127.0.0.1', resolve))
+
 // A throwaway collection so the test can prove load, dirty, save and watching without a
 // folder dialog. The shell takes its workspace from PING_WORKSPACE, which is also how CI
 // runs headless.
@@ -1650,6 +1661,88 @@ try {
   check('an opted-out send stores nothing', (await evaluate(`window.ping.cookies.list('demo', '${DEV}')`)).length === 0)
   await evaluate(clickText('Variables'))
 
+  console.log('--- 15i. network settings')
+  const proxyPassword = 'smoke-proxy-pw-7731'
+  const fillNetwork = (role, value) => `(() => {
+    const input = document.querySelector('[data-role="${role}"]');
+    if (!input) return null;
+    const proto = input instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(input, ${JSON.stringify(value)});
+    input.dispatchEvent(new Event(input instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));
+    return input.value;
+  })()`
+  await evaluate(pressCtrlK)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="palette"]')`), 2000, 'the command palette')
+  await evaluate(typeInPalette('network'))
+  const networkOption =
+    `[...document.querySelectorAll('[data-role="palette"] [role="option"]')].find(o => o.textContent.includes('Network settings'))`
+  await waitFor(async () => await evaluate(`!!${networkOption}`), 2000, 'the network command')
+  await evaluate(`${networkOption}?.click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="network-dialog"]')`), 3000, 'the network dialog')
+  await waitFor(async () => !(await evaluate(`document.querySelector('[data-role="network-mode"]').disabled`)), 3000, 'the dialog to load')
+
+  await evaluate(fillNetwork('network-mode', 'manual'))
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="network-url"]')`), 2000, 'the manual fields')
+  await evaluate(fillNetwork('network-url', 'socks5://127.0.0.1:1080'))
+  await evaluate(`document.querySelector('[data-role="network-save"]').click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="network-error"]')`), 3000, 'a validation error')
+  const socksError = await evaluate(`document.querySelector('[data-role="network-error"]').textContent`)
+  check('refuses a SOCKS proxy with a reason', /SOCKS/.test(socksError), socksError)
+  check('the dialog stays open on an error', await evaluate(`!!document.querySelector('[data-role="network-dialog"]')`))
+
+  await evaluate(fillNetwork('network-url', `127.0.0.1:${PROXY_PORT}`))
+  await evaluate(fillNetwork('network-username', 'smoke-user'))
+  await evaluate(fillNetwork('network-password', proxyPassword))
+  await evaluate(`document.querySelector('[data-role="network-save"]').click()`)
+  await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="network-dialog"]')`)), 3000, 'the dialog to close')
+  check('saves the proxy settings', true)
+
+  const viaProxy = await sendRaw({ url: 'http://origin.invalid/data' })
+  check('a request goes through the configured proxy', viaProxy.ok, JSON.stringify(viaProxy).slice(0, 160))
+  const lastProxied = proxied[proxied.length - 1]
+  check('the proxy was asked for the origin', lastProxied?.target === 'http://origin.invalid/data', JSON.stringify(lastProxied))
+  check(
+    'the proxy was shown its credentials',
+    lastProxied?.auth === 'Basic ' + Buffer.from('smoke-user:' + proxyPassword).toString('base64'),
+    String(lastProxied?.auth)
+  )
+
+  const shown = await evaluate(`window.ping.network.get()`)
+  check('the settings come back without the password', shown.proxy.mode === 'manual' && shown.proxy.hasPassword === true && !JSON.stringify(shown).includes(proxyPassword), JSON.stringify(shown))
+  const networkFile = readFileSync(join(userDataDir, 'network.json'), 'utf8')
+  check('the password is not stored in the clear', !networkFile.includes(proxyPassword), networkFile.slice(0, 200))
+
+  // Only the user's saved settings choose a proxy. Turn it off, then try to sneak one in.
+  await evaluate(`window.ping.network.set({ proxy: { mode: 'none', url: '', username: '', bypass: '' } })`)
+  const before = proxied.length
+  const goneDirect = await sendRaw()
+  check('with no proxy a request goes direct', goneDirect.ok && !!goneDirect.echo?.headers && proxied.length === before, JSON.stringify(goneDirect).slice(0, 120))
+  const sneaked = await sendRaw({ network: { proxy: { mode: 'manual', url: `127.0.0.1:${PROXY_PORT}` } } })
+  check('ignores a proxy the renderer invents', sneaked.ok && proxied.length === before, `${proxied.length} vs ${before}`)
+  const kept = await evaluate(`window.ping.network.get()`)
+  check('a password survives switching the proxy off', kept.proxy.hasPassword === true)
+
+  // A bypassed host goes direct even with the proxy on.
+  await evaluate(`window.ping.network.set({ proxy: { mode: 'manual', url: '127.0.0.1:${PROXY_PORT}', username: 'smoke-user', bypass: '127.0.0.1' } })`)
+  const bypassed = await sendRaw()
+  check('a bypassed host is not proxied', bypassed.ok && !!bypassed.echo?.headers && proxied.length === before, `${proxied.length} vs ${before}`)
+  await evaluate(`window.ping.network.set({ proxy: { mode: 'none', url: '', username: '', bypass: '' }, password: '' })`)
+  check('a saved password can be removed', (await evaluate(`window.ping.network.get()`)).proxy.hasPassword === false)
+
+  // The per-request HTTP version is saved with the request.
+  await evaluate(clickTab('Settings'))
+  await evaluate(`(() => {
+    const select = document.getElementById('setting-http-version');
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, '1.1');
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`)
+  await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
+  await waitFor(async () => /httpVersion: ['"]?1\.1/.test(readFileSync(join(workspaceDir, 'demo', 'new-request.yaml'), 'utf8')), 5000, 'the version on disk')
+  check('the pinned HTTP version is saved in the request file', true)
+  await clickSend()
+  await waitFor(async () => (await snap()).status === '200', 5000, 'a send with a pinned version')
+  check('a send with a pinned version succeeds', true)
+
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)
   await waitFor(
@@ -1716,6 +1809,8 @@ try {
   await stopApp()
   server.closeAllConnections?.()
   server.close()
+  proxy.closeAllConnections?.()
+  proxy.close()
   rmSync(workspaceDir, { recursive: true, force: true })
   rmSync(userDataDir, { recursive: true, force: true })
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { RequestDraft, RedirectPolicy } from '../lib/http'
+  import type { HttpVersionPin, RequestDraft, RedirectPolicy } from '../lib/http'
   import { formatBytes } from '../lib/format'
 
   interface Props {
@@ -13,6 +13,12 @@
     { value: 'normal', label: 'Normal' },
     { value: 'never', label: 'Never follow' },
     { value: 'always', label: 'Always follow' }
+  ]
+
+  const HTTP_VERSIONS: { value: HttpVersionPin | ''; label: string }[] = [
+    { value: '', label: 'Default' },
+    { value: '1.1', label: 'HTTP/1.1' },
+    { value: '2', label: 'HTTP/2 (preferred)' }
   ]
 
   // Empty inputs mean "use the core's default", so they must not persist as 0.
@@ -93,6 +99,32 @@
           <option value={policy.value}>{policy.label}</option>
         {/each}
       </select>
+    </div>
+
+    <div>
+      <label for="setting-http-version" class="block text-xs text-fg-muted">HTTP version</label>
+      <select
+        id="setting-http-version"
+        value={draft.httpVersion ?? ''}
+        onchange={(event) => {
+          const value = event.currentTarget.value as HttpVersionPin | ''
+          if (value === '') {
+            delete draft.httpVersion
+          } else {
+            draft.httpVersion = value
+          }
+        }}
+        class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
+               transition focus:border-accent"
+      >
+        {#each HTTP_VERSIONS as version (version.value)}
+          <option value={version.value}>{version.label}</option>
+        {/each}
+      </select>
+      <p class="mt-1 text-xs text-fg-faint">
+        HTTP/2 is a preference: the server can still answer with 1.1. The response shows which
+        version was used.
+      </p>
     </div>
 
     <div>

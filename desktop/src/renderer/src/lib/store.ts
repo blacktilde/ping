@@ -8,7 +8,7 @@
 import { call } from './core'
 import { authToSpec, normalizeAuth } from './http'
 import { plainAsserts, plainCaptures } from './request'
-import type { Assert, AuthSpec, Capture, BodyMode, HttpMethod, Param, RedirectPolicy, RequestDraft } from './http'
+import type { Assert, AuthSpec, Capture, BodyMode, HttpMethod, HttpVersionPin, Param, RedirectPolicy, RequestDraft } from './http'
 
 export type NodeType = 'collection' | 'folder' | 'request'
 
@@ -42,6 +42,7 @@ export interface StoredRequest {
   redirects?: RedirectPolicy
   verifyTls?: boolean
   cookies?: boolean
+  httpVersion?: HttpVersionPin
   maxBodyBytes?: number
 }
 
@@ -166,6 +167,7 @@ export function storedToDraft(stored: StoredRequest): RequestDraft {
     redirects: stored.redirects,
     verifyTls: stored.verifyTls,
     cookies: stored.cookies,
+    httpVersion: stored.httpVersion,
     maxBodyBytes: stored.maxBodyBytes
   }
 }
@@ -197,6 +199,7 @@ export function draftToStored(draft: RequestDraft): StoredRequest {
     redirects: draft.redirects,
     verifyTls: draft.verifyTls,
     cookies: draft.cookies,
+    httpVersion: draft.httpVersion,
     maxBodyBytes: draft.maxBodyBytes
   }
 }

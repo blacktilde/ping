@@ -21,6 +21,35 @@
       "additionalProperties": false
     },
 
+    "network": {
+      "type": "object",
+      "description": "Where a call goes over the network. Set by the desktop shell from the user's own settings (never from the renderer or a collection): a proxy sees every request and its credentials. The command line builds it from its flags and environment.",
+      "properties": {
+        "proxy": {
+          "type": "object",
+          "description": "An HTTP proxy. SOCKS and https:// (TLS to the proxy) are refused with -32602. HTTPS requests are tunnelled with CONNECT. Credentials are sent to the proxy only, as Proxy-Authorization, and never in answer to a server's 401.",
+          "properties": {
+            "mode": { "enum": ["none", "system", "manual"], "default": "none" },
+            "url": { "type": "string", "description": "manual: host:port, or http://[user:pass@]host:port." },
+            "username": { "type": "string", "description": "manual: outranks a user name in the address." },
+            "password": { "type": "string", "description": "manual: the resolved password, not a reference. Never logged or echoed." },
+            "bypass": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "manual: hosts that skip the proxy. `*`, `example.com` and `.example.com` (the host and its subdomains), `host:port`, an address. Loopback is proxied unless listed."
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "system: the environment to read HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and NO_PROXY (either case) from. The core never reads its own environment."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
     "http.send.params": {
       "type": "object",
       "required": ["url"],
@@ -57,6 +86,11 @@
           "default": true,
           "description": "False keeps this request out of the cookie jar: it neither sends the jar's cookies nor stores the ones it receives."
         },
+        "httpVersion": {
+          "enum": ["1.1", "2"],
+          "description": "Pins the protocol: `1.1`, or `2` to prefer HTTP/2 (the server can still answer with 1.1, and over plain http:// it is an upgrade request). Absent lets the client choose. The response's `httpVersion` says what was actually used."
+        },
+        "network": { "$ref": "#/$defs/network" },
         "cookieScope": {
           "type": "string",
           "description": "Names the cookie jar scope this send reads and writes. Absent means no jar, so a send is stateless. The desktop shell builds it from the workspace, collection and environment and ignores any value from the renderer."

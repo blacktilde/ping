@@ -2,6 +2,8 @@ package dev.ping.auth;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.ping.http.NetworkConfig;
+import dev.ping.http.ProxyRouter;
 import dev.ping.rpc.RpcException;
 
 import java.io.IOException;
@@ -26,10 +28,29 @@ public final class TokenClient {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final HttpClient CLIENT = HttpClient.newBuilder()
-            .connectTimeout(TIMEOUT)
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+
+    private final HttpClient client;
+    private final ProxyRouter router;
+
+    public TokenClient() {
+        this(NetworkConfig.NONE);
+    }
+
+    private TokenClient(NetworkConfig network) {
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .connectTimeout(TIMEOUT)
+                .followRedirects(HttpClient.Redirect.NORMAL);
+        this.router = network.applyTo(builder);
+        this.client = builder.build();
+    }
+
+    /**
+     * A client whose token exchanges use this network configuration. A token endpoint sits
+     * behind the same corporate proxy as the API it protects.
+     */
+    public TokenClient through(NetworkConfig network) {
+        return network == null || network.proxy() == null ? this : new TokenClient(network);
+    }
 
     /** @param expiresAtMillis epoch millis, or 0 when the server did not say */
     public record Token(String accessToken, String refreshToken, String tokenType, long expiresAtMillis) {
@@ -92,19 +113,24 @@ public final class TokenClient {
 
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder(URI.create(tokenUrl))
+            URI uri = URI.create(tokenUrl);
+            HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                     .timeout(TIMEOUT)
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .header("Accept", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8));
+            String proxyAuthorization = router == null ? null : router.authorizationFor(uri);
+            if (proxyAuthorization != null) {
+                builder.header("Proxy-Authorization", proxyAuthorization);
+            }
+            request = builder.build();
         } catch (IllegalArgumentException e) {
             throw RpcException.authFailed("Malformed token URL: " + tokenUrl);
         }
 
         HttpResponse<String> response;
         try {
-            response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException e) {
             throw RpcException.authFailed("Token request failed: " + e.getMessage(), e);
         } catch (InterruptedException e) {

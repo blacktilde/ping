@@ -1,6 +1,7 @@
 package dev.ping.auth;
 
 import com.sun.net.httpserver.HttpServer;
+import dev.ping.http.NetworkConfig;
 import dev.ping.http.RequestSpec;
 import dev.ping.rpc.RpcException;
 import dev.ping.vars.Interpolation;
@@ -51,6 +52,13 @@ public final class OAuth2Flow {
     }
 
     public Map<String, Object> start(RequestSpec.Auth auth, Map<String, String> variables) {
+        return start(auth, variables, NetworkConfig.NONE);
+    }
+
+    /** @param network the proxy the token exchange goes through; the browser is unaffected */
+    public Map<String, Object> start(
+            RequestSpec.Auth auth, Map<String, String> variables, NetworkConfig network) {
+        TokenClient tokens = this.tokens.through(network);
         String authUrl = value(auth.authUrl(), variables);
         String tokenUrl = value(auth.tokenUrl(), variables);
         String clientId = value(auth.clientId(), variables);

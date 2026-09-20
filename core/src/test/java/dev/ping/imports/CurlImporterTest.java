@@ -296,13 +296,30 @@ class CurlImporterTest {
 
     @Test
     void whatHasNoEquivalentIsReportedAndQuietFlagsAreNot() throws IOException {
-        ImportResult result = parse("curl -s -v -i -f --compressed https://x.io --cert c.pem --http2 "
+        ImportResult result = parse("curl -s -v -i -f --compressed https://x.io --cert c.pem --http3 "
                 + "--frobnicate -o out.json");
         assertEquals(4, result.warnings().size(), result.warnings().toString());
         assertTrue(result.warnings().stream().anyMatch(w -> w.contains("--cert")));
-        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("--http2")));
+        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("--http3")));
         assertTrue(result.warnings().stream().anyMatch(w -> w.contains("--frobnicate")));
         assertTrue(result.warnings().stream().anyMatch(w -> w.contains("-o")));
+    }
+
+    @Test
+    void theProtocolVersionFlagsBecomeARequestSetting() throws IOException {
+        assertEquals("1.1", parse("curl --http1.1 https://x.io").request().httpVersion());
+        assertEquals("2", parse("curl --http2 https://x.io").request().httpVersion());
+        assertNull(parse("curl https://x.io").request().httpVersion());
+        assertTrue(parse("curl --http2 https://x.io").warnings().isEmpty());
+    }
+
+    @Test
+    void aProxyIsNotKeptInARequestAndTheWarningSaysWhere() throws IOException {
+        ImportResult result = parse("curl -x http://bob:pw@proxy:3128 --proxy-user u:p https://x.io");
+        assertEquals(2, result.warnings().size(), result.warnings().toString());
+        assertTrue(result.warnings().stream().allMatch(w -> w.contains("Network settings")), result.warnings().toString());
+        // A shared collection must not be able to choose a proxy: nothing of it is imported.
+        assertEquals("https://x.io", result.request().url());
     }
 
     @Test

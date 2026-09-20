@@ -9,6 +9,7 @@ import dev.ping.cookies.CookieContext;
 import dev.ping.cookies.CookieJar;
 import dev.ping.http.FileAccess;
 import dev.ping.http.HttpEngine;
+import dev.ping.http.NetworkConfig;
 import dev.ping.http.RequestSpec;
 import dev.ping.rpc.RpcException;
 import dev.ping.rpc.RpcServer;
@@ -47,7 +48,7 @@ public final class HttpMethods {
         HttpEngine engine = new HttpEngine(tokenCache);
 
         server.register("http.send", params -> engine.send(parse(params), variables(params), files(params),
-                cookies(params, jar)));
+                cookies(params, jar), network(params)));
         server.register("http.cancel", params -> {
             String requestId = requireRequestId(params);
             return Map.of("cancelled", engine.cancel(requestId));
@@ -76,6 +77,24 @@ public final class HttpMethods {
     private static FileAccess files(JsonNode params) {
         String base = params == null ? null : params.path("filesBase").asText(null);
         return base == null || base.isBlank() ? FileAccess.LOCAL : new FileAccess(Path.of(base), true);
+    }
+
+    /**
+     * The proxy for this call. Like {@code filesBase} and {@code cookieScope} it is set by the
+     * desktop shell from the user's own settings; the renderer's copy is discarded there.
+     */
+    static NetworkConfig network(JsonNode params) {
+        JsonNode node = params == null ? null : params.get("network");
+        if (node == null || node.isNull()) {
+            return NetworkConfig.NONE;
+        }
+        try {
+            return MAPPER.treeToValue(node, NetworkConfig.class);
+        } catch (JsonProcessingException e) {
+            throw RpcException.invalidParams("Malformed network settings: " + e.getOriginalMessage());
+        } catch (IllegalArgumentException e) {
+            throw RpcException.invalidParams("Malformed network settings: " + e.getMessage());
+        }
     }
 
     private static CookieContext cookies(JsonNode params, CookieJar jar) {

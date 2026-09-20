@@ -1,5 +1,6 @@
 package dev.ping.auth;
 
+import dev.ping.http.NetworkConfig;
 import dev.ping.http.RequestSpec;
 import dev.ping.rpc.RpcException;
 import dev.ping.vars.Interpolation;
@@ -32,6 +33,12 @@ public final class Authenticator {
     }
 
     public Applied apply(RequestSpec.Auth auth, Map<String, String> variables) {
+        return apply(auth, variables, NetworkConfig.NONE);
+    }
+
+    /** @param network the proxy any token exchange goes through */
+    public Applied apply(RequestSpec.Auth auth, Map<String, String> variables, NetworkConfig network) {
+        TokenClient tokens = this.tokens.through(network);
         if (auth == null || !auth.isConfigured()) {
             return Applied.NONE;
         }
@@ -44,9 +51,9 @@ public final class Authenticator {
                     "Bearer " + required(value(auth.token(), variables), "bearer token"));
             case "api-key", "apikey", "api_key" -> apiKey(auth, variables);
             case "oauth2-client-credentials", "client-credentials" -> authorization(
-                    "Bearer " + clientCredentialsToken(auth, variables));
+                    "Bearer " + clientCredentialsToken(auth, variables, tokens));
             case "oauth2-authorization-code", "authorization-code" -> authorization(
-                    "Bearer " + authorizationCodeToken(auth, variables));
+                    "Bearer " + authorizationCodeToken(auth, variables, tokens));
             default -> throw RpcException.authFailed("Unknown auth type: " + auth.type());
         };
     }
@@ -74,7 +81,8 @@ public final class Authenticator {
         return cache;
     }
 
-    private String clientCredentialsToken(RequestSpec.Auth auth, Map<String, String> variables) {
+    private String clientCredentialsToken(
+            RequestSpec.Auth auth, Map<String, String> variables, TokenClient tokens) {
         String key = cacheKey("client-credentials", auth, variables);
         TokenClient.Token cached = cache.get(key);
         if (cached != null && cached.isValid()) {
@@ -91,7 +99,8 @@ public final class Authenticator {
         return token.accessToken();
     }
 
-    private String authorizationCodeToken(RequestSpec.Auth auth, Map<String, String> variables) {
+    private String authorizationCodeToken(
+            RequestSpec.Auth auth, Map<String, String> variables, TokenClient tokens) {
         String key = cacheKey("authorization-code", auth, variables);
 
         // A token the shell restored from safeStorage is used first, so a session survives

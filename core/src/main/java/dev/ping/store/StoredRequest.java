@@ -24,7 +24,7 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonPropertyOrder({"name", "method", "url", "query", "headers", "body", "auth",
-        "timeoutMs", "redirects", "verifyTls", "cookies", "maxBodyBytes", "asserts", "capture", "docs"})
+        "timeoutMs", "redirects", "verifyTls", "cookies", "httpVersion", "maxBodyBytes", "asserts", "capture", "docs"})
 public record StoredRequest(
         String name,
         String method,
@@ -40,16 +40,17 @@ public record StoredRequest(
         List<Assertion> asserts,
         List<Capture> capture,
         String docs,
-        Boolean cookies) {
+        Boolean cookies,
+        String httpVersion) {
 
     public RequestSpec toSpec() {
         return new RequestSpec(null, method, url, query, headers, body, auth,
-                timeoutMs, redirects, verifyTls, maxBodyBytes, asserts, capture, cookies);
+                timeoutMs, redirects, verifyTls, maxBodyBytes, asserts, capture, cookies, httpVersion);
     }
 
     public static StoredRequest fromSpec(String name, RequestSpec spec) {
         return new StoredRequest(name, spec.method(), spec.url(), spec.query(), spec.headers(),
                 spec.body(), spec.auth(), spec.timeoutMs(), spec.redirects(), spec.verifyTls(),
-                spec.maxBodyBytes(), spec.asserts(), spec.capture(), null, spec.cookies());
+                spec.maxBodyBytes(), spec.asserts(), spec.capture(), null, spec.cookies(), spec.httpVersion());
     }
 }

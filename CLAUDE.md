@@ -58,6 +58,13 @@ folder; the main process injects that root and rejects absolute or `..` paths be
 reach the core, which checks the same boundary again. A new store method takes a relative
 path, never an absolute one.
 
+**A collection never chooses the network path.** The proxy (and, later, client certificates)
+belong to the user: `network.json` in `userData`, injected by `withNetwork` in the main
+process, which discards any `network` the renderer sends. A proxy password is a `safeStorage`
+value that is *not* in `SecretStore`, whose names are offered to the renderer and whose values
+are interpolable as `{{name}}`. Proxy credentials go to the proxy as `Proxy-Authorization`,
+never through a JDK `Authenticator`, which would turn every origin `401` into a failed request.
+
 **Secrets never touch collection files.** They live in Electron `safeStorage`; YAML holds
 only the variable name.
 

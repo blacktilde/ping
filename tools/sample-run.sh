@@ -7,20 +7,29 @@
 # A deliberately failing collection has to produce a non-zero exit, or CI would go green on
 # a broken assertion.
 set -u
+# A proxy in the developer's own environment must not leak into the runs that expect none.
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy
 
 BIN=${1:?usage: sample-run.sh <ping-core binary>}
 PORT=${PORT:-18099}
+PROXY_PORT=${PROXY_PORT:-18098}
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 BASE="http://127.0.0.1:$PORT"
 
 python3 "$HERE/sample/server.py" "$PORT" &
 SERVER=$!
-trap 'kill $SERVER 2>/dev/null; rm -rf "$WORK"' EXIT
+PROXYLOG="$WORK/proxy.log"
+: >"$PROXYLOG"
+python3 "$HERE/sample/proxy.py" "$PROXY_PORT" "$PROXYLOG" &
+PROXY=$!
+trap 'kill $SERVER $PROXY 2>/dev/null; rm -rf "$WORK"' EXIT
 
-for _ in $(seq 1 50); do
-  (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null && break
-  sleep 0.1
+for waiting_on in "$PORT" "$PROXY_PORT"; do
+  for _ in $(seq 1 50); do
+    (exec 3<>"/dev/tcp/127.0.0.1/$waiting_on") 2>/dev/null && break
+    sleep 0.1
+  done
 done
 
 failures=0
@@ -61,6 +70,29 @@ expect 1 "an unreachable server is an error, not a pass" \
   "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=http://127.0.0.1:1"
 expect 2 "an unknown environment cannot start a run" \
   "$BIN" run "$HERE/sample/passing" -e nope
+
+# The proxy: the same collection, through a forwarding proxy. Loopback is not exempt, so a run
+# that passes here and shows up in the proxy's log really went through it.
+expect 0 "the passing collection passes through --proxy" \
+  "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=$BASE" --proxy "127.0.0.1:$PROXY_PORT" --proxy-user "ci:sample-proxy-pw"
+if [ "$(grep -c "^GET $BASE/health " "$PROXYLOG")" -ge 1 ] && grep -q ' Basic ' "$PROXYLOG"; then
+  echo "ok   the proxy saw the requests and its credentials"
+else
+  echo "FAIL the proxy did not see the run:"; sed 's/^/     log: /' "$PROXYLOG"
+  failures=$((failures + 1))
+fi
+: >"$PROXYLOG"
+HTTP_PROXY="http://127.0.0.1:$PROXY_PORT" expect 0 "HTTP_PROXY applies with no flags" \
+  "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=$BASE"
+[ -s "$PROXYLOG" ] && echo "ok   HTTP_PROXY routed the run through the proxy" \
+  || { echo "FAIL HTTP_PROXY did not route the run"; failures=$((failures + 1)); }
+: >"$PROXYLOG"
+HTTP_PROXY="http://127.0.0.1:$PROXY_PORT" expect 0 "--no-proxy ignores HTTP_PROXY" \
+  "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=$BASE" --no-proxy
+[ -s "$PROXYLOG" ] && { echo "FAIL --no-proxy still used the proxy"; failures=$((failures + 1)); } \
+  || echo "ok   --no-proxy kept the run off the proxy"
+expect 2 "an unsupported proxy cannot start a run" \
+  "$BIN" run "$HERE/sample/passing" -e ci --var "baseUrl=$BASE" --proxy "socks5://127.0.0.1:1080"
 
 # No arguments must still mean the stdio RPC loop: that is how the desktop shell spawns it.
 rpc=$(echo '{"jsonrpc":"2.0","id":1,"method":"core.ping"}' | "$BIN" 2>/dev/null)

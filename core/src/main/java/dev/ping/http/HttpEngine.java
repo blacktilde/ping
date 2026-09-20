@@ -112,8 +112,18 @@ public final class HttpEngine {
         }
     }
 
-    /** Built per request: redirect policy and TLS trust are per-request settings. */
-    private HttpClient clientFor(RequestSpec spec) {
+    static {
+        // Basic credentials for a proxy are refused over an HTTPS CONNECT tunnel by default.
+        // They are only ever offered to a proxy the user configured with a password, and
+        // the alternative is a proxy that cannot be used at all, so the default is lifted
+        // unless the operator has already chosen. Read once by the JDK, hence here.
+        if (System.getProperty("jdk.http.auth.tunneling.disabledSchemes") == null) {
+            System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
+        }
+    }
+
+    /** Built per request: redirect policy, TLS trust and protocol version are per-request settings. */
+    private HttpClient clientFor(RequestSpec spec, NetworkConfig network) {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .executor(Executors.newVirtualThreadPerTaskExecutor())
                 .connectTimeout(Duration.ofMillis(spec.timeoutOrDefault()))
@@ -126,6 +136,13 @@ public final class HttpEngine {
         if (!spec.verifyTlsOrDefault()) {
             builder.sslContext(trustAllContext()).sslParameters(noHostnameVerification());
         }
+        // On the client rather than each request: a redirect hop rebuilds the request, and
+        // the version must not silently reset along the way.
+        HttpClient.Version version = spec.httpVersionOrNull();
+        if (version != null) {
+            builder.version(version);
+        }
+        network.applyTo(builder);
         return builder.build();
     }
 
@@ -166,6 +183,17 @@ public final class HttpEngine {
      */
     public ResponseData send(
             RequestSpec spec, Map<String, String> variables, FileAccess files, CookieContext cookies) {
+        return send(spec, variables, files, cookies, NetworkConfig.NONE);
+    }
+
+    /**
+     * @param network the proxy to route through; {@link NetworkConfig#NONE} goes direct. Set by
+     *                the shell from the user's settings, never by a collection.
+     */
+    public ResponseData send(
+            RequestSpec spec, Map<String, String> variables, FileAccess files, CookieContext cookies,
+            NetworkConfig network) {
+        NetworkConfig net = network == null ? NetworkConfig.NONE : network;
         String requestId = spec.requestId() == null ? UUID.randomUUID().toString() : spec.requestId();
 
         // Register before doing any work at all. The renderer offers Cancel the moment it
@@ -179,7 +207,7 @@ public final class HttpEngine {
                 throw cancelledException();
             }
 
-            Authenticator.Applied auth = authenticator.apply(spec.auth(), variables);
+            Authenticator.Applied auth = authenticator.apply(spec.auth(), variables, net);
             URI uri = buildUri(spec, variables, auth.query());
             // The jar supplies a Cookie header only when the user did not set one: an explicit
             // header replaces the jar's for this request rather than merging with it.
@@ -187,13 +215,17 @@ public final class HttpEngine {
             boolean jarManaged = jarOn && !hasUserCookie(spec);
             String jarCookie = jarManaged
                     ? cookies.jar().header(cookies.scope(), uri, System.currentTimeMillis()) : null;
-            HttpRequest request = buildRequest(spec, uri, variables, auth.headers(), files, jarCookie);
+            ProxyRouter router = net.router();
+            HttpRequest request = withProxyAuthorization(
+                    buildRequest(spec, uri, variables, auth.headers(), files, jarCookie), router);
 
             // Resolved before dispatch so the cost is attributable; the client's own lookup
             // then hits the JDK cache. Failure is not fatal: report the timing as unknown.
-            Long dnsMs = measureDns(uri.getHost());
+            // Through a proxy the proxy resolves the origin, so there is nothing to measure here,
+            // and a lookup of a name only the proxy can see would stall or mislead.
+            Long dnsMs = router != null && router.proxyFor(uri) != null ? null : measureDns(uri.getHost());
 
-            HttpClient client = clientFor(spec);
+            HttpClient client = clientFor(spec, net);
             long startedAt = System.nanoTime();
 
             CompletableFuture<HttpResponse<InputStream>> future =
@@ -218,6 +250,9 @@ public final class HttpEngine {
                 if (location == null) {
                     break;
                 }
+                if (router != null) {
+                    router.proxyFor(location); // fail on an unusable proxy before the hop, not inside the JDK
+                }
                 hops++;
                 redirects.add(new ResponseData.Redirect(
                         response.statusCode(),
@@ -232,9 +267,9 @@ public final class HttpEngine {
                 // The redirect response's cookies were stored above, so they are sent on this hop.
                 String hopCookie = jarManaged
                         ? cookies.jar().header(cookies.scope(), location, System.currentTimeMillis()) : null;
-                request = redirectRequest(
+                request = withProxyAuthorization(redirectRequest(
                         request, location, response.statusCode(), spec, variables,
-                        dropCredentials, files, jarManaged, hopCookie);
+                        dropCredentials, files, jarManaged, hopCookie), router);
                 future = client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
                 exchange.future(future);
                 if (exchange.cancelled().get()) {
@@ -382,6 +417,22 @@ public final class HttpEngine {
                 : HttpRequest.BodyPublishers.noBody();
         builder.method(method, body);
         return builder.build();
+    }
+
+    /**
+     * Adds the proxy's credentials for this request's route, unless the user set their own.
+     * Applied per hop, because a redirect can change whether the request is proxied at all.
+     */
+    private static HttpRequest withProxyAuthorization(HttpRequest request, ProxyRouter router) {
+        if (router == null || request.headers().firstValue("Proxy-Authorization").isPresent()) {
+            return request;
+        }
+        String header = router.authorizationFor(request.uri());
+        if (header == null) {
+            return request;
+        }
+        return HttpRequest.newBuilder(request, (name, value) -> true)
+                .header("Proxy-Authorization", header).build();
     }
 
     private static boolean hasUserCookie(RequestSpec spec) {
