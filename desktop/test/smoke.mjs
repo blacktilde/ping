@@ -1443,6 +1443,78 @@ try {
   await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-node-type="request"]').length`)) > 1, 5000, 'the full tree')
   check('clearing the filter restores the tree', true)
 
+  console.log('--- 15f. markdown notes on a request and on a collection')
+  const setTextarea = (label, text) => `(() => {
+    const area = document.querySelector('textarea[aria-label="${label}"]');
+    if (!area) return false;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+    setter.call(area, ${JSON.stringify(text)});
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`
+  const notesView = (label, mode) => `(() => {
+    const tab = [...document.querySelectorAll('[role=tablist][aria-label="${label} view"] [role=tab]')].find(t => t.textContent.trim().toLowerCase() === '${mode}');
+    if (!tab) return false;
+    tab.click();
+    return true;
+  })()`
+
+  const hostile = [
+    '# Title',
+    '',
+    '- one',
+    '- two',
+    '',
+    '[site](https://example.com)',
+    '',
+    '[bad](javascript:alert(1))',
+    '',
+    '<script>window.__pwned = 1</script>',
+    '',
+    '<img src=x onerror="window.__pwned = 2">'
+  ].join('\n')
+
+  await evaluate(clickTab('Docs'))
+  check('an empty request opens ready to type', await evaluate(setTextarea('Request notes', hostile)))
+  check('notes make the request dirty', await dirtyShown())
+  await evaluate(notesView('Request notes', 'preview'))
+  const preview = await evaluate(`(() => {
+    const p = document.querySelector('[data-role="docs-preview"]');
+    return {
+      heading: p?.querySelector('h1')?.textContent ?? null,
+      items: p?.querySelectorAll('li').length ?? 0,
+      link: p?.querySelector('a[href="https://example.com"]')?.getAttribute('rel') ?? null,
+      jsLinks: p?.querySelectorAll('a[href^="javascript" i]').length ?? -1,
+      scripts: p?.querySelectorAll('script, img, iframe').length ?? -1,
+      pwned: window.__pwned ?? null,
+      text: p?.textContent ?? ''
+    };
+  })()`)
+  check('renders headings, lists and links', preview.heading === 'Title' && preview.items === 2 && preview.link === 'noopener noreferrer', JSON.stringify(preview).slice(0, 120))
+  check('a javascript: link is not a link', preview.jsLinks === 0, String(preview.jsLinks))
+  check('raw HTML is shown as text, never run', preview.scripts === 0 && preview.pwned === null && preview.text.includes('<script>'), `elements=${preview.scripts} pwned=${preview.pwned}`)
+  await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
+  await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'ping-rename-copy.yaml'), 'utf8').includes('docs:'), 5000, 'the notes on disk')
+  check('saves the notes with the request', readFileSync(join(workspaceDir, 'demo', 'ping-rename-copy.yaml'), 'utf8').includes('# Title'))
+  check('a save clears the dirty marker again', !(await dirtyShown()))
+  check('the Docs tab is badged', await evaluate(`[...document.querySelectorAll('[role=tab]')].some(t => t.textContent.trim().startsWith('Docs') && t.textContent.includes('•'))`))
+
+  await evaluate(clickText('Variables'))
+  await waitFor(async () => await evaluate(`!!document.querySelector('textarea[aria-label="Collection notes"]')`), 5000, 'the collection notes editor')
+  await evaluate(setTextarea('Collection notes', '## Demo API\n\nUse the **dev** environment.'))
+  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the collection notes on disk')
+  const collectionYaml = readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8')
+  check('saves collection notes beside the variables', collectionYaml.includes('Use the **dev** environment') && collectionYaml.includes('collection-token'), collectionYaml.replace(/\n/g, ' | ').slice(0, 140))
+  const reloaded = await evaluate(`window.ping.request('vars.catalog', { collection: 'demo' })`)
+  check('reads them back', reloaded.ok && reloaded.value.docs?.startsWith('## Demo API'), JSON.stringify(reloaded).slice(0, 100))
+
+  await evaluate(setTextarea('Collection notes', ''))
+  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await waitFor(async () => !readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the notes to clear')
+  check('clearing the notes removes them from the file', true)
+  await evaluate(clickText('Variables'))
+
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)
   await waitFor(

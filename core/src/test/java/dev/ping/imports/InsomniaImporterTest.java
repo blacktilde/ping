@@ -180,6 +180,15 @@ class InsomniaImporterTest {
     }
 
     @Test
+    void aWorkspaceDescriptionBecomesTheCollectionNotes() {
+        CollectionImporter.Parsed parsed = parse("""
+                {"_id": "w", "_type": "workspace", "name": "Shop", "description": " Storefront API "},
+                {"_id": "w2", "_type": "workspace", "name": "Bare"}""");
+        assertEquals("Storefront API", parsed.collections().get(0).docs());
+        assertNull(parsed.collections().get(1).docs());
+    }
+
+    @Test
     void oneExportCanHoldSeveralWorkspaces() {
         CollectionImporter.Parsed parsed = parse("""
                 {"_id": "w1", "_type": "workspace", "name": "One"},

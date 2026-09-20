@@ -32,7 +32,8 @@
       "required": ["name"],
       "properties": {
         "name": { "type": "string" },
-        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } }
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } },
+        "docs": { "type": "string", "description": "Markdown notes about the collection. Omitted when there are none." }
       },
       "additionalProperties": false
     },
@@ -63,6 +64,7 @@
       "properties": {
         "name": { "type": "string" },
         "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } },
+        "docs": { "type": "string", "description": "Markdown notes about the collection. Omitted when there are none." },
         "environments": { "type": "array", "items": { "$ref": "#/$defs/environmentRef" } }
       },
       "additionalProperties": false
@@ -86,7 +88,11 @@
         "root": { "type": "string" },
         "collection": { "type": "string" },
         "name": { "type": "string", "description": "Omitted keeps the collection's current name." },
-        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } }
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/variable" } },
+        "docs": {
+          "type": "string",
+          "description": "Markdown notes. Omitted keeps the stored notes, so a caller that predates docs cannot wipe them; an empty string clears them."
+        }
       },
       "additionalProperties": false
     },

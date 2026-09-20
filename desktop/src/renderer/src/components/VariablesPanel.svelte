@@ -1,6 +1,7 @@
 <script lang="ts">
   import { variables } from '../lib/vars.svelte'
   import { clearRuntime, runtime } from '../lib/runtime.svelte'
+  import DocsEditor from './DocsEditor.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
   import SecretsEditor from './SecretsEditor.svelte'
 
@@ -67,7 +68,18 @@
                  outline-none transition focus:border-accent"
         />
       </div>
-      <div class="h-52">
+      <div class="h-52 border-t border-line/60">
+        <p class="px-3 pt-2 text-xs text-fg-faint">Notes about this collection</p>
+        {#key variables.collection}
+          <DocsEditor
+            value={variables.docs}
+            label="Collection notes"
+            placeholder="What this collection is for, how to authenticate, links…"
+            onChange={(value) => (variables.docs = value)}
+          />
+        {/key}
+      </div>
+      <div class="h-52 border-t border-line/60">
         <KeyValueEditor
           items={variables.collectionVariables}
           nameLabel="Variable name"

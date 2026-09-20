@@ -132,8 +132,10 @@ final class OpenApiImporter {
             }
         }
 
+        String description = ImportSupport.text(root.path("info"), "description");
         return new ImportedCollection(name, collectionVariables, environments,
-                new ImportedCollection.Folder(name, folders, untagged));
+                new ImportedCollection.Folder(name, folders, untagged),
+                description == null || description.isBlank() ? null : description.strip());
     }
 
     // --- servers --------------------------------------------------------------------------

@@ -214,6 +214,21 @@ class OpenApiImporterTest {
     }
 
     @Test
+    void theInfoDescriptionBecomesTheCollectionNotes() {
+        assertEquals("Manages pets.\n\nSee **docs**.", parse("""
+                openapi: 3.0.0
+                info:
+                  title: T
+                  description: |
+                    Manages pets.
+
+                    See **docs**.
+                servers: [{url: 'https://x.io'}]
+                paths: {}""").collections().get(0).docs());
+        assertNull(parse(SPEC).collections().get(0).docs());
+    }
+
+    @Test
     void aSingleServerMakesNoEnvironmentsAndMissingOrRelativeServersAreWarned() {
         CollectionImporter.Parsed one = parse("""
                 openapi: 3.1.0

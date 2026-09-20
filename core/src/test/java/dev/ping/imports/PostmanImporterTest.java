@@ -58,6 +58,20 @@ class PostmanImporterTest {
     }
 
     @Test
+    void theCollectionDescriptionBecomesItsNotes() {
+        CollectionImporter.Parsed plain = CollectionImporter.parse("""
+                {"info": {"name": "D", "description": "  Plain text  ", "schema": "%s"}, "item": []}
+                """.formatted(SCHEMA));
+        assertEquals("Plain text", plain.collections().get(0).docs());
+
+        CollectionImporter.Parsed object = CollectionImporter.parse("""
+                {"info": {"name": "D", "description": {"content": "# Docs", "type": "text/markdown"}, "schema": "%s"}, "item": []}
+                """.formatted(SCHEMA));
+        assertEquals("# Docs", object.collections().get(0).docs());
+        assertNull(parse("", "").collections().get(0).docs());
+    }
+
+    @Test
     void collectionVariablesKeepTheirDisabledState() {
         CollectionImporter.Parsed parsed = parse("""
                 "variable": [{"key": "baseUrl", "value": "https://x.io"}, {"key": "off", "value": "1", "disabled": true}],

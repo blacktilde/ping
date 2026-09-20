@@ -92,6 +92,20 @@ omitted. Writes go through a temp file and a rename, so a crash cannot leave a h
 request. `store.create` derives a unique filename from the request name, and `store.scaffold`
 creates a starter collection on first run without ever overwriting an existing one.
 
+### Notes (`docs`)
+
+A request (`StoredRequest.docs`) and a collection (`collection.yaml`'s `docs`, read and written through
+`vars.catalog` / `vars.saveCollection`) can carry free-form Markdown notes, kept in the file so they
+travel with the collection in Git. Nothing on the wire depends on them. `vars.saveCollection` keeps the
+stored notes when `docs` is omitted and clears them for an empty string. Importers use notes for what a
+request cannot express (a Postman script that was not carried over) and for the source's own description
+of a collection (Postman `info.description`, OpenAPI `info.description`, an Insomnia workspace's
+`description`).
+
+Notes are untrusted text (shared files, other people's imports), so the desktop renders them with raw
+HTML **disabled**: `<script>` and `<img onerror=…>` are shown as text, and `javascript:` links are not
+links. Links open only in the system browser, through the shell's existing external-URL handling.
+
 ### Renaming, moving and duplicating
 
 `store.rename`, `store.move` and `store.duplicate` reshape the tree and return the new relative path.

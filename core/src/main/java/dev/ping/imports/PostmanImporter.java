@@ -43,7 +43,8 @@ final class PostmanImporter {
         scriptsWarning(root, "Collection \"" + name + "\"");
         AuthScope scope = scope(root, null, "Collection \"" + name + "\"");
         ImportedCollection.Folder folder = folder(name, root.path("item"), scope);
-        return new ImportedCollection(name, variables(root.path("variable")), List.of(), folder);
+        return new ImportedCollection(name, variables(root.path("variable")), List.of(), folder,
+                blankToNull(description(root.path("info").get("description"))));
     }
 
     private ImportedCollection.Folder folder(String name, JsonNode items, AuthScope scope) {
@@ -406,6 +407,10 @@ final class PostmanImporter {
             return null;
         }
         return node.isTextual() ? node.asText() : ImportSupport.text(node, "content");
+    }
+
+    private static String blankToNull(String text) {
+        return text == null || text.isBlank() ? null : text.strip();
     }
 
     private static String label(JsonNode event) {

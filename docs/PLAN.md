@@ -87,7 +87,7 @@ everything and can be pulled forward whenever adoption matters more than depth.
 **Recommended first slice: 14, 15, 17.** Import removes the wall in front of a new user;
 assertions plus the runner change what the project is for.
 
-- [ ] **13. Collection hygiene.** `store.rename`, `store.move` and `store.duplicate`; a
+- [x] **13. Collection hygiene.** `store.rename`, `store.move` and `store.duplicate`; a
   folder-creating `store.create`; a filter box over the sidebar tree; and a `docs` markdown
   field on a request and on a collection. The store has grown every capability except the
   ones a collection past fifty requests needs daily. Renames and moves reuse the temp-file
@@ -95,10 +95,9 @@ assertions plus the runner change what the project is for.
   when a path it holds changes underneath it — the conflict case phase 6 deliberately left.
   *Gate: `StoreMethodsTest` covers rename, move and duplicate including collisions; `make
   smoke` renames an open request and the tab survives with its dirty state intact.*
-  *Status: shipping in slices. **Done:** `store.rename`, `store.move` (drag and drop in the sidebar),
-  `store.duplicate`, folder-creating `store.create`, the tab retargeting that keeps dirty state, and the
-  sidebar filter. **Remaining:** the `docs` editors for a request and a collection, which need a markdown
-  rendering decision.*
+  *Shipped in two slices: the store operations, sidebar actions, tab retargeting and filter; then the
+  Markdown `docs` editors (a Docs tab on a request, notes in the Variables panel for a collection), rendered
+  by `markdown-it` with raw HTML disabled.*
 
 - [x] **14. Import.** Three sources, smallest first: a curl command pasted into the URL bar,
   an OpenAPI 3 document, and a Postman v2.1 or Insomnia v4 export. The parsers belong in the

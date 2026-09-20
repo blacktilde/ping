@@ -38,10 +38,14 @@ public final class VarsMethods {
             Path root = root(params);
             String collection = requiredText(params, "collection");
             CollectionDoc doc = store.collectionDoc(root, collection);
-            return Map.of(
-                    "name", doc.name(),
-                    "variables", doc.variables() == null ? List.of() : doc.variables(),
-                    "environments", store.environmentNames(root, collection));
+            Map<String, Object> catalog = new java.util.LinkedHashMap<>();
+            catalog.put("name", doc.name());
+            catalog.put("variables", doc.variables() == null ? List.of() : doc.variables());
+            if (doc.docs() != null && !doc.docs().isEmpty()) {
+                catalog.put("docs", doc.docs());
+            }
+            catalog.put("environments", store.environmentNames(root, collection));
+            return catalog;
         });
 
         server.register("vars.environment", params ->
@@ -52,8 +56,11 @@ public final class VarsMethods {
             String collection = requiredText(params, "collection");
             CollectionDoc existing = store.collectionDoc(root, collection);
             String name = params.path("name").asText(existing.name());
+            // Notes are kept unless the caller says otherwise: only a present `docs` (even an empty
+            // string, which clears them) changes them, so a caller that predates docs cannot wipe them.
+            String docs = params.has("docs") ? params.path("docs").asText("") : existing.docs();
             store.saveCollection(root, collection,
-                    new CollectionDoc(name, variables(params.get("variables"))));
+                    new CollectionDoc(name, variables(params.get("variables")), docs));
             return Map.of();
         });
 

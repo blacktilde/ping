@@ -57,7 +57,7 @@ public final class CollectionWriter {
     private Written writeCollection(Path root, ImportedCollection collection) {
         String path = store.newFolder(root, "", collection.name());
         try {
-            store.saveCollection(root, path, new CollectionDoc(collection.name(), collection.variables()));
+            store.saveCollection(root, path, new CollectionDoc(collection.name(), collection.variables(), collection.docs()));
             // The folder's own name, so a second import of the same collection ("Name 2") gets its
             // own secret names rather than overwriting the first import's.
             String slug = YamlStore.slugify(path, "collection");

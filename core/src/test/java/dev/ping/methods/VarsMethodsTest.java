@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Drives variables and environments the way the desktop does: JSON over the RPC boundary.
@@ -154,5 +156,53 @@ class VarsMethodsTest {
                 "root", workspace.toString(),
                 "collection", "demo")).path("result").path("variables");
         assertEquals("https://collection", collectionOnly.path("base").asText());
+    }
+
+    // --- collection notes ------------------------------------------------------------------
+
+    private JsonNode catalog() throws Exception {
+        return call("vars.catalog", Map.of("root", workspace.toString(), "collection", "demo")).path("result");
+    }
+
+    private void save(Map<String, Object> extra) throws Exception {
+        Map<String, Object> params = new LinkedHashMap<>(extra);
+        params.put("root", workspace.toString());
+        params.put("collection", "demo");
+        assertFalse(call("vars.saveCollection", params).has("error"));
+    }
+
+    @Test
+    void collectionNotesRoundTripAndAreOmittedWhenThereAreNone() throws Exception {
+        seedCollection();
+        assertFalse(catalog().has("docs"), "no notes, no field");
+
+        save(Map.of("docs", "# Demo\n\nHow this API works."));
+        assertEquals("# Demo\n\nHow this API works.", catalog().path("docs").asText());
+        String yaml = Files.readString(workspace.resolve("demo/collection.yaml"));
+        assertTrue(yaml.contains("docs:"), yaml);
+        assertTrue(yaml.indexOf("variables:") < yaml.indexOf("docs:"), "key order: " + yaml);
+    }
+
+    @Test
+    void savingVariablesWithoutDocsNeverWipesTheNotes() throws Exception {
+        seedCollection();
+        save(Map.of("docs", "keep me"));
+
+        save(Map.of("name", "Renamed", "variables",
+                java.util.List.of(Map.of("name", "base", "value", "https://x", "enabled", true))));
+
+        JsonNode after = catalog();
+        assertEquals("keep me", after.path("docs").asText(), "a caller that sends no docs must not clear them");
+        assertEquals("Renamed", after.path("name").asText());
+        assertEquals(1, after.path("variables").size());
+    }
+
+    @Test
+    void anEmptyDocsStringClearsTheNotes() throws Exception {
+        seedCollection();
+        save(Map.of("docs", "temporary"));
+        save(Map.of("docs", ""));
+        assertFalse(catalog().has("docs"));
+        assertFalse(Files.readString(workspace.resolve("demo/collection.yaml")).contains("docs"));
     }
 }
