@@ -2,6 +2,8 @@ package dev.ping.run;
 
 import dev.ping.BuildInfo;
 import dev.ping.auth.TokenCache;
+import dev.ping.http.ClientCert;
+import dev.ping.http.ClientCerts;
 import dev.ping.http.HttpEngine;
 import dev.ping.http.NetworkConfig;
 import dev.ping.http.ProxyConfig;
@@ -54,12 +56,18 @@ public final class Cli {
                                       credentials for --proxy; prefer PING_PROXY_PASSWORD to a
                                       password here, which is visible in the process list
                   --no-proxy          ignore HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and NO_PROXY
+                  --cert FILE         client certificate for mutual TLS: a PKCS#12 bundle (.p12, .pfx)
+                                      or a PEM certificate. Offered to every host
+                  --key FILE          the private key for a PEM --cert (PKCS#8, plain or encrypted)
                   --help              show this help
                   --version           show the version
 
             Proxy: without --proxy or --no-proxy, the HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and
             NO_PROXY environment variables apply, as they do for curl. Loopback addresses are
             not exempt unless NO_PROXY lists them.
+
+            Client certificate passphrase: set PING_CERT_PASSWORD; there is no flag for it, because
+            arguments are visible in the process list.
 
             Secrets: any PING_SECRET_<NAME> environment variable becomes the variable NAME.
             Prefer these to --var, which is visible in the process list.
@@ -93,6 +101,8 @@ public final class Cli {
         String proxyUrl = null;
         String proxyUser = null;
         boolean noProxy = false;
+        String certFile = null;
+        String keyFile = null;
         Map<String, String> variables = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : environment.entrySet()) {
             String key = entry.getKey();
@@ -129,6 +139,14 @@ public final class Cli {
                     proxyUser = args[++i];
                 }
                 case "--no-proxy" -> noProxy = true;
+                case "--cert" -> {
+                    if (i + 1 >= args.length) return usage(err, "--cert needs a file");
+                    certFile = args[++i];
+                }
+                case "--key" -> {
+                    if (i + 1 >= args.length) return usage(err, "--key needs a file");
+                    keyFile = args[++i];
+                }
                 case "--var" -> {
                     if (i + 1 >= args.length) return usage(err, "--var needs NAME=VALUE");
                     String pair = args[++i];
@@ -153,6 +171,9 @@ public final class Cli {
         if (proxyUser != null && proxyUrl == null) {
             return usage(err, "--proxy-user needs --proxy");
         }
+        if (keyFile != null && certFile == null) {
+            return usage(err, "--key needs --cert");
+        }
         Reporter reporter = Reporter.named(reporterName);
         if (reporter == null) {
             return usage(err, "Unknown reporter \"" + reporterName + "\"; use human, json or junit");
@@ -163,8 +184,16 @@ public final class Cli {
         }
 
         NetworkConfig network = network(environment, noProxy, proxyUrl, proxyUser);
+        if (certFile != null) {
+            boolean bundle = certFile.toLowerCase().endsWith(".p12") || certFile.toLowerCase().endsWith(".pfx");
+            network = new NetworkConfig(network.proxy(), List.of(new ClientCert(
+                    "*", bundle ? "pkcs12" : "pem", Path.of(certFile).toAbsolutePath().toString(),
+                    keyFile == null ? null : Path.of(keyFile).toAbsolutePath().toString(),
+                    environment.get("PING_CERT_PASSWORD"))));
+        }
         try {
             network.router(); // an unusable proxy is a usage error, not one failed request per step
+            ClientCerts.keyManager(network.clientCerts()); // and so is a certificate that cannot be opened
         } catch (RpcException e) {
             return usage(err, e.getMessage());
         }

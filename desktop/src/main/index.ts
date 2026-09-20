@@ -161,6 +161,23 @@ async function chooseUploadFile(): Promise<string | null> {
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
 }
 
+/**
+ * Files for a client certificate. `PING_CERT_FILE` (a `path.delimiter` list, used in order) stands
+ * in for the dialogs so the smoke test can drive them, like `PING_UPLOAD_FILE`.
+ */
+const certOverrides = (process.env.PING_CERT_FILE ?? '').split(delimiter).filter(Boolean)
+
+async function chooseCertFile(title: string): Promise<string | null> {
+  if (certOverrides.length > 0) {
+    return certOverrides.shift() ?? null
+  }
+  const options: Electron.OpenDialogOptions = { title, properties: ['openFile'] }
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+}
+
 function failure(code: number | null, message: string): { ok: false; error: { code: number | null; message: string } } {
   return { ok: false, error: { code, message } }
 }
@@ -494,6 +511,28 @@ function registerIpc(): void {
   // write-only: `get` reports whether one is set, and only `withNetwork` ever reads it.
   ipcMain.handle('network:get', () => network.get())
   ipcMain.handle('network:set', (_event, update: unknown) => network.set(update))
+  // The renderer says which host and format; the shell asks the user for the files, so a path never
+  // comes from the renderer. Resolves with the settings unchanged when the dialog is dismissed.
+  ipcMain.handle('network:addCert', async (_event, request: unknown) => {
+    network.checkCert(request)
+    const type = (request as { type?: unknown } | null)?.type
+    const first = await chooseCertFile(
+      type === 'pem' ? 'Choose the PEM certificate' : 'Choose the PKCS#12 bundle (.p12 or .pfx)'
+    )
+    if (!first) {
+      return network.get()
+    }
+    let key: string | undefined
+    if (type === 'pem') {
+      const chosen = await chooseCertFile('Choose the private key (PKCS#8 PEM)')
+      if (!chosen) {
+        return network.get()
+      }
+      key = chosen
+    }
+    return network.addCert(request, { cert: first, key })
+  })
+  ipcMain.handle('network:removeCert', (_event, id: unknown) => network.removeCert(id))
 
   ipcMain.handle('secrets:list', () => secrets.names())
   // The cookie jar lives in the core, keyed by scope. The renderer names a collection and an

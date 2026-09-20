@@ -13,8 +13,10 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
+import https from 'node:https'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import electron from 'electron'
 
 const PORT = 8791
@@ -86,6 +88,25 @@ const server = http.createServer(async (req, res) => {
   )
 })
 await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve))
+
+// A server that insists on a client certificate signed by the fixture CA, and says whose it was.
+// The files are throwaway test material (see fixtures/tls/README.md).
+const tls = (name) => fileURLToPath(new URL(`./fixtures/tls/${name}`, import.meta.url))
+const MTLS_PORT = 8793
+const mtls = https.createServer(
+  {
+    key: readFileSync(tls('server.key')),
+    cert: readFileSync(tls('server.pem')),
+    ca: readFileSync(tls('ca.pem')),
+    requestCert: true,
+    rejectUnauthorized: true
+  },
+  (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' })
+    res.end(req.socket.getPeerCertificate()?.subject?.CN ?? 'none')
+  }
+)
+await new Promise((resolve) => mtls.listen(MTLS_PORT, '127.0.0.1', resolve))
 
 // A stand-in HTTP proxy: it answers for any host, and records what it was asked and the
 // credentials it was shown, so the test can prove a request went through it (or did not).
@@ -217,7 +238,10 @@ const app = spawn(
       PING_FAKE_UPDATE: '1',
       PING_IMPORT_FILE: importFile,
       // Consumed in order: the first pick is the outside file, the second the one in the collection.
-      PING_UPLOAD_FILE: [outsideUpload, insideUpload].join(delimiter)
+      PING_UPLOAD_FILE: [outsideUpload, insideUpload].join(delimiter),
+      // Stand in for the certificate dialogs, consumed in order: a PKCS#12 bundle, then a PEM
+      // certificate and its key.
+      PING_CERT_FILE: [tls('client.p12'), tls('client.pem'), tls('client.pk8.pem')].join(delimiter)
     }
   }
 )
@@ -1729,6 +1753,70 @@ try {
   await evaluate(`window.ping.network.set({ proxy: { mode: 'none', url: '', username: '', bypass: '' }, password: '' })`)
   check('a saved password can be removed', (await evaluate(`window.ping.network.get()`)).proxy.hasPassword === false)
 
+  console.log('--- 15j. client certificates')
+  const mtlsUrl = `https://127.0.0.1:${MTLS_PORT}/who`
+  const mtlsSend = async () => {
+    const result = await evaluate(`window.ping.request('http.send', ${JSON.stringify({ url: mtlsUrl, method: 'GET', verifyTls: false, timeoutMs: 8000 })})`)
+    return { ok: result.ok, body: result.ok ? result.value.body.content : null, message: result.error?.message ?? '' }
+  }
+  const withoutCert = await mtlsSend()
+  check('a server requiring a certificate refuses a request without one', !withoutCert.ok, JSON.stringify(withoutCert))
+  check('and says what is probably missing', /client certificate/.test(withoutCert.message), withoutCert.message)
+
+  await evaluate(pressCtrlK)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="palette"]')`), 2000, 'the command palette')
+  await evaluate(typeInPalette('network'))
+  await waitFor(async () => await evaluate(`!!${networkOption}`), 2000, 'the network command')
+  await evaluate(`${networkOption}?.click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="network-certs"]')`), 3000, 'the certificates section')
+  await waitFor(async () => !(await evaluate(`document.querySelector('[data-role="network-cert-add"]').disabled`)), 3000, 'the dialog to load')
+
+  await evaluate(fillNetwork('network-cert-host', ''))
+  await evaluate(`document.querySelector('[data-role="network-cert-add"]').click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="network-cert-error"]')`), 3000, 'a validation error')
+  check('a certificate needs a host', /host/i.test(await evaluate(`document.querySelector('[data-role="network-cert-error"]').textContent`)))
+
+  await evaluate(fillNetwork('network-cert-host', '127.0.0.1'))
+  await evaluate(fillNetwork('network-cert-passphrase', 'clientpw'))
+  await evaluate(`document.querySelector('[data-role="network-cert-add"]').click()`)
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="network-cert"]').length`)) === 1, 5000, 'the certificate row')
+  const rowText = await evaluate(`document.querySelector('[data-role="network-cert"]').textContent.replace(/\\s+/g, ' ')`)
+  check('lists the host and the file name', rowText.includes('127.0.0.1') && rowText.includes('client.p12'), rowText)
+  check('the row shows no directory', !rowText.includes('fixtures') && !rowText.includes('/'), rowText)
+  check('the row says a passphrase is saved without showing it', rowText.includes('passphrase saved') && !rowText.includes('clientpw'), rowText)
+
+  const withCert = await mtlsSend()
+  check('the same request succeeds with the certificate', withCert.ok && withCert.body === 'ping-client', JSON.stringify(withCert))
+
+  const certView = JSON.stringify(await evaluate(`window.ping.network.get()`))
+  check('the settings carry no path and no passphrase', !certView.includes('fixtures') && !certView.includes('clientpw'), certView)
+  const certFile = readFileSync(join(userDataDir, 'network.json'), 'utf8')
+  check('the passphrase is not stored in the clear', !certFile.includes('clientpw'), certFile.slice(0, 240))
+
+  // A collection cannot bring its own: the renderer's `network` is discarded, so it cannot name a file.
+  await evaluate(`document.querySelector('[data-role="network-cert-remove"]').click()`)
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="network-cert"]').length`)) === 0, 5000, 'the row to go')
+  const afterRemove = await mtlsSend()
+  check('removing the certificate takes the access away', !afterRemove.ok, JSON.stringify(afterRemove))
+
+  // PEM: the shell asks for the certificate, then the key.
+  await evaluate(fillNetwork('network-cert-type', 'pem'))
+  await evaluate(fillNetwork('network-cert-host', '127.0.0.1'))
+  await evaluate(`document.querySelector('[data-role="network-cert-add"]').click()`)
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="network-cert"]').length`)) === 1, 5000, 'the PEM row')
+  const pemText = await evaluate(`document.querySelector('[data-role="network-cert"]').textContent.replace(/\\s+/g, ' ')`)
+  check('a PEM certificate lists both files', pemText.includes('client.pem') && pemText.includes('client.pk8.pem'), pemText)
+  const viaPem = await mtlsSend()
+  check('a PEM certificate and key work too', viaPem.ok && viaPem.body === 'ping-client', JSON.stringify(viaPem))
+
+  // Other hosts are not offered it: the same server by another name gets no identity to refuse.
+  const otherHost = await evaluate(`window.ping.request('http.send', ${JSON.stringify({ url: `https://localhost:${MTLS_PORT}/who`, method: 'GET', verifyTls: false, timeoutMs: 8000 })})`)
+  check('a certificate is not offered to a host it does not name', !otherHost.ok, JSON.stringify(otherHost).slice(0, 160))
+
+  await evaluate(`document.querySelector('[data-role="network-cert-remove"]').click()`)
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="network-cert"]').length`)) === 0, 5000, 'the PEM row to go')
+  await evaluate(`document.querySelector('[data-role="network-cancel"]').click()`)
+
   // The per-request HTTP version is saved with the request.
   await evaluate(clickTab('Settings'))
   await evaluate(`(() => {
@@ -1811,6 +1899,8 @@ try {
   server.close()
   proxy.closeAllConnections?.()
   proxy.close()
+  mtls.closeAllConnections?.()
+  mtls.close()
   rmSync(workspaceDir, { recursive: true, force: true })
   rmSync(userDataDir, { recursive: true, force: true })
 }

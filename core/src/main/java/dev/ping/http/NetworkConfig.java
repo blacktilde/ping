@@ -1,17 +1,22 @@
 package dev.ping.http;
 
 import java.net.http.HttpClient;
+import java.util.List;
 
 /**
- * Where a send goes over the network, as opposed to what it says. Today that is the proxy;
- * client certificates join it later.
+ * Where a send goes over the network, as opposed to what it says. The proxy, and the client
+ * certificates offered to the hosts they name.
  *
  * <p>Like {@code CookieContext}, a call with none behaves as it always did, which is what
  * direct callers and tests get.
  */
-public record NetworkConfig(ProxyConfig proxy) {
+public record NetworkConfig(ProxyConfig proxy, List<ClientCert> clientCerts) {
 
-    public static final NetworkConfig NONE = new NetworkConfig(null);
+    public static final NetworkConfig NONE = new NetworkConfig(null, null);
+
+    public NetworkConfig(ProxyConfig proxy) {
+        this(proxy, null);
+    }
 
     /** The proxy routing, or null when requests go direct. Fails on a proxy Ping cannot use. */
     public ProxyRouter router() {

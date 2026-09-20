@@ -23,8 +23,24 @@
 
     "network": {
       "type": "object",
-      "description": "Where a call goes over the network. Set by the desktop shell from the user's own settings (never from the renderer or a collection): a proxy sees every request and its credentials. The command line builds it from its flags and environment.",
+      "description": "Where a call goes over the network. Set by the desktop shell from the user's own settings (never from the renderer or a collection): a proxy sees every request and its credentials, and a client certificate is an identity. The command line builds it from its flags and environment.",
       "properties": {
+        "clientCerts": {
+          "type": "array",
+          "description": "Client certificates for mutual TLS. Each is offered only to the hosts it names, chosen by the host being connected to, so a redirect to another host never receives it. Not used for the OAuth token exchange.",
+          "items": {
+            "type": "object",
+            "required": ["type", "cert"],
+            "properties": {
+              "host": { "type": "string", "description": "Who may be sent this certificate, in NO_PROXY form: api.example.com, .example.com, host:port, `*`. Blank means every host." },
+              "type": { "enum": ["pkcs12", "pem"] },
+              "cert": { "type": "string", "description": "Absolute path: the PKCS#12 bundle, or the PEM certificate (with any chain). The core reads it." },
+              "key": { "type": "string", "description": "pem: absolute path of the private key. PKCS#8, plain or encrypted; the traditional RSA/EC formats are refused with the openssl conversion." },
+              "passphrase": { "type": "string", "description": "The resolved passphrase of the bundle or the encrypted key, not a reference. Never logged or echoed." }
+            },
+            "additionalProperties": false
+          }
+        },
         "proxy": {
           "type": "object",
           "description": "An HTTP proxy. SOCKS and https:// (TLS to the proxy) are refused with -32602. HTTPS requests are tunnelled with CONNECT. Credentials are sent to the proxy only, as Proxy-Authorization, and never in answer to a server's 401.",

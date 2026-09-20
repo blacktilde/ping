@@ -7,10 +7,12 @@ import dev.ping.cookies.CookieContext;
 import dev.ping.rpc.RpcException;
 import dev.ping.vars.Interpolation;
 
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -79,6 +81,8 @@ public final class HttpEngine {
 
     /** Shares the token cache with the interactive OAuth2 flow, so a send can reuse a token. */
     public HttpEngine(TokenCache tokenCache) {
+        // Before the token client below creates the first HttpClient.
+        allowBasicProxyCredentialsForTunnels();
         this.tokenCache = tokenCache;
         this.authenticator = new Authenticator(new TokenClient(), tokenCache);
     }
@@ -113,17 +117,25 @@ public final class HttpEngine {
     }
 
     static {
-        // Basic credentials for a proxy are refused over an HTTPS CONNECT tunnel by default.
-        // They are only ever offered to a proxy the user configured with a password, and
-        // the alternative is a proxy that cannot be used at all, so the default is lifted
-        // unless the operator has already chosen. Read once by the JDK, hence here.
+        allowBasicProxyCredentialsForTunnels();
+    }
+
+    /**
+     * Basic credentials for a proxy are refused over an HTTPS CONNECT tunnel by default. They are
+     * only ever offered to a proxy the user configured with a password, and the alternative is a proxy
+     * that cannot be used at all, so the default is lifted unless the operator has already chosen.
+     *
+     * <p>The JDK reads the property once, when its HTTP client classes first load, so this has to run
+     * before any {@code HttpClient} exists: {@code Main} calls it first, and this class does too.
+     */
+    public static void allowBasicProxyCredentialsForTunnels() {
         if (System.getProperty("jdk.http.auth.tunneling.disabledSchemes") == null) {
             System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
         }
     }
 
     /** Built per request: redirect policy, TLS trust and protocol version are per-request settings. */
-    private HttpClient clientFor(RequestSpec spec, NetworkConfig network) {
+    private HttpClient clientFor(RequestSpec spec, NetworkConfig network, URI uri) {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .executor(Executors.newVirtualThreadPerTaskExecutor())
                 .connectTimeout(Duration.ofMillis(spec.timeoutOrDefault()))
@@ -133,8 +145,16 @@ public final class HttpEngine {
                 // header, including Authorization, to the redirect target.
                 .followRedirects(HttpClient.Redirect.NEVER);
 
-        if (!spec.verifyTlsOrDefault()) {
-            builder.sslContext(trustAllContext()).sslParameters(noHostnameVerification());
+        // One context serves the whole send, redirects included: it carries the trust choice and
+        // the client certificates, which the key manager offers only to the hosts they name.
+        boolean insecure = !spec.verifyTlsOrDefault();
+        X509ExtendedKeyManager keys = "https".equalsIgnoreCase(uri.getScheme())
+                ? ClientCerts.keyManager(network.clientCerts()) : null;
+        if (insecure || keys != null) {
+            builder.sslContext(tlsContext(keys, insecure));
+        }
+        if (insecure) {
+            builder.sslParameters(noHostnameVerification());
         }
         // On the client rather than each request: a redirect hop rebuilds the request, and
         // the version must not silently reset along the way.
@@ -225,7 +245,7 @@ public final class HttpEngine {
             // and a lookup of a name only the proxy can see would stall or mislead.
             Long dnsMs = router != null && router.proxyFor(uri) != null ? null : measureDns(uri.getHost());
 
-            HttpClient client = clientFor(spec, net);
+            HttpClient client = clientFor(spec, net, uri);
             long startedAt = System.nanoTime();
 
             CompletableFuture<HttpResponse<InputStream>> future =
@@ -448,6 +468,9 @@ public final class HttpEngine {
     }
 
     private static void closeQuietly(InputStream stream) {
+        if (stream == null) {
+            return;
+        }
         try {
             stream.close();
         } catch (IOException e) {
@@ -691,6 +714,11 @@ public final class HttpEngine {
      * watches the cancelled intent itself and closes the stream mid-download.
      */
     private Payload readBody(InputStream stream, int cap, Exchange exchange) throws IOException {
+        if (stream == null) {
+            // The JDK hands back no body for a proxy's refusal of a CONNECT (a 407 the caller is
+            // meant to see), so there is nothing to read.
+            return new Payload(new byte[0], 0, false);
+        }
         ByteArrayOutputStream kept = new ByteArrayOutputStream();
         byte[] chunk = new byte[8192];
         long total = 0;
@@ -820,38 +848,53 @@ public final class HttpEngine {
         }
         if (cause instanceof SSLException) {
             String message = cause.getMessage();
-            return message == null || message.isBlank()
-                    ? "TLS handshake failed"
-                    : "TLS handshake failed: " + message;
+            if (message == null || message.isBlank()) {
+                return "TLS handshake failed";
+            }
+            // TLS 1.3 reports a refused client certificate only after the handshake completes, as a
+            // bare alert; say what it usually means.
+            boolean certificate = message.contains("certificate_required") || message.contains("bad_certificate");
+            return "TLS handshake failed: " + message + (certificate
+                    ? " (the server may require a client certificate; add one in Network settings)" : "");
         }
 
         String message = cause.getMessage();
+        if (message != null && message.contains("received no bytes")) {
+            // Over TLS 1.3 a server that requires a client certificate and did not get one closes the
+            // connection after the handshake, which the JDK reports as this.
+            return "The server closed the connection without answering (if it requires a client "
+                    + "certificate, add one in Network settings)";
+        }
         if (message != null && !message.isBlank()) {
             return message;
         }
         return cause instanceof ConnectException ? "Connection refused" : "The request failed";
     }
 
-    private static SSLContext trustAllContext() {
+    /** The context for a send: the default trust (or none checked, when insecure) plus any client keys. */
+    private static SSLContext tlsContext(X509ExtendedKeyManager keys, boolean insecure) {
         try {
-            TrustManager[] trustAll = {new X509TrustManager() {
-                public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                }
-
-                public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                }
-
-                public X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[0];
-                }
-            }};
             SSLContext context = SSLContext.getInstance("TLS");
-            context.init(null, trustAll, new java.security.SecureRandom());
+            context.init(keys == null ? null : new KeyManager[] {keys},
+                    insecure ? trustAllManagers() : null, new java.security.SecureRandom());
             return context;
-        } catch (Exception e) {
-            throw new RpcException(
-                    RpcException.INTERNAL_ERROR, "Could not disable TLS verification", e);
+        } catch (java.security.GeneralSecurityException e) {
+            throw new RpcException(RpcException.INTERNAL_ERROR, "Could not set up TLS", e);
         }
+    }
+
+    private static TrustManager[] trustAllManagers() {
+        return new TrustManager[] {new X509TrustManager() {
+            public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
+        }};
     }
 
     private static SSLParameters noHostnameVerification() {

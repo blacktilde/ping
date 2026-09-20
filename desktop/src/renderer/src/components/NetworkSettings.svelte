@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { loadNetwork, saveNetwork } from '../lib/network'
-  import type { ProxyMode } from '../../../shared/network'
+  import { addClientCert, loadNetwork, removeClientCert, saveNetwork } from '../lib/network'
+  import type { ClientCertView, ProxyMode } from '../../../shared/network'
 
   interface Props {
     onClose: () => void
@@ -26,6 +26,15 @@
   let saving = $state(false)
   let loaded = $state(false)
 
+  // Client certificates are added and removed on the spot: each is a file the user chooses in a
+  // dialog, not a field of this form.
+  let certs = $state<ClientCertView[]>([])
+  let certHost = $state('')
+  let certType = $state<'pkcs12' | 'pem'>('pkcs12')
+  let certPassphrase = $state('')
+  let certError = $state('')
+  let adding = $state(false)
+
   $effect(() => {
     void loadNetwork().then((settings) => {
       mode = settings.proxy.mode
@@ -33,6 +42,7 @@
       username = settings.proxy.username
       bypass = settings.proxy.bypass
       hasPassword = settings.proxy.hasPassword
+      certs = settings.certs
       loaded = true
     })
   })
@@ -48,11 +58,46 @@
       })
       onClose()
     } catch (cause) {
-      // Electron prefixes the main-process error; the sentence after it is the useful part.
-      const message = cause instanceof Error ? cause.message : String(cause)
-      error = message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '')
+      error = plainError(cause)
     } finally {
       saving = false
+    }
+  }
+
+  function plainError(cause: unknown): string {
+    // Electron prefixes the main-process error; the sentence after it is the useful part.
+    const message = cause instanceof Error ? cause.message : String(cause)
+    return message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '')
+  }
+
+  async function addCert(): Promise<void> {
+    certError = ''
+    adding = true
+    try {
+      const before = certs.length
+      const settings = await addClientCert({
+        host: certHost,
+        type: certType,
+        passphrase: certPassphrase || undefined
+      })
+      certs = settings.certs
+      if (certs.length > before) {
+        certHost = ''
+        certPassphrase = ''
+      }
+    } catch (cause) {
+      certError = plainError(cause)
+    } finally {
+      adding = false
+    }
+  }
+
+  async function removeCert(id: string): Promise<void> {
+    certError = ''
+    try {
+      certs = (await removeClientCert(id)).certs
+    } catch (cause) {
+      certError = plainError(cause)
     }
   }
 
@@ -189,6 +234,85 @@
           </p>
         </div>
       {/if}
+
+      <section data-role="network-certs" class="border-t border-line pt-4">
+        <h3 class="text-xs font-medium text-fg-muted">Client certificates</h3>
+        <p class="mt-1 text-xs leading-relaxed text-fg-faint">
+          For servers that require mutual TLS. A certificate is offered only to the hosts you name,
+          never to a host a redirect leads to. The passphrase is stored encrypted and never shown.
+        </p>
+
+        {#if certs.length > 0}
+          <ul class="mt-2 space-y-1">
+            {#each certs as cert (cert.id)}
+              <li
+                data-role="network-cert"
+                class="flex items-center gap-2 rounded-md border border-line px-2 py-1.5 text-xs"
+              >
+                <span class="font-mono text-fg">{cert.host}</span>
+                <span class="min-w-0 flex-1 truncate text-fg-faint">
+                  {cert.files.join(' + ')}{cert.hasPassphrase ? ' · passphrase saved' : ''}
+                </span>
+                <button
+                  type="button"
+                  data-role="network-cert-remove"
+                  aria-label="Remove certificate for {cert.host}"
+                  onclick={() => void removeCert(cert.id)}
+                  class="rounded px-2 py-0.5 text-fg-muted transition hover:text-danger"
+                >
+                  Remove
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <input
+            data-role="network-cert-host"
+            bind:value={certHost}
+            aria-label="Certificate host"
+            placeholder="api.example.com"
+            autocomplete="off"
+            spellcheck="false"
+            class="rounded-md border border-line bg-base px-2 py-1.5 font-mono text-xs outline-none
+                   transition focus:border-accent"
+          />
+          <select
+            data-role="network-cert-type"
+            bind:value={certType}
+            aria-label="Certificate format"
+            class="rounded-md border border-line bg-base px-2 py-1.5 text-xs outline-none
+                   transition focus:border-accent"
+          >
+            <option value="pkcs12">PKCS#12 (.p12, .pfx)</option>
+            <option value="pem">PEM certificate + key (PKCS#8)</option>
+          </select>
+          <input
+            data-role="network-cert-passphrase"
+            type="password"
+            bind:value={certPassphrase}
+            aria-label="Certificate passphrase"
+            placeholder="Passphrase (if any)"
+            autocomplete="off"
+            class="rounded-md border border-line bg-base px-2 py-1.5 text-xs outline-none
+                   transition focus:border-accent"
+          />
+          <button
+            type="button"
+            data-role="network-cert-add"
+            disabled={adding || !loaded}
+            onclick={() => void addCert()}
+            class="rounded-md border border-line px-2 py-1.5 text-xs text-fg-muted transition
+                   hover:border-fg-muted hover:text-fg disabled:opacity-50"
+          >
+            Choose file…
+          </button>
+        </div>
+        {#if certError}
+          <p data-role="network-cert-error" role="alert" class="mt-2 text-xs text-danger">{certError}</p>
+        {/if}
+      </section>
 
       {#if error}
         <p data-role="network-error" role="alert" class="text-xs text-danger">{error}</p>
