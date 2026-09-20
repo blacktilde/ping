@@ -1,15 +1,12 @@
-/**
- * Theme choice: follow the system, or force one of the concrete themes. Persisted in the
- * renderer only.
- */
+/** Theme choice: follow the system, or force a concrete theme. Persisted in the renderer only. */
 
-/** The themes that actually paint. The two `rocket-*` themes carry a photograph behind the UI. */
+/** The themes that actually paint. The `rocket-*` themes carry a photograph behind the UI. */
 export type ThemeName = 'light' | 'dark' | 'rocket-night' | 'rocket-daylight'
 export type ThemeChoice = 'system' | ThemeName
 
 const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night', 'rocket-daylight']
 
-/** The theme targets the palette lists, in a stable order, each with the name it shows. */
+/** The palette's theme targets, with the name each shows. */
 export const THEMES: { name: ThemeName; label: string }[] = NAMES.map((name) => ({
   name,
   label: {
@@ -20,10 +17,7 @@ export const THEMES: { name: ThemeName; label: string }[] = NAMES.map((name) => 
   }[name]
 }))
 
-/*
- * The order the palette cycles through. Light comes straight after dark so the long-standing
- * dark-to-light flip still works on the first press; the photo themes follow it.
- */
+/** Light follows dark so the original dark-to-light flip still works on the first press. */
 const CYCLE: ThemeName[] = ['dark', 'light', 'rocket-night', 'rocket-daylight']
 
 export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
@@ -31,17 +25,10 @@ export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
   resolved: 'dark'
 })
 
-/*
- * Which themes paint a dark surface. This is not the same question as "is it a photo
- * theme": rocket-daylight carries an image but is light, so it belongs with light here.
- */
+/** Dark surfaces. rocket-daylight carries a photo but is light, so it is not listed. */
 const DARK: ThemeName[] = ['dark', 'rocket-night']
 
-/**
- * Whether the resolved theme wants light-on-dark syntax colours. Anything keying off
- * darkness must ask this rather than compare against 'dark', or a new dark theme silently
- * gets the light editor — and a new light one gets the dark editor on a white page.
- */
+/** Whether the resolved theme wants dark syntax colours. Ask this, never compare against 'dark'. */
 export function isDark(): boolean {
   return DARK.includes(theme.resolved)
 }
@@ -70,14 +57,13 @@ export function setTheme(choice: ThemeChoice): void {
   applyTheme()
 }
 
-export function cycleTheme(): void {
-  const next = CYCLE[(CYCLE.indexOf(theme.resolved) + 1) % CYCLE.length]
-  setTheme(next)
-}
-
 /** The theme one cycle step away, so the palette can name where it is about to go. */
 export function nextTheme(): ThemeName {
   return CYCLE[(CYCLE.indexOf(theme.resolved) + 1) % CYCLE.length]
+}
+
+export function cycleTheme(): void {
+  setTheme(nextTheme())
 }
 
 export function loadTheme(): void {

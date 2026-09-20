@@ -35,9 +35,7 @@ jobs:
           cache: gradle
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # The tag is the release's version. Pass it through so the generated BuildInfo — and
-      # therefore core.info — matches the installers the package job names from the same tag,
-      # rather than whatever version happened to be checked in.
+      # Pass the tag through so core.info matches the installers the package job names from it.
       - name: Build the native core
         shell: bash
         run: ./gradlew :core:nativeCompile "-PappVersion=${TAG#v}"

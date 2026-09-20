@@ -16,13 +16,9 @@
 }
 
 /*
- * A dark theme wearing a photograph. The image stays sharp — no backdrop blur — because
- * blurring it throws away the picture, which is the whole point of the theme. Panels are
- * flat translucent fills instead, dark enough to carry body text over the bright exhaust.
- *
- * Three background layers on the body, topmost first: scanlines, the scrim that crushes
- * the lower third to black, then the photo itself. The scrim is what keeps header text
- * legible; without it the sunset burns straight through the labels.
+ * A dark theme wearing a photograph. No backdrop blur, which would discard the picture;
+ * panels are translucent fills instead. The body paints three layers, topmost first:
+ * scanlines, a scrim that fades the lower third to black for legibility, then the photo.
  */
 :root[data-theme='rocket-night'] {
   --color-base: rgb(9 12 18 / 0.55);
@@ -62,10 +58,8 @@
 }
 
 /*
- * The daylight companion to rocket-night. Same three layers, inverted: the scrim fades to
- * near-white and the panels are light, because the photograph is a bright sky and a dark
- * scrim would mud it. It is a light theme that happens to carry an image, so isDark() must
- * report false for it or the editor arrives in one-dark on a white page.
+ * The daylight companion to rocket-night. Same three layers, but the scrim fades to
+ * near-white to suit the bright sky. A light theme, so isDark() reports false for it.
  */
 :root[data-theme='rocket-daylight'] {
   --color-base: rgb(255 255 255 / 0.5);

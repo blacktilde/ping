@@ -665,9 +665,8 @@ try {
   const afterColor = await evaluate(editorColor)
   check('the editor follows the theme', beforeColor !== afterColor, `${beforeColor} -> ${afterColor}`)
 
-  // More than two themes now, so walk the ring until it comes back around rather than
-  // assuming a single flip returns. Counting distinct stops proves none is skipped or
-  // repeated, and the cap keeps a broken cycle from spinning forever.
+  // Walk the cycle until it returns. Distinct stops prove none is skipped or repeated; the
+  // cap keeps a broken cycle from spinning forever.
   const ring = [initialTheme, await evaluate(`document.documentElement.dataset.theme`)]
   const MAX_THEMES = 8
   while (ring[ring.length - 1] !== initialTheme && ring.length <= MAX_THEMES) {
