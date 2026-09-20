@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
   import { isHtml, prettyJson } from '../lib/response'
+  import { copyText } from '../lib/clipboard'
   import { formatBytes } from '../lib/format'
   import { isEventStream, type SseEvent } from '../lib/sse'
   import CodeEditor from './CodeEditor.svelte'
@@ -63,6 +64,20 @@
     return option === 'preview' ? hasPreview : option === 'events' ? eventStream : true
   }
 
+  let copied = $state<'' | 'done' | 'failed'>('')
+  let copiedTimer: number | undefined
+
+  async function copyBody(): Promise<void> {
+    try {
+      await copyText(view === 'raw' ? raw : pretty)
+      copied = 'done'
+    } catch {
+      copied = 'failed'
+    }
+    window.clearTimeout(copiedTimer)
+    copiedTimer = window.setTimeout(() => (copied = ''), 1500)
+  }
+
   function move(delta: number): void {
     const available = views.filter(enabled)
     const index = available.indexOf(view)
@@ -110,6 +125,9 @@
           role="radio"
           aria-checked={view === option}
           disabled={!enabled(option)}
+          title={option === 'preview' && !hasPreview
+            ? 'Preview is available for HTML and image responses'
+            : undefined}
           tabindex={view === option ? 0 : -1}
           onclick={() => (view = option)}
           onkeydown={onKeydown}
@@ -135,6 +153,18 @@
         Binary response
       {:else if invalidJson}
         Not valid JSON; showing the raw text
+      {/if}
+      {#if response.body.textual}
+        <button
+          type="button"
+          onclick={() => void copyBody()}
+          aria-label="Copy response body"
+          title="Copy response body"
+          class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
+                 hover:text-fg"
+        >
+          {copied === 'done' ? 'Copied' : copied === 'failed' ? 'Copy failed' : 'Copy'}
+        </button>
       {/if}
     </span>
   </div>
@@ -175,7 +205,7 @@
         ></iframe>
       {:else}
         <div class="flex h-full items-center justify-center text-sm text-fg-faint">
-          Preview is available for HTML responses.
+          Preview is available for HTML and image responses.
         </div>
       {/if}
     {:else if view === 'events' && eventStream}

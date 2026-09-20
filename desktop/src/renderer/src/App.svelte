@@ -960,7 +960,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="flex h-full">
+<div class="relative flex h-full">
   {#snippet mainContent()}
     <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
       <header class="flex items-center justify-between gap-4 border-b border-line pb-3">

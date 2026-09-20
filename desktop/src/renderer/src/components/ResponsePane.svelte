@@ -2,7 +2,7 @@
   import type { HttpResponse } from '../lib/http'
   import { probeOrigin, type ProbeResult } from '../lib/probe'
   import type { SseEvent } from '../lib/sse'
-  import { formatBytes, formatDuration, statusTone, versionLabel } from '../lib/format'
+  import { formatBytes, formatDuration, reasonPhrase, statusTone, versionLabel } from '../lib/format'
   import { parseCookies } from '../lib/response'
   import ResponseAssertions from './ResponseAssertions.svelte'
   import ResponseCaptures from './ResponseCaptures.svelte'
@@ -119,6 +119,10 @@
       <span class="font-mono text-sm font-semibold {statusTone(response.status)}">
         {response.status}
       </span>
+      <!-- A sibling, not a child: the first header span is the bare status code. -->
+      {#if reasonPhrase(response.status)}
+        <span class="-ml-2.5 {statusTone(response.status)}">{reasonPhrase(response.status)}</span>
+      {/if}
       <span class="text-fg-muted">{versionLabel(response.httpVersion)}</span>
       <span class="text-fg-muted">{formatBytes(response.body.bytes)}</span>
       <span class="text-fg-muted">{formatDuration(response.timing.totalMs)}</span>
