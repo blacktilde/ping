@@ -213,6 +213,32 @@ engine follows redirects itself and because an explicit header has to be able to
   Nothing else in the app can hold one: the jar is not part of a request, so history, saved tabs and copied cURL
   never contain it.
 
+### Streaming
+
+A response whose `Content-Type` is `text/event-stream` or newline-delimited JSON (`application/x-ndjson`,
+`application/ndjson`, `application/jsonl`, `application/stream+json`) is a feed, not a document, and streams.
+Everything else is buffered and returned whole, exactly as before.
+
+- **Still one call.** `http.send` returns a single final result when the stream ends. While it runs the core sends
+  notifications keyed by `requestId`: `http.stream.start` (status, headers, origin, dns and ttfb) once, then
+  `http.stream.chunk` (`seq`, decoded `text`, `total` bytes, `atMs`, `truncated`) as data arrives. Chunks are
+  coalesced (a read that leaves nothing waiting is sent at once; otherwise at most about every 40 ms or 64 KB), and a
+  multi-byte character split across reads is held for the next one rather than mangled.
+- **Stop keeps what arrived.** `http.cancel` on a streaming exchange closes the body, which wakes a read on a feed
+  that has gone quiet and releases the connection (HTTP/1.1 closes the socket; HTTP/2 resets the stream). The send
+  returns normally with `streamed: true`, `ended: "cancelled"` and the body so far: stopping a feed is how you look at
+  what it said. A buffered exchange still fails with `-32001`.
+- **Where nobody can stop it.** With no listener (a collection run, the command line) a feed is read for the
+  request's `timeoutMs` after the headers and then returned with `ended: "timeout"`, so a run containing one still
+  finishes and can assert on what arrived. Over `http.send` there is no limit: a feed runs until the server closes it
+  or it is stopped, and the shell's 60 s call timeout does not apply (it already exempts `http.send`).
+- **Cap.** The final `body` keeps `maxBodyBytes` as usual. Live chunks stop carrying `text` past it but keep reporting
+  `total`, so the UI can say "display cap reached, still receiving".
+- **A break after data is not a failure.** A connection error once some bytes have arrived ends the stream with
+  `ended: "error"` and the body so far; one before any byte is an ordinary failed request.
+- **WebSocket** is not part of this. It is bidirectional and long-lived, with its own composer and connection state,
+  and is planned as a phase of its own (`docs/PLAN.md`, phase 27).
+
 ### Network
 
 `http.send`, `auth.authorize` and `run.collection` accept a `network` object (see `http.schema.json`). It holds

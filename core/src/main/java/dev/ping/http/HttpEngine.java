@@ -102,6 +102,7 @@ public final class HttpEngine {
     private static final class Exchange {
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private volatile CompletableFuture<?> future;
+        private volatile InputStream body;
 
         AtomicBoolean cancelled() {
             return cancelled;
@@ -113,6 +114,29 @@ public final class HttpEngine {
 
         void future(CompletableFuture<?> value) {
             this.future = value;
+        }
+
+        /**
+         * The response body of a streaming exchange. Closing it is the only way to wake a read that
+         * is waiting on a stream that has gone quiet, so a stop that arrived before the body was
+         * registered closes it here.
+         */
+        void body(InputStream value) {
+            this.body = value;
+            if (cancelled.get()) {
+                closeBody();
+            }
+        }
+
+        void closeBody() {
+            InputStream stream = body;
+            if (stream != null) {
+                try {
+                    stream.close();
+                } catch (IOException e) {
+                    // Already gone: that is what was asked for.
+                }
+            }
         }
     }
 
@@ -213,6 +237,17 @@ public final class HttpEngine {
     public ResponseData send(
             RequestSpec spec, Map<String, String> variables, FileAccess files, CookieContext cookies,
             NetworkConfig network) {
+        return send(spec, variables, files, cookies, network, null);
+    }
+
+    /**
+     * @param stream hears a streaming response ({@code text/event-stream}, NDJSON) as it arrives. Null
+     *               means nobody is watching: such a response is read for the request's timeout and then
+     *               returned, so a collection run containing one still finishes.
+     */
+    public ResponseData send(
+            RequestSpec spec, Map<String, String> variables, FileAccess files, CookieContext cookies,
+            NetworkConfig network, StreamListener stream) {
         NetworkConfig net = network == null ? NetworkConfig.NONE : network;
         String requestId = spec.requestId() == null ? UUID.randomUUID().toString() : spec.requestId();
 
@@ -302,11 +337,34 @@ public final class HttpEngine {
             }
 
             long bodyStartedAt = System.nanoTime();
-            Payload payload = readBody(response.body(), spec.maxBodyBytesOrDefault(), exchange);
+            String contentType = response.headers().firstValue("content-type").orElse(null);
+            boolean streaming = isStreaming(contentType);
+            Payload payload;
+            String ended = null;
+            if (streaming) {
+                exchange.body(response.body());
+                if (stream != null) {
+                    stream.start(new StreamListener.Start(
+                            requestId, response.statusCode(), response.version().name(),
+                            headersOf(response), originOf(response.uri()), dnsMs, ttfbMs, contentType));
+                }
+                // With no one to press Stop the feed is read for the request's timeout, then returned.
+                long deadline = stream == null
+                        ? bodyStartedAt + Duration.ofMillis(spec.requestTimeoutMs()).toNanos() : 0;
+                StreamOutcome outcome = readStream(response.body(), spec.maxBodyBytesOrDefault(), exchange,
+                        charsetOf(contentType), stream, requestId, bodyStartedAt, deadline);
+                payload = outcome.payload();
+                ended = outcome.ended();
+            } else {
+                payload = readBody(response.body(), spec.maxBodyBytesOrDefault(), exchange);
+            }
             long downloadMs = millisSince(bodyStartedAt);
 
             ResponseData data = assemble(response, payload, new ResponseData.Timing(
                     dnsMs, ttfbMs, downloadMs, millisSince(startedAt)), redirects);
+            if (streaming) {
+                data = data.withStream(ended);
+            }
             return data.withAssertions(Assertions.evaluate(spec.asserts(), data, variables))
                     .withCaptured(Captures.evaluate(spec.capture(), data, variables));
         } catch (CancellationException e) {
@@ -334,6 +392,9 @@ public final class HttpEngine {
             return false;
         }
         exchange.cancelled().set(true);
+        // A streaming body may be blocked waiting for data that is not coming; closing it is what
+        // ends the exchange and releases the connection.
+        exchange.closeBody();
         CompletableFuture<?> future = exchange.future();
         if (future != null) {
             // Null when dispatch has not returned yet; send() applies the intent once it does.
@@ -737,6 +798,144 @@ public final class HttpEngine {
             }
         }
         return new Payload(kept.toByteArray(), total, total > cap);
+    }
+
+    // --- streaming ------------------------------------------------------------------------------
+
+    /** Live chunks are sent at least this often while data keeps arriving, or when this much has piled up. */
+    private static final long FLUSH_INTERVAL_NANOS = 40_000_000L;
+    private static final int FLUSH_BYTES = 64 * 1024;
+
+    /** Types that are feeds, not documents. */
+    static boolean isStreaming(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String type = contentType.toLowerCase(Locale.ROOT);
+        int semicolon = type.indexOf(';');
+        String base = (semicolon < 0 ? type : type.substring(0, semicolon)).trim();
+        return base.equals("text/event-stream")
+                || base.equals("application/x-ndjson")
+                || base.equals("application/ndjson")
+                || base.equals("application/jsonl")
+                || base.equals("application/stream+json");
+    }
+
+    private record StreamOutcome(Payload payload, String ended) {
+    }
+
+    /**
+     * Reads a feed until the server closes it, the user stops it, or (with no listener) the deadline passes.
+     *
+     * <p>Stopping and the deadline both close the stream from another thread, because a read on a quiet
+     * feed never returns to check a flag. What arrived is kept and returned either way: the point of
+     * stopping a feed is to look at what it said.
+     */
+    private StreamOutcome readStream(
+            InputStream stream, int cap, Exchange exchange, Charset charset, StreamListener listener,
+            String requestId, long startedAtNanos, long deadlineNanos) throws IOException {
+        ByteArrayOutputStream kept = new ByteArrayOutputStream();
+        byte[] chunk = new byte[16 * 1024];
+        IncrementalDecoder decoder = new IncrementalDecoder(charset);
+        StringBuilder pending = new StringBuilder();
+        AtomicBoolean timedOut = new AtomicBoolean();
+        long total = 0;
+        long seq = 0;
+        long lastFlush = System.nanoTime();
+        int pendingBytes = 0;
+        boolean dirty = false;
+        String ended = "closed";
+
+        Thread watchdog = null;
+        if (deadlineNanos > 0) {
+            watchdog = Thread.ofVirtual().start(() -> {
+                try {
+                    Thread.sleep(Duration.ofNanos(Math.max(0, deadlineNanos - System.nanoTime())));
+                    timedOut.set(true);
+                    closeQuietly(stream);
+                } catch (InterruptedException e) {
+                    // The stream ended first.
+                }
+            });
+        }
+
+        try (stream) {
+            while (true) {
+                int read;
+                try {
+                    read = stream.read(chunk);
+                } catch (IOException e) {
+                    if (exchange.cancelled().get() || timedOut.get()) {
+                        read = -1;
+                    } else if (total == 0) {
+                        throw e; // Nothing ever arrived: that is a failed request, not a stream that ended.
+                    } else {
+                        ended = "error";
+                        break;
+                    }
+                }
+                if (read == -1) {
+                    break;
+                }
+                total += read;
+                int room = cap - kept.size();
+                int keep = Math.max(0, Math.min(read, room));
+                if (keep > 0) {
+                    kept.write(chunk, 0, keep);
+                    if (listener != null) {
+                        pending.append(decoder.decode(chunk, 0, keep));
+                        pendingBytes += keep;
+                    }
+                }
+                dirty = true;
+                if (listener != null) {
+                    boolean quiet = quiet(stream);
+                    long now = System.nanoTime();
+                    if (quiet || pendingBytes >= FLUSH_BYTES || now - lastFlush >= FLUSH_INTERVAL_NANOS) {
+                        listener.chunk(new StreamListener.Chunk(requestId, ++seq, pending.toString(), total,
+                                (now - startedAtNanos) / 1_000_000, total > cap));
+                        pending.setLength(0);
+                        pendingBytes = 0;
+                        dirty = false;
+                        lastFlush = now;
+                    }
+                }
+            }
+        } finally {
+            if (watchdog != null) {
+                watchdog.interrupt();
+            }
+        }
+
+        if (exchange.cancelled().get()) {
+            ended = "cancelled";
+        } else if (timedOut.get()) {
+            ended = "timeout";
+        }
+        if (listener != null) {
+            pending.append(decoder.finish());
+            if (dirty || pending.length() > 0) {
+                listener.chunk(new StreamListener.Chunk(requestId, ++seq, pending.toString(), total,
+                        (System.nanoTime() - startedAtNanos) / 1_000_000, total > cap));
+            }
+        }
+        return new StreamOutcome(new Payload(kept.toByteArray(), total, total > cap), ended);
+    }
+
+    /** True when nothing more is waiting locally, so what has been read should be shown now. */
+    private static boolean quiet(InputStream stream) {
+        try {
+            return stream.available() == 0;
+        } catch (IOException e) {
+            return true;
+        }
+    }
+
+    private static List<ResponseData.Header> headersOf(HttpResponse<?> response) {
+        List<ResponseData.Header> headers = new ArrayList<>();
+        response.headers().map().forEach((name, values) ->
+                values.forEach(value -> headers.add(new ResponseData.Header(name, value))));
+        return headers;
     }
 
     private static ResponseData assemble(

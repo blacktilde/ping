@@ -12,6 +12,7 @@
  */
 
 import type { HttpResponse, RequestDraft } from './http'
+import type { SseEvent, SseParser } from './sse'
 import { newDraft } from './request'
 import { draftKey } from './store'
 
@@ -25,6 +26,10 @@ export interface RequestTab {
   /** Draft fingerprint at the last load or save; null until the tab is backed by a file. */
   savedKey: string | null
   response: HttpResponse | null
+  /** Events of a live or finished server-sent stream, in arrival order. Not persisted. */
+  events: SseEvent[]
+  /** Incremental parser feeding `events` while a stream is arriving. */
+  sse: SseParser | null
   error: string
   cancelled: boolean
   inFlight: boolean
@@ -51,6 +56,8 @@ function makeTab(init: Partial<Pick<RequestTab, 'draft' | 'path' | 'savedKey'>> 
     path: init.path ?? null,
     savedKey: init.savedKey ?? (init.path ? draftKey(draft) : null),
     response: null,
+    events: [],
+    sse: null,
     error: '',
     cancelled: false,
     inFlight: false,
@@ -250,6 +257,8 @@ function revive(item: unknown): RequestTab | undefined {
     path: typeof record.path === 'string' ? record.path : null,
     savedKey: record.path != null ? draftKey(draft) : null,
     response: null,
+    events: [],
+    sse: null,
     error: '',
     cancelled: false,
     inFlight: false,

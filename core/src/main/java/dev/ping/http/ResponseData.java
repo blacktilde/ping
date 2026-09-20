@@ -1,5 +1,7 @@
 package dev.ping.http;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 
 /**
@@ -20,17 +22,36 @@ public record ResponseData(
         List<Redirect> redirects,
         List<AssertionResult> assertions,
         List<CaptureResult> captured,
-        String origin) {
+        String origin,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean streamed,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String ended) {
 
     public ResponseData(
             int status, String httpVersion, List<Header> headers, BodyData body, Timing timing,
             List<Redirect> redirects, List<AssertionResult> assertions, List<CaptureResult> captured) {
-        this(status, httpVersion, headers, body, timing, redirects, assertions, captured, null);
+        this(status, httpVersion, headers, body, timing, redirects, assertions, captured, null, null, null);
+    }
+
+    public ResponseData(
+            int status, String httpVersion, List<Header> headers, BodyData body, Timing timing,
+            List<Redirect> redirects, List<AssertionResult> assertions, List<CaptureResult> captured,
+            String origin) {
+        this(status, httpVersion, headers, body, timing, redirects, assertions, captured, origin, null, null);
+    }
+
+    /**
+     * Marks a response that arrived as a stream and says how it ended: {@code closed} by the server,
+     * {@code cancelled} by the user, {@code timeout} (no one was watching, so it was read for the
+     * request's timeout), or {@code error} (the connection broke; what arrived is kept).
+     */
+    public ResponseData withStream(String ended) {
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, assertions, captured,
+                origin, true, ended);
     }
 
     /** Assertions run after the exchange is assembled, so they see exactly what the UI will. */
     public ResponseData withAssertions(List<AssertionResult> results) {
-        return new ResponseData(status, httpVersion, headers, body, timing, redirects, results, captured, origin);
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, results, captured, origin, streamed, ended);
     }
 
     /**
@@ -39,7 +60,7 @@ public record ResponseData(
      * the values before anything reaches the renderer.
      */
     public ResponseData withCaptured(List<CaptureResult> results) {
-        return new ResponseData(status, httpVersion, headers, body, timing, redirects, assertions, results, origin);
+        return new ResponseData(status, httpVersion, headers, body, timing, redirects, assertions, results, origin, streamed, ended);
     }
 
     public record Header(String name, String value) {

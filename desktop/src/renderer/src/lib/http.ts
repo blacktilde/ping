@@ -267,6 +267,13 @@ export interface HttpResponse {
   httpVersion: 'HTTP_1_1' | 'HTTP_2'
   /** scheme://host:port of the final request; no path or query. What the connection probe uses. */
   origin?: string
+  /** True when the response arrived as a stream (server-sent events, NDJSON). */
+  streamed?: boolean
+  /**
+   * How a stream ended. Absent while it is still arriving (a live response the pane built from
+   * notifications); the final result always has it.
+   */
+  ended?: 'closed' | 'cancelled' | 'timeout' | 'error'
   headers: HttpHeader[]
   body: HttpResponseBody
   timing: HttpTiming
@@ -275,6 +282,28 @@ export interface HttpResponse {
   assertions?: AssertionResult[]
   /** One per enabled capture; names and hit/miss only, never the captured value. */
   captured?: CaptureOutcome[]
+}
+
+/** `http.stream.start`: the head of a feed, before its body. */
+export interface StreamStart {
+  requestId: string
+  status: number
+  httpVersion: 'HTTP_1_1' | 'HTTP_2'
+  headers: HttpHeader[]
+  origin?: string
+  dnsMs?: number | null
+  ttfbMs: number
+  contentType?: string | null
+}
+
+/** `http.stream.chunk`: a decoded piece of the body. `text` is empty once the display cap is passed. */
+export interface StreamChunk {
+  requestId: string
+  seq: number
+  text: string
+  total: number
+  atMs: number
+  truncated: boolean
 }
 
 /**

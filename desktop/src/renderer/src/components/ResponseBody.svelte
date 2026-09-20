@@ -1,15 +1,41 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
   import { isHtml, prettyJson } from '../lib/response'
+  import { formatBytes } from '../lib/format'
+  import { isEventStream, type SseEvent } from '../lib/sse'
   import CodeEditor from './CodeEditor.svelte'
+  import ResponseEvents from './ResponseEvents.svelte'
 
   interface Props {
     response: HttpResponse
+    /** Events parsed as a server-sent stream arrived. */
+    events?: SseEvent[]
   }
 
-  type View = 'pretty' | 'raw' | 'preview'
+  type View = 'events' | 'pretty' | 'raw' | 'preview'
 
-  let { response }: Props = $props()
+  let { response, events = [] }: Props = $props()
+
+  const eventStream = $derived(isEventStream(response.body.contentType))
+  // Arriving now: the head is in, the stream has not ended.
+  const live = $derived(response.streamed === true && response.ended === undefined)
+  const streamNote = $derived.by(() => {
+    if (!response.streamed) return ''
+    const size = formatBytes(response.body.bytes)
+    const count = eventStream ? ` · ${events.length} event${events.length === 1 ? '' : 's'}` : ''
+    switch (response.ended) {
+      case undefined:
+        return `Streaming${count} · ${size}`
+      case 'cancelled':
+        return `Stopped${count} · ${size}`
+      case 'closed':
+        return `Closed by the server${count} · ${size}`
+      case 'timeout':
+        return `Read until the timeout${count} · ${size}`
+      default:
+        return `The connection broke${count} · ${size}`
+    }
+  })
 
   let view = $state<View>('pretty')
 
@@ -29,10 +55,12 @@
     looksJson && response.body.textual && raw.trim().length > 0 && parsed === null
   )
 
-  const views: View[] = ['pretty', 'raw', 'preview']
+  const views = $derived<View[]>(
+    eventStream ? ['events', 'pretty', 'raw'] : ['pretty', 'raw', 'preview']
+  )
 
   function enabled(option: View): boolean {
-    return option !== 'preview' || hasPreview
+    return option === 'preview' ? hasPreview : option === 'events' ? eventStream : true
   }
 
   function move(delta: number): void {
@@ -62,6 +90,15 @@
       view = 'pretty'
     }
   })
+
+  // A feed of events is read as events; when the response stops being one, fall back.
+  let wasEventStream = false
+  $effect(() => {
+    if (eventStream && !wasEventStream) {
+      view = 'events'
+    }
+    wasEventStream = eventStream
+  })
 </script>
 
 <div class="flex h-full flex-col">
@@ -87,7 +124,13 @@
       {/each}
     </div>
 
-    <span class="ml-auto text-xs text-fg-faint">
+    <span class="ml-auto flex items-center gap-2 text-xs text-fg-faint">
+      {#if streamNote}
+        <span data-role="stream-note" data-live={live} class="flex items-center gap-1.5 {live ? 'text-fg-muted' : ''}">
+          {#if live}<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-success"></span>{/if}
+          {streamNote}
+        </span>
+      {/if}
       {#if !response.body.textual}
         Binary response
       {:else if invalidJson}
@@ -98,7 +141,9 @@
 
   {#if response.body.truncated}
     <p class="border-b border-warning-soft bg-warning-soft px-4 py-2 text-xs text-warning">
-      Response is larger than the display cap; only the beginning is shown.
+      {live
+        ? 'The display cap has been reached: newer data is still arriving but is not shown.'
+        : 'Response is larger than the display cap; only the beginning is shown.'}
     </p>
   {/if}
 
@@ -133,6 +178,8 @@
           Preview is available for HTML responses.
         </div>
       {/if}
+    {:else if view === 'events' && eventStream}
+      <ResponseEvents {events} content={raw} {live} />
     {:else if view === 'pretty'}
       <CodeEditor value={pretty} language="json" label="Response body, pretty" readonly />
     {:else}

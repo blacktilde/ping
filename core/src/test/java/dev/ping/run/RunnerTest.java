@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -429,5 +430,28 @@ class RunnerTest {
         String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(result);
         assertFalse(json.contains("run-cookie-4711"), "a session id leaked into a result: " + json);
         assertEquals("sid=***", result.requests().get(1).assertions().get(1).actual());
+    }
+
+    @Test
+    void aStepThatStreamsIsReadForItsTimeoutSoTheRunFinishes() throws IOException {
+        Path demo = RunFixture.write(root, RunFixture.baseUrl(server), false);
+        Files.writeString(demo.resolve("feed.yaml"), """
+                name: Feed
+                method: GET
+                url: "{{baseUrl}}/feed"
+                timeoutMs: 700
+                asserts:
+                - type: status
+                  expected: "200"
+                - type: body
+                  op: contains
+                  expected: "data: hello"
+                """);
+        long started = System.nanoTime();
+        RunResult result = runner.run(root, "demo", new RunOptions("staging", Map.of()), null);
+
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 10_000, "a feed must not hang a run");
+        assertTrue(result.succeeded(), result.toString());
+        assertEquals(3, result.total());
     }
 }

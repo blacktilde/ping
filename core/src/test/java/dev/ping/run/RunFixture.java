@@ -70,6 +70,22 @@ public final class RunFixture {
                 }
             }
         });
+        // A feed that never ends: one event, then keep-alives until the client goes away.
+        server.createContext("/feed", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, 0);
+            try (exchange; OutputStream out = exchange.getResponseBody()) {
+                out.write("data: hello\n\n".getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                while (true) {
+                    Thread.sleep(100);
+                    out.write(": keepalive\n\n".getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                }
+            } catch (IOException | InterruptedException e) {
+                // The client hung up, which is how a run ends this feed.
+            }
+        });
         server.start();
         return server;
     }

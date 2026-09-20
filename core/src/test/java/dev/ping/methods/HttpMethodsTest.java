@@ -437,4 +437,58 @@ class HttpMethodsTest {
             proxy.stop(0);
         }
     }
+
+    @Test
+    void aStreamingResponseAnnouncesItselfAndDeliversChunksBeforeTheResult() throws Exception {
+        server.createContext("/feed", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, 0);
+            try (exchange; OutputStream out = exchange.getResponseBody()) {
+                out.write("id: 1\ndata: hi\n\n".getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                Thread.sleep(100);
+                out.write("id: 2\ndata: there\n\n".getBytes(StandardCharsets.UTF_8));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        String input = """
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{"url":"%s/feed","requestId":"r1"}}
+                """.formatted(baseUrl);
+        RpcServer rpc = new RpcServer(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), out);
+        CoreMethods.registerOn(rpc);
+        HttpMethods.registerOn(rpc);
+        rpc.serve();
+
+        List<JsonNode> lines = out.toString(StandardCharsets.UTF_8).lines().filter(line -> !line.isBlank())
+                .map(line -> {
+                    try {
+                        return json.readTree(line);
+                    } catch (Exception e) {
+                        throw new AssertionError(line, e);
+                    }
+                }).toList();
+        List<JsonNode> starts = lines.stream().filter(n -> "http.stream.start".equals(n.path("method").asText())).toList();
+        List<JsonNode> chunks = lines.stream().filter(n -> "http.stream.chunk".equals(n.path("method").asText())).toList();
+        JsonNode result = lines.stream().filter(n -> n.has("id")).reduce((a, b) -> b).orElseThrow();
+
+        assertEquals(1, starts.size());
+        assertEquals("r1", starts.get(0).path("params").path("requestId").asText());
+        assertEquals(200, starts.get(0).path("params").path("status").asInt());
+        assertTrue(starts.get(0).path("params").path("headers").isArray());
+        assertTrue(starts.get(0).path("params").path("ttfbMs").isNumber());
+        assertFalse(chunks.isEmpty());
+        StringBuilder text = new StringBuilder();
+        chunks.forEach(c -> text.append(c.path("params").path("text").asText()));
+        assertEquals("id: 1\ndata: hi\n\nid: 2\ndata: there\n\n", text.toString());
+        assertTrue(chunks.get(0).path("params").path("seq").isNumber());
+        assertTrue(chunks.get(0).path("params").path("atMs").isNumber());
+
+        // The notifications precede the result: the call stays open while the feed runs.
+        assertTrue(lines.indexOf(chunks.get(chunks.size() - 1)) < lines.indexOf(result));
+        assertTrue(result.path("result").path("streamed").asBoolean());
+        assertEquals("closed", result.path("result").path("ended").asText());
+        assertEquals(text.toString(), result.path("result").path("body").path("content").asText());
+    }
 }

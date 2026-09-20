@@ -11,6 +11,7 @@ import dev.ping.http.FileAccess;
 import dev.ping.http.HttpEngine;
 import dev.ping.http.NetworkConfig;
 import dev.ping.http.RequestSpec;
+import dev.ping.http.StreamListener;
 import dev.ping.rpc.RpcException;
 import dev.ping.rpc.RpcServer;
 
@@ -47,8 +48,21 @@ public final class HttpMethods {
     public static void registerOn(RpcServer server, TokenCache tokenCache, CookieJar jar) {
         HttpEngine engine = new HttpEngine(tokenCache);
 
+        // A streaming response (SSE, NDJSON) is announced and delivered as notifications while the call is
+        // still open; the call itself still returns one final result when the stream ends or is stopped.
+        StreamListener stream = new StreamListener() {
+            @Override
+            public void start(Start start) {
+                server.notification("http.stream.start", start);
+            }
+
+            @Override
+            public void chunk(Chunk chunk) {
+                server.notification("http.stream.chunk", chunk);
+            }
+        };
         server.register("http.send", params -> engine.send(parse(params), variables(params), files(params),
-                cookies(params, jar), network(params)));
+                cookies(params, jar), network(params), stream));
         server.register("http.cancel", params -> {
             String requestId = requireRequestId(params);
             return Map.of("cancelled", engine.cancel(requestId));
