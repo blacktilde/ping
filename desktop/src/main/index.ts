@@ -610,7 +610,12 @@ function registerIpc(): void {
       args = checked.params
     }
 
-    if (method === 'http.send' || method === 'auth.authorize' || method.startsWith('run.')) {
+    if (
+      method === 'http.send' ||
+      method === 'auth.authorize' ||
+      method === 'net.probe' ||
+      method.startsWith('run.')
+    ) {
       args = withNetwork(args)
     }
     if (method === 'http.send' || method === 'auth.authorize') {

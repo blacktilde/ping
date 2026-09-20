@@ -362,6 +362,74 @@
       ]
     },
     {
+      "type": "dev.ping.http.ProbeResult",
+      "methods": [
+        {
+          "name": "addresses",
+          "parameterTypes": []
+        },
+        {
+          "name": "alpn",
+          "parameterTypes": []
+        },
+        {
+          "name": "certificate",
+          "parameterTypes": []
+        },
+        {
+          "name": "cipherSuite",
+          "parameterTypes": []
+        },
+        {
+          "name": "connectMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "connectedTo",
+          "parameterTypes": []
+        },
+        {
+          "name": "dnsMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "error",
+          "parameterTypes": []
+        },
+        {
+          "name": "failedStage",
+          "parameterTypes": []
+        },
+        {
+          "name": "origin",
+          "parameterTypes": []
+        },
+        {
+          "name": "protocol",
+          "parameterTypes": []
+        },
+        {
+          "name": "tlsMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "tunnelMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "verified",
+          "parameterTypes": []
+        },
+        {
+          "name": "viaProxy",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.http.ProbeResult$Certificate"
+    },
+    {
       "type": "dev.ping.http.ProxyConfig",
       "methods": [
         {
@@ -594,6 +662,10 @@
           "parameterTypes": []
         },
         {
+          "name": "origin",
+          "parameterTypes": []
+        },
+        {
           "name": "redirects",
           "parameterTypes": []
         },
@@ -679,6 +751,9 @@
     },
     {
       "type": "dev.ping.http.TlsFixtures"
+    },
+    {
+      "type": "dev.ping.http.TunnelProxy"
     },
     {
       "type": "dev.ping.imports.CollectionWriter$Output",
@@ -1009,6 +1084,9 @@
       "type": "java.io.Serializable"
     },
     {
+      "type": "java.lang.AutoCloseable"
+    },
+    {
       "type": "java.lang.Boolean",
       "jniAccessible": true,
       "methods": [
@@ -1042,11 +1120,20 @@
       ]
     },
     {
+      "type": "java.lang.Comparable"
+    },
+    {
+      "type": "java.lang.Double"
+    },
+    {
       "type": "java.lang.Enum",
       "serializable": true
     },
     {
       "type": "java.lang.Iterable"
+    },
+    {
+      "type": "java.lang.Number"
     },
     {
       "type": "java.lang.Object[]",
@@ -1057,6 +1144,12 @@
     },
     {
       "type": "java.lang.SecurityManager"
+    },
+    {
+      "type": "java.lang.constant.Constable"
+    },
+    {
+      "type": "java.lang.constant.ConstantDesc"
     },
     {
       "type": "java.lang.invoke.MethodHandle"

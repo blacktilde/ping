@@ -1817,6 +1817,32 @@ try {
   await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="network-cert"]').length`)) === 0, 5000, 'the PEM row to go')
   await evaluate(`document.querySelector('[data-role="network-cancel"]').click()`)
 
+  console.log('--- 15k. connection probe')
+  // The active tab has just been sent to the local server, so its response can be probed.
+  await evaluate(clickTab('Timing'))
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="probe-run"]')`), 3000, 'the probe section')
+  check('nothing is probed until asked', !(await evaluate(`!!document.querySelector('[data-role="probe-result"]')`)))
+  const probeIntro = await evaluate(`document.querySelector('[data-role="probe"]').textContent.replace(/\\s+/g, ' ')`)
+  check('says it is a separate connection, not part of Total', /separate connection/.test(probeIntro) && /not part of Total/.test(probeIntro), probeIntro.slice(0, 200))
+  await evaluate(`document.querySelector('[data-role="probe-run"]').click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="probe-result"]')`), 8000, 'the probe result')
+  const probeText = await evaluate(`document.querySelector('[data-role="probe-result"]').textContent.replace(/\\s+/g, ' ')`)
+  check('shows DNS and TCP for a plain connection', /DNS/.test(probeText) && /TCP connect/.test(probeText) && !/TLS handshake/.test(probeText), probeText)
+  check('a probe stage is timed to a tenth', /\d+\.\d ms/.test(probeText), probeText)
+
+  const probeRpc = (extra) => evaluate(`window.ping.request('net.probe', ${JSON.stringify(extra)})`)
+  const tlsProbe = await probeRpc({ url: `https://127.0.0.1:${MTLS_PORT}/secret?k=hunter2`, verifyTls: false })
+  check('a TLS probe reports the handshake and the certificate', tlsProbe.ok && tlsProbe.value.tlsMs !== undefined && tlsProbe.value.certificate?.subject === 'CN=localhost' && /^TLSv1\./.test(tlsProbe.value.protocol), JSON.stringify(tlsProbe).slice(0, 200))
+  check('the probe never echoes the request path or query', !JSON.stringify(tlsProbe).includes('hunter2') && !JSON.stringify(tlsProbe).includes('/secret'))
+  const untrusted = await probeRpc({ url: `https://127.0.0.1:${MTLS_PORT}/`, verifyTls: true })
+  check('an untrusted certificate stops at TLS but is still shown', untrusted.ok && untrusted.value.failedStage === 'tls' && untrusted.value.certificate?.subject === 'CN=localhost', JSON.stringify(untrusted).slice(0, 200))
+  const dead = await probeRpc({ url: 'http://127.0.0.1:1/' })
+  check('a closed port stops at connect', dead.ok && dead.value.failedStage === 'connect', JSON.stringify(dead).slice(0, 200))
+  const sneakedProbe = await probeRpc({ url: `${base}/`, network: { proxy: { mode: 'manual', url: '127.0.0.1:1' } } })
+  check('ignores a proxy the renderer invents', sneakedProbe.ok && sneakedProbe.value.viaProxy === false && !sneakedProbe.value.failedStage, JSON.stringify(sneakedProbe).slice(0, 200))
+  const bad = await probeRpc({ url: 'ftp://example.com/' })
+  check('refuses an address that is not http(s)', bad.ok === false, JSON.stringify(bad).slice(0, 160))
+
   // The per-request HTTP version is saved with the request.
   await evaluate(clickTab('Settings'))
   await evaluate(`(() => {

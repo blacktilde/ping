@@ -265,6 +265,8 @@ export interface RedirectHop {
 export interface HttpResponse {
   status: number
   httpVersion: 'HTTP_1_1' | 'HTTP_2'
+  /** scheme://host:port of the final request; no path or query. What the connection probe uses. */
+  origin?: string
   headers: HttpHeader[]
   body: HttpResponseBody
   timing: HttpTiming

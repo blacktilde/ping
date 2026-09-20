@@ -11,6 +11,12 @@ export function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)} s`
 }
 
+/** A probe stage: loopback stages are far under a millisecond, so keep the tenth. */
+export function formatProbeMs(ms: number): string {
+  if (ms >= 1000) return `${(ms / 1000).toFixed(2)} s`
+  return ms >= 100 ? `${Math.round(ms)} ms` : `${ms.toFixed(1)} ms`
+}
+
 export function versionLabel(version: string): string {
   return version === 'HTTP_2' ? 'HTTP/2' : 'HTTP/1.1'
 }

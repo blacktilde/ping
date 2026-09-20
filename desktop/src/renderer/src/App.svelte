@@ -1298,6 +1298,7 @@
             response={active.response}
             inFlight={active.inFlight}
             suggestedName={active.draft.name || 'response'}
+            verifyTls={active.draft.verifyTls !== false}
           />
         {/snippet}
       </SplitPane>

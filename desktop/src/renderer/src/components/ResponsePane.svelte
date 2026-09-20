@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
+  import { probeOrigin, type ProbeResult } from '../lib/probe'
   import { formatBytes, formatDuration, statusTone, versionLabel } from '../lib/format'
   import { parseCookies } from '../lib/response'
   import ResponseAssertions from './ResponseAssertions.svelte'
@@ -14,9 +15,37 @@
     response: HttpResponse | null
     inFlight: boolean
     suggestedName?: string
+    /** Whether the request verifies TLS; the probe follows it. */
+    verifyTls?: boolean
   }
 
-  let { response, inFlight, suggestedName = 'response' }: Props = $props()
+  let { response, inFlight, suggestedName = 'response', verifyTls = true }: Props = $props()
+
+  // The probe belongs to the response it was run for, and survives switching response tabs.
+  let probe = $state<ProbeResult | null>(null)
+  let probeError = $state('')
+  let probing = $state(false)
+
+  $effect(() => {
+    void response
+    probe = null
+    probeError = ''
+  })
+
+  async function runProbe(): Promise<void> {
+    const origin = response?.origin
+    if (!origin) return
+    probing = true
+    probeError = ''
+    try {
+      probe = await probeOrigin(origin, verifyTls)
+    } catch (cause) {
+      probe = null
+      probeError = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      probing = false
+    }
+  }
 
   let tab = $state('body')
   let saveStatus = $state('')
@@ -158,7 +187,15 @@
       {:else if tab === 'cookies'}
         <ResponseCookies {cookies} />
       {:else}
-        <ResponseTiming timing={response.timing} bytes={response.body.bytes} />
+        <ResponseTiming
+          timing={response.timing}
+          bytes={response.body.bytes}
+          origin={response.origin}
+          {probe}
+          {probeError}
+          {probing}
+          onProbe={() => void runProbe()}
+        />
       {/if}
     </div>
   {:else}

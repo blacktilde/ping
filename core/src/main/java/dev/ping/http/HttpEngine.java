@@ -768,7 +768,13 @@ public final class HttpEngine {
                 timing,
                 redirects,
                 List.of(),
-                List.of());
+                List.of(),
+                originOf(response.uri()));
+    }
+
+    /** {@code scheme://host[:port]}: what identifies a connection, with none of what may hold a secret. */
+    private static String originOf(URI uri) {
+        return uri.getScheme() + "://" + uri.getHost() + (uri.getPort() >= 0 ? ":" + uri.getPort() : "");
     }
 
     private static boolean isTextual(String contentType) {

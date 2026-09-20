@@ -155,7 +155,7 @@ assertions plus the runner change what the project is for.
   *Gate: a multipart upload with a real file arrives byte-identical at a loopback server, and
   a path the user never chose is refused by the shell.*
 
-- [ ] **19. Network reality.** Proxies, client certificates, and an honest connect split.
+- [x] **19. Network reality.** Proxies, client certificates, and an honest connect split.
   A proxy (system or manual, with `Proxy-Authorization`) is what makes the tool usable inside
   a corporate network, and mTLS is what makes it usable against one — a PKCS#12 or PEM client
   cert whose passphrase lives in `safeStorage` like any other secret and reaches the core as a
@@ -181,7 +181,10 @@ assertions plus the runner change what the project is for.
     by a shell dialog, the passphrase is `safeStorage`-encrypted and never returned. Also closes
     19a's gap: Basic proxy auth over an HTTPS `CONNECT` tunnel is now tested, and a proxy's 407 on
     a tunnel is returned as the response instead of failing the request.
-  - [ ] **19c. Connect/TLS probe.** Opt-in, on a separate socket, labelled as a probe.
+  - [x] **19c. Connect/TLS probe.** On demand (`net.probe`, a button on the Timing tab), on a separate
+    socket and labelled as a probe: DNS, TCP, the proxy's CONNECT, and the TLS handshake with protocol, ALPN and
+    the server certificate (shown even when it is untrusted). A failure is a result naming the stage. Responses
+    now carry `origin` so the renderer never needs a URL that could hold a credential.
 
 - [x] **20. Cookie jar.** Sends are stateless today — `Set-Cookie` is parsed for display and
   then forgotten, so any session-based API takes a hand-copied header. A jar scoped per
