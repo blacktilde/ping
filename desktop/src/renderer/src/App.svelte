@@ -1,6 +1,14 @@
 <script lang="ts">
   import { call, CoreError, RpcError } from './lib/core'
-  import { authToSpec, cancelRequest, sendRequest, type RequestDraft } from './lib/http'
+  import {
+    authToSpec,
+    cancelRequest,
+    sendRequest,
+    type RequestDraft,
+    type StreamChunk,
+    type StreamStart
+  } from './lib/http'
+  import { isEventStream, SseParser } from './lib/sse'
   import { copyText } from './lib/clipboard'
   import { toCurl } from './lib/curl'
   import {
@@ -119,6 +127,10 @@
   const anyDirty = $derived(
     tabs.list.some((tab) => tab.savedKey !== null && draftKey(tab.draft) !== tab.savedKey)
   )
+  // A feed is arriving: the head is in and the body is not finished. Stopping it keeps what came.
+  const streaming = $derived(
+    active.inFlight && active.response?.streamed === true && active.response.ended === undefined
+  )
   // A collection is always the first path segment; requests can nest below it.
   const activeCollection = $derived(active.path ? active.path.split('/')[0] : '')
 
@@ -181,9 +193,63 @@
     }
   })
 
-  // The core reports an interactive OAuth2 flow's outcome; main has already stored tokens.
+  // A feed (server-sent events, NDJSON) is shown as it arrives. The core announces it with its head,
+  // then sends the body in chunks, both keyed by the request's id; the final `http.send` result
+  // replaces what is built here. The tab is found by id, so a feed keeps filling the tab that
+  // sent it while another is on screen.
   $effect(() => {
     return window.ping.onNotification((notification) => {
+      if (notification.method === 'http.stream.start') {
+        const start = notification.params as StreamStart
+        const tab = tabs.list.find((candidate) => candidate.requestId === start.requestId)
+        if (!tab) {
+          return
+        }
+        tab.events = []
+        tab.sse = isEventStream(start.contentType) ? new SseParser() : null
+        tab.response = {
+          status: start.status,
+          httpVersion: start.httpVersion,
+          origin: start.origin,
+          headers: start.headers,
+          body: {
+            content: '',
+            truncated: false,
+            bytes: 0,
+            textual: true,
+            contentType: start.contentType,
+            charset: 'UTF-8'
+          },
+          timing: {
+            dnsMs: start.dnsMs ?? null,
+            ttfbMs: start.ttfbMs,
+            downloadMs: 0,
+            totalMs: start.ttfbMs
+          },
+          redirects: [],
+          streamed: true
+        }
+        return
+      }
+      if (notification.method === 'http.stream.chunk') {
+        const chunk = notification.params as StreamChunk
+        const tab = tabs.list.find((candidate) => candidate.requestId === chunk.requestId)
+        if (!tab?.response?.streamed || tab.response.ended) {
+          return
+        }
+        tab.response.body.content = (tab.response.body.content ?? '') + chunk.text
+        tab.response.body.bytes = chunk.total
+        tab.response.body.truncated = chunk.truncated
+        tab.response.timing.downloadMs = chunk.atMs
+        tab.response.timing.totalMs = tab.response.timing.ttfbMs + chunk.atMs
+        if (tab.sse && chunk.text) {
+          const events = tab.sse.push(chunk.text, chunk.atMs)
+          if (events.length > 0) {
+            tab.events.push(...events)
+          }
+        }
+        return
+      }
       if (notification.method !== 'auth.completed') {
         return
       }
@@ -770,6 +836,11 @@
         }
       }
       tab.response = await sendRequest(spec)
+      if (!tab.response.streamed) {
+        // Events belong to a feed; a document that follows one must not keep showing them.
+        tab.events = []
+        tab.sse = null
+      }
     } catch (cause) {
       tab.response = null
       if (cause instanceof CoreError && cause.code === RpcError.requestCancelled) {
@@ -1103,7 +1174,7 @@
           class="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white
                  transition hover:brightness-110 disabled:opacity-40"
         >
-          {active.inFlight ? 'Sending…' : 'Send'}
+          {active.inFlight ? (streaming ? 'Streaming…' : 'Sending…') : 'Send'}
         </button>
 
         {#if active.inFlight}
@@ -1113,7 +1184,7 @@
             class="rounded-lg border border-line px-4 py-2.5 text-sm text-fg
                    transition hover:border-fg-muted"
           >
-            Cancel
+            {streaming ? 'Stop' : 'Cancel'}
           </button>
         {/if}
       </form>
@@ -1299,6 +1370,7 @@
             inFlight={active.inFlight}
             suggestedName={active.draft.name || 'response'}
             verifyTls={active.draft.verifyTls !== false}
+            events={active.events}
           />
         {/snippet}
       </SplitPane>

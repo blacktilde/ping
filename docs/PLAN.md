@@ -195,7 +195,7 @@ assertions plus the runner change what the project is for.
   *Gate: a login response sets a cookie and the following request carries it; a second
   environment does not see it.*
 
-- [ ] **21. Streaming responses.** `text/event-stream` currently buffers until the timeout
+- [x] **21. Streaming responses.** `text/event-stream` currently buffers until the timeout
   fires, which makes an SSE endpoint look broken. Stream the body as `http.chunk`
   notifications keyed by `requestId`, render incrementally, and keep the existing cancel path
   working mid-stream. The shell's 60s `RESPONSE_TIMEOUT_MS` must exempt a streaming send the
@@ -205,6 +205,10 @@ assertions plus the runner change what the project is for.
   smuggled in behind SSE.
   *Gate: a loopback SSE server's events appear as they arrive, and cancelling mid-stream ends
   the exchange rather than leaking the connection.*
+  *Shipped:* feeds (`text/event-stream`, NDJSON) stream as `http.stream.start`/`http.stream.chunk`
+  notifications while `http.send` stays one call; Stop closes the body and returns what arrived
+  (`ended: "cancelled"`); with no one watching (runs, the CLI) a feed is read for `timeoutMs`. The UI has
+  an Events view for SSE. **WebSocket: yes, as its own phase (27).**
 
 - [ ] **22. Response tooling and body transport.** A JSONPath filter box, a collapsible JSON
   tree, and a diff between two runs of the same request — the last is rare in this class of
@@ -238,6 +242,14 @@ assertions plus the runner change what the project is for.
   snippet pasted into a chat never carries a secret.
   *Gate: each generator round-trips through its own language's parser in a unit test where
   one exists, and the secret-placeholder rule is asserted per generator.*
+
+- [ ] **27. WebSocket.** Assessed in phase 21 and deliberately kept out of it. A connection is not a
+  request: it is bidirectional and long-lived, with a message composer, connection state (connecting,
+  open, closing, closed with a code), subprotocols and a handshake that carries its own headers and
+  auth. It needs its own store shape (a saved connection, not a saved request) and its own pane, but
+  `java.net.http.WebSocket` is in the JDK, so the proxy, client-certificate and TLS plumbing from
+  phase 19 carries over. *Gate: a loopback echo server round-trips text and binary frames through the
+  UI; closing from either side is reported with its code; the connection is released on Stop.*
 
 ### Not planned
 

@@ -654,6 +654,10 @@
           "parameterTypes": []
         },
         {
+          "name": "ended",
+          "parameterTypes": []
+        },
+        {
           "name": "headers",
           "parameterTypes": []
         },
@@ -671,6 +675,10 @@
         },
         {
           "name": "status",
+          "parameterTypes": []
+        },
+        {
+          "name": "streamed",
           "parameterTypes": []
         },
         {
@@ -741,6 +749,72 @@
         },
         {
           "name": "totalMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "ttfbMs",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.http.StreamListener$Chunk",
+      "methods": [
+        {
+          "name": "atMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "requestId",
+          "parameterTypes": []
+        },
+        {
+          "name": "seq",
+          "parameterTypes": []
+        },
+        {
+          "name": "text",
+          "parameterTypes": []
+        },
+        {
+          "name": "total",
+          "parameterTypes": []
+        },
+        {
+          "name": "truncated",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.http.StreamListener$Start",
+      "methods": [
+        {
+          "name": "contentType",
+          "parameterTypes": []
+        },
+        {
+          "name": "dnsMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "headers",
+          "parameterTypes": []
+        },
+        {
+          "name": "httpVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "origin",
+          "parameterTypes": []
+        },
+        {
+          "name": "requestId",
+          "parameterTypes": []
+        },
+        {
+          "name": "status",
           "parameterTypes": []
         },
         {

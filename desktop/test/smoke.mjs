@@ -16,7 +16,8 @@ import http from 'node:http'
 import https from 'node:https'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { buildSync } from 'esbuild'
 import electron from 'electron'
 
 const PORT = 8791
@@ -31,7 +32,32 @@ let lastTokenForm = ''
 
 // Echoes what reached the server so the test can prove the editors are wired to the wire.
 let lastUpload = null
+// A feed: one event at once, the second only after /events/release is hit, then keep-alives until the
+// client goes away. `feedClosed` proves Stop really released the connection.
+let feedClosed = false
+let feedRelease = null
 const server = http.createServer(async (req, res) => {
+  if (req.url.startsWith('/events/release')) {
+    feedRelease?.()
+    res.writeHead(204)
+    res.end()
+    return
+  }
+  if (req.url.startsWith('/events')) {
+    feedClosed = false
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' })
+    res.write('id: 1\nevent: tick\ndata: {"n":1}\n\n')
+    let timer
+    res.on('close', () => {
+      feedClosed = true
+      clearInterval(timer)
+    })
+    feedRelease = () => {
+      res.write('id: 2\nevent: tick\ndata: {"n":2}\n\n')
+      timer = setInterval(() => res.write(': keepalive\n\n'), 100)
+    }
+    return
+  }
   if (req.url.startsWith('/slow')) {
     slowStarted = true
     setTimeout(() => {
@@ -1856,6 +1882,56 @@ try {
   await clickSend()
   await waitFor(async () => (await snap()).status === '200', 5000, 'a send with a pinned version')
   check('a send with a pinned version succeeds', true)
+
+  console.log('--- 15l. streaming responses')
+  // The SSE parser is plain TypeScript with no DOM: bundle it and test it directly.
+  const sseOut = join(userDataDir, 'sse.mjs')
+  buildSync({
+    entryPoints: [fileURLToPath(new URL('../src/renderer/src/lib/sse.ts', import.meta.url))],
+    outfile: sseOut, format: 'esm', bundle: true, logLevel: 'silent'
+  })
+  const { SseParser, parseSse } = await import(pathToFileURL(sseOut).href)
+  const feed = (chunks) => { const p = new SseParser(); return chunks.flatMap((c, i) => p.push(c, i * 10)) }
+  check('parses one event', JSON.stringify(feed(['event: tick\ndata: hi\nid: 7\n\n']).map(e => [e.event, e.data, e.id])) === '[["tick","hi","7"]]')
+  check('joins multi-line data', feed(['data: a\ndata: b\n\n'])[0].data === 'a\nb')
+  check('waits for the rest of an event split across chunks', JSON.stringify(feed(['data: he', 'llo\n', '\n']).map(e => e.data)) === '["hello"]')
+  check('a CRLF split between chunks is one line ending', JSON.stringify(feed(['data: x\r', '\n\r', '\n']).map(e => e.data)) === '["x"]')
+  check('bare CR and CRLF both end lines', feed(['data: a\r\rdata: b\r\n\r\n']).length === 2)
+  check('ignores comments and drops a record with no data', feed([': hi\n\nevent: only\n\ndata: y\n\n']).length === 1)
+  check('a colon with no space and a bare field name work', JSON.stringify(feed(['data:z\ndata\n\n']).map(e => e.data)) === '["z\\n"]')
+  check('id carries to later events and retry is numeric', (() => { const e = feed(['id: 5\ndata: 1\n\ndata: 2\nretry: 30\n\n']); return e[0].id === '5' && e[1].id === '5' && e[1].retry === 30 && e[0].retry === undefined })())
+  check('an unfinished trailing event is not returned', feed(['data: a\n\ndata: b']).length === 1)
+  check('numbers events and stamps their chunk time', (() => { const e = feed(['data: a\n\n', 'data: b\n\n']); return e[1].index === 2 && e[1].atMs === 10 })())
+  check('parseSse finishes an unterminated body', parseSse('data: a\n\ndata: b').length === 2)
+
+  await evaluate(clickResponseTab('Body'))
+  await evaluate(setUrl(`${base}/events`))
+  await clickSend()
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="sse-event"]').length`)) >= 1, 8000, 'the first event')
+  const submitText = await evaluate(`document.querySelector('button[type=submit]').textContent.trim()`)
+  check('the first event shows while the request is still in flight', submitText === 'Streaming…', submitText)
+  const stopShown = await evaluate(`[...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Stop')`)
+  check('offers Stop rather than Cancel', stopShown)
+  const liveNote = await evaluate(`document.querySelector('[data-role="stream-note"]')?.textContent.trim()`)
+  check('says it is streaming', /^Streaming · 1 event/.test(liveNote ?? ''), liveNote)
+  const eventText = await evaluate(`document.querySelector('[data-role="sse-event"]').textContent.replace(/\\s+/g, ' ')`)
+  check('shows the event name and pretty-prints JSON data', eventText.includes('tick') && /"n":\s*1/.test(eventText), eventText)
+  check('the second event has not arrived yet', (await evaluate(`document.querySelectorAll('[data-role="sse-event"]').length`)) === 1)
+
+  await fetch(`${base}/events/release`)
+  await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="sse-event"]').length`)) === 2, 8000, 'the second event')
+  check('the next event appears as it arrives', true)
+
+  await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Stop').click()`)
+  await waitFor(async () => (await evaluate(`document.querySelector('button[type=submit]').textContent.trim()`)) === 'Send', 8000, 'the stop to finish')
+  check('Stop ends the exchange', true)
+  check('the events stay on screen', (await evaluate(`document.querySelectorAll('[data-role="sse-event"]').length`)) === 2)
+  const stoppedNote = await evaluate(`document.querySelector('[data-role="stream-note"]')?.textContent.trim()`)
+  check('says it was stopped, not failed', /^Stopped · 2 events/.test(stoppedNote ?? ''), stoppedNote)
+  const streamError = await evaluate(`!!document.querySelector('[role=alert]')`)
+  check('a stop is not reported as an error', !streamError)
+  await waitFor(async () => feedClosed, 5000, 'the server to see the disconnect')
+  check('the server sees the connection released', feedClosed)
 
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)

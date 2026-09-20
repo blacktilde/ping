@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
   import { probeOrigin, type ProbeResult } from '../lib/probe'
+  import type { SseEvent } from '../lib/sse'
   import { formatBytes, formatDuration, statusTone, versionLabel } from '../lib/format'
   import { parseCookies } from '../lib/response'
   import ResponseAssertions from './ResponseAssertions.svelte'
@@ -17,9 +18,11 @@
     suggestedName?: string
     /** Whether the request verifies TLS; the probe follows it. */
     verifyTls?: boolean
+    /** Events parsed as a server-sent stream arrived. */
+    events?: SseEvent[]
   }
 
-  let { response, inFlight, suggestedName = 'response', verifyTls = true }: Props = $props()
+  let { response, inFlight, suggestedName = 'response', verifyTls = true, events = [] }: Props = $props()
 
   // The probe belongs to the response it was run for, and survives switching response tabs.
   let probe = $state<ProbeResult | null>(null)
@@ -181,7 +184,7 @@
       class="min-h-0 flex-1"
     >
       {#if tab === 'body'}
-        <ResponseBody {response} />
+        <ResponseBody {response} {events} />
       {:else if tab === 'headers'}
         <ResponseHeaders headers={response.headers} />
       {:else if tab === 'cookies'}

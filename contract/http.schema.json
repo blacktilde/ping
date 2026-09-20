@@ -273,6 +273,14 @@
       "properties": {
         "status": { "type": "integer" },
         "httpVersion": { "enum": ["HTTP_1_1", "HTTP_2"] },
+        "streamed": {
+          "type": "boolean",
+          "description": "Present and true when the response arrived as a stream (text/event-stream or newline-delimited JSON). `body` is what was kept, up to maxBodyBytes."
+        },
+        "ended": {
+          "enum": ["closed", "cancelled", "timeout", "error"],
+          "description": "streamed only. closed: the server ended it. cancelled: the user stopped it (a success: what arrived is returned). timeout: nobody was watching (a run, the CLI), so it was read for the request's timeoutMs. error: the connection broke after some data; what arrived is kept."
+        },
         "origin": {
           "type": "string",
           "description": "scheme://host[:port] of the final request, without path, query or userinfo (which may hold a credential the renderer must not see). What `net.probe` is pointed at."
@@ -370,6 +378,38 @@
           "type": "boolean",
           "description": "True when a request was in flight under this id and has been asked to stop."
         }
+      },
+      "additionalProperties": false
+    },
+
+    "http.stream.start": {
+      "type": "object",
+      "description": "Notification: a streaming response's head, sent once, before any body, while the http.send call is still open. Only sent when the response's Content-Type is text/event-stream, application/x-ndjson, application/ndjson, application/jsonl or application/stream+json; every other response is buffered and returned whole.",
+      "required": ["requestId", "status", "httpVersion", "headers", "ttfbMs"],
+      "properties": {
+        "requestId": { "type": "string" },
+        "status": { "type": "integer" },
+        "httpVersion": { "enum": ["HTTP_1_1", "HTTP_2"] },
+        "headers": { "type": "array", "items": { "type": "object", "required": ["name", "value"], "properties": { "name": { "type": "string" }, "value": { "type": "string" } } } },
+        "origin": { "type": "string" },
+        "dnsMs": { "type": "integer" },
+        "ttfbMs": { "type": "integer" },
+        "contentType": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "http.stream.chunk": {
+      "type": "object",
+      "description": "Notification: a piece of a streaming body, decoded, in order (`seq`). Coalesced (at most about 25 a second, or 64 KB), and never splits a multi-byte character. Past the display cap `text` is empty but `total` keeps growing, so a feed that is still running never looks finished.",
+      "required": ["requestId", "seq", "text", "total", "atMs", "truncated"],
+      "properties": {
+        "requestId": { "type": "string" },
+        "seq": { "type": "integer", "description": "1, 2, 3, … per stream." },
+        "text": { "type": "string" },
+        "total": { "type": "integer", "description": "Bytes received so far." },
+        "atMs": { "type": "integer", "description": "Milliseconds since the head arrived." },
+        "truncated": { "type": "boolean", "description": "True once total has passed maxBodyBytes." }
       },
       "additionalProperties": false
     }
