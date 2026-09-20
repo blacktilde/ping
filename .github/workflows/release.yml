@@ -68,7 +68,7 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ping-core-${{ matrix.os }}
           path: core/build/native/nativeCompile
@@ -127,7 +127,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: ping-dist-*
           path: installers
