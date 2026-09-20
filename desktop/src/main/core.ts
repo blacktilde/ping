@@ -46,6 +46,10 @@ const RESTART_MAX_MS = 10_000
  * rebuilds in seconds. A packaged build ships the GraalVM native image instead. Both speak
  * the same protocol, so only this path differs. `PING_CORE_BIN` overrides for testing one
  * against the other.
+ *
+ * The two differ again on Windows: `installDist` writes a `.bat` launcher, while
+ * `nativeCompile` produces `ping-core.exe`. Naming the development launcher in a packaged
+ * build points at a file that was never shipped, and the app starts with no core at all.
  */
 function resolveCoreBinary(): string {
   const override = process.env.PING_CORE_BIN
@@ -53,13 +57,28 @@ function resolveCoreBinary(): string {
     return override
   }
 
-  const executable = process.platform === 'win32' ? 'ping-core.bat' : 'ping-core'
+  const windows = process.platform === 'win32'
 
   if (app.isPackaged) {
-    return join(process.resourcesPath, 'core', executable)
+    // Packaged: the native image electron-builder copied to resources/core.
+    const packaged = join(process.resourcesPath, 'core', windows ? 'ping-core.exe' : 'ping-core')
+    if (!existsSync(packaged)) {
+      throw new Error(`Core binary not found at ${packaged}. The installation is incomplete.`)
+    }
+    return packaged
   }
 
-  const devPath = join(app.getAppPath(), '..', 'core', 'build', 'install', 'ping-core', 'bin', executable)
+  // Development: the JVM launcher, a shell script everywhere but Windows.
+  const devPath = join(
+    app.getAppPath(),
+    '..',
+    'core',
+    'build',
+    'install',
+    'ping-core',
+    'bin',
+    windows ? 'ping-core.bat' : 'ping-core'
+  )
   if (!existsSync(devPath)) {
     throw new Error(
       `Core binary not found at ${devPath}. Run './gradlew :core:installDist' first.`
@@ -95,6 +114,10 @@ export class CoreClient {
       this.markReady = resolve
       this.failReady = reject
     })
+    // A start that fails rejects this before anything awaits it — the window is not even
+    // created yet — and an unhandled rejection in the main process is a fatal error dialog
+    // instead of an app. Every `await core.ready` still sees the rejection.
+    this.ready.catch(() => {})
   }
 
   start(): void {
@@ -113,7 +136,16 @@ export class CoreClient {
       return
     }
 
-    const child = spawn(binary, [], { stdio: ['pipe', 'pipe', 'pipe'] })
+    // Node refuses to run a `.bat` or `.cmd` without a shell (CVE-2024-27980), and the
+    // development launcher on Windows is exactly that, so it needs one. The quotes survive a
+    // path with a space in it: Node hands cmd.exe `/s /c "<command>"`, which strips one outer
+    // pair. `windowsHide` keeps a console child from flashing its own window over the app.
+    const batch = process.platform === 'win32' && /\.(bat|cmd)$/i.test(binary)
+    const child = spawn(batch ? `"${binary}"` : binary, [], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: batch,
+      windowsHide: true
+    })
     this.child = child
     this.onStateChange?.('starting')
 
