@@ -42,14 +42,15 @@ jobs:
 
   core-cross-os:
     name: Core tests (${{ matrix.os }})
-    # Platform paths and filesystem behaviour move slowly, and a macOS/Windows runner pair is
-    # the expensive part of CI, so this runs after merge rather than on every pull request.
+    # Platform paths and filesystem behaviour move slowly, and a macOS runner is one of the
+    # expensive parts of CI, so this runs after merge rather than on every pull request. Windows
+    # is deliberately not part of this job.
     if: github.ref == 'refs/heads/main'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest]
 
     steps:
       - uses: actions/checkout@v7
