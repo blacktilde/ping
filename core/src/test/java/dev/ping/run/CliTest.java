@@ -298,4 +298,65 @@ class CliTest {
         assertEquals(2, cli("run", demo.toString(), "--proxy", "socks5://p:1080"));
         assertTrue(stderr().contains("SOCKS"), stderr());
     }
+
+    // --- client certificate -----------------------------------------------------------------
+
+    private Path mtlsCollection(int port) throws Exception {
+        Path demo = root.resolve("secure");
+        Files.createDirectories(demo);
+        Files.writeString(demo.resolve("collection.yaml"), "name: Secure\n");
+        Files.writeString(demo.resolve("whoami.yaml"), """
+                name: Who am I
+                method: GET
+                url: "https://127.0.0.1:%d/whoami"
+                verifyTls: false
+                asserts:
+                - type: body
+                  op: contains
+                  expected: ping-client
+                """.formatted(port));
+        return demo;
+    }
+
+    @Test
+    void aClientCertificateLetsARunReachAServerThatRequiresOne() throws Exception {
+        com.sun.net.httpserver.HttpsServer secure =
+                com.sun.net.httpserver.HttpsServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        secure.setHttpsConfigurator(dev.ping.http.TlsFixtures.serverConfigurator(true));
+        secure.createContext("/whoami", exchange -> {
+            byte[] payload = ((com.sun.net.httpserver.HttpsExchange) exchange).getSSLSession()
+                    .getPeerPrincipal().getName().getBytes(StandardCharsets.UTF_8);
+            try (exchange) {
+                exchange.sendResponseHeaders(200, payload.length);
+                exchange.getResponseBody().write(payload);
+            }
+        });
+        secure.start();
+        try {
+            Path demo = mtlsCollection(secure.getAddress().getPort());
+            Path p12 = dev.ping.http.TlsFixtures.writeClientP12(root, "client.p12");
+            Path pem = dev.ping.http.TlsFixtures.write(root, "client.pem", dev.ping.http.TlsFixtures.CLIENT_CERT_PEM);
+            Path key = dev.ping.http.TlsFixtures.write(root, "client.key", dev.ping.http.TlsFixtures.CLIENT_KEY_ENCRYPTED);
+            Map<String, String> passphrase = Map.of("PING_CERT_PASSWORD", dev.ping.http.TlsFixtures.CLIENT_PASSPHRASE);
+
+            assertEquals(1, cli("run", demo.toString()), "without a certificate the server refuses");
+            assertEquals(0, cli(passphrase, "run", demo.toString(), "--cert", p12.toString()), stdout());
+            assertEquals(0, cli(passphrase, "run", demo.toString(), "--cert", pem.toString(), "--key", key.toString()),
+                    stdout());
+        } finally {
+            secure.stop(0);
+        }
+    }
+
+    @Test
+    void aCertificateThatCannotBeOpenedIsAUsageErrorAndNeverEchoesThePassphrase() throws Exception {
+        Path demo = collection(false);
+        Path p12 = dev.ping.http.TlsFixtures.writeClientP12(root, "client.p12");
+        assertEquals(2, cli(Map.of("PING_CERT_PASSWORD", "wrong-pass-99"), "run", demo.toString(), "--cert", p12.toString()));
+        assertTrue(stderr().contains("passphrase"), stderr());
+        assertFalse(stderr().contains("wrong-pass-99"), stderr());
+        assertEquals(2, cli("run", demo.toString(), "--cert", root.resolve("missing.p12").toString()));
+        assertEquals(2, cli("run", demo.toString(), "--key", "k.pem"));
+        assertEquals(2, cli("run", demo.toString(), "--cert"));
+    }
 }

@@ -2,6 +2,7 @@ package dev.ping;
 
 import dev.ping.auth.TokenCache;
 import dev.ping.cookies.CookieJar;
+import dev.ping.http.HttpEngine;
 import dev.ping.methods.CookieMethods;
 import dev.ping.methods.AuthMethods;
 import dev.ping.methods.CoreMethods;
@@ -21,6 +22,7 @@ public final class Main {
      * is a report rather than protocol traffic.
      */
     public static void main(String[] args) throws Exception {
+        HttpEngine.allowBasicProxyCredentialsForTunnels();
         if (args.length > 0) {
             System.exit(Cli.run(args, System.getenv(), System.out, System.err));
         }

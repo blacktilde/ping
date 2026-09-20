@@ -41,6 +41,9 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+    // The JDK reads this once, when its first HttpClient loads, and any earlier test may have made
+    // one; the core sets the same value itself at startup (see HttpEngine).
+    systemProperty("jdk.http.auth.tunneling.disabledSchemes", "")
 }
 
 if (project.hasProperty("agent")) {
@@ -69,6 +72,12 @@ graalvmNative {
                 languageVersion = JavaLanguageVersion.of(25)
                 vendor = JvmVendorSpec.GRAAL_VM
             }
+        }
+        named("test") {
+            // The JDK reads jdk.http.auth.tunneling.disabledSchemes once, when its first HttpClient
+            // loads. The core sets it at startup, before any client; a test binary has no startup, and
+            // an earlier test may already have made a client, so it is given the same value as the core.
+            runtimeArgs.add("-Djdk.http.auth.tunneling.disabledSchemes=")
         }
     }
 }

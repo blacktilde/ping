@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { HistoryEntry } from '../shared/history'
 import type { CookieView } from '../shared/cookies'
 import type { ImportReport } from '../shared/import'
-import type { NetworkSettings, NetworkUpdate } from '../shared/network'
+import type { ClientCertRequest, NetworkSettings, NetworkUpdate } from '../shared/network'
 import type { UpdateState } from '../shared/updates'
 
 /** A core failure in transit. `code` is null when the failure was not a JSON-RPC error. */
@@ -113,6 +113,13 @@ const api = {
     },
     set(update: NetworkUpdate): Promise<NetworkSettings> {
       return ipcRenderer.invoke('network:set', update) as Promise<NetworkSettings>
+    },
+    /** Opens file dialogs in the main process; the renderer never supplies a path. */
+    addCert(request: ClientCertRequest): Promise<NetworkSettings> {
+      return ipcRenderer.invoke('network:addCert', request) as Promise<NetworkSettings>
+    },
+    removeCert(id: string): Promise<NetworkSettings> {
+      return ipcRenderer.invoke('network:removeCert', id) as Promise<NetworkSettings>
     }
   },
 

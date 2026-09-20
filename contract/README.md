@@ -214,8 +214,8 @@ engine follows redirects itself and because an explicit header has to be able to
 
 ### Network
 
-`http.send`, `auth.authorize` and `run.collection` accept a `network` object (see `http.schema.json`). Today it
-holds a **proxy**; client certificates and a connection probe join it in later slices. Like `filesBase` and
+`http.send`, `auth.authorize` and `run.collection` accept a `network` object (see `http.schema.json`). It holds
+a **proxy** and **client certificates**; a connection probe joins it in a later slice. Like `filesBase` and
 `cookieScope` it is set by the trusted side and never by a collection: the desktop shell reads it from the user's
 own settings and **overwrites whatever the renderer sent**, because a proxy sees every request and its
 credentials. A call with no `network` goes direct, as before.
@@ -237,12 +237,27 @@ credentials. A call with no `network` goes direct, as before.
   is the proxy's `407`, returned as the response. An explicit `Proxy-Authorization` header on the request wins.
   The core enables Basic credentials for `CONNECT` tunnels (`jdk.http.auth.tunneling.disabledSchemes`), which the
   JDK refuses by default, unless the property is already set.
+- **Client certificates.** `network.clientCerts` holds PKCS#12 bundles, or PEM certificates with a PKCS#8 key
+  (plain, or encrypted with a passphrase). The traditional `BEGIN RSA/EC PRIVATE KEY` form is refused with the
+  `openssl pkcs8 -topk8` conversion: the JDK cannot read it. Each entry names the hosts it is for (`NO_PROXY`
+  patterns), and the TLS layer picks by the host being connected to, so **a redirect to another host is never
+  sent the certificate**, and a server that asks gets nothing when no pattern matches. A key that does not
+  belong to its certificate, a wrong passphrase, a missing file and an unsupported format are `-32602` naming
+  the entry and never echoing the passphrase; they are checked before any HTTPS request is built, and a
+  plain `http://` request is unaffected. Server certificate trust is unchanged (`verifyTls`). A server that
+  requires a certificate and got none closes the connection after the TLS 1.3 handshake, which the core
+  reports as such, with a hint. The OAuth token exchange does not use client certificates.
+- **CONNECT tunnels.** An HTTPS request through a proxy sends `Proxy-Authorization` in the `CONNECT` and never
+  inside the tunnel, so the origin does not see it. A proxy that refuses the credentials answers `407`, which is
+  the response.
 - **Timing.** Through a proxy the proxy resolves the origin, so `timing.dnsMs` is `null`.
 - **OAuth2.** The token exchange for a request goes through the same proxy as the request.
 - **`httpVersion`** on a request pins the protocol (`"1.1"`, or `"2"` to *prefer* HTTP/2). It is a property of the
   request, not the machine, so it lives in the request file; the proxy does not.
 - **Command line.** `--proxy URL`, `--proxy-user USER[:PASS]` (prefer `PING_PROXY_PASSWORD`: argv is visible in
   the process list) and `--no-proxy`. With none of them the environment's proxy variables apply, as for curl.
+  `--cert FILE` (`.p12`/`.pfx` is PKCS#12, anything else PEM) and `--key FILE` add a client certificate for every
+  host; its passphrase comes from `PING_CERT_PASSWORD`, never a flag.
 
 ### Files in a request body
 

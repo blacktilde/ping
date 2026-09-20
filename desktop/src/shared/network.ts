@@ -19,8 +19,28 @@ export interface ProxySettings {
   hasPassword: boolean
 }
 
+/** A client certificate as the renderer sees it: names, never paths or the passphrase. */
+export interface ClientCertView {
+  id: string
+  /** Who it is offered to, in NO_PROXY form. */
+  host: string
+  type: 'pkcs12' | 'pem'
+  /** File names only (a PKCS#12 bundle, or a PEM certificate and its key). */
+  files: string[]
+  hasPassphrase: boolean
+}
+
 export interface NetworkSettings {
   proxy: ProxySettings
+  certs: ClientCertView[]
+}
+
+/** What "Add certificate" sends. The files are chosen in a dialog the main process opens. */
+export interface ClientCertRequest {
+  host: string
+  type: 'pkcs12' | 'pem'
+  /** Write-only. Kept encrypted by the main process; never returned. */
+  passphrase?: string
 }
 
 /** What the dialog saves. `password`: undefined keeps the stored one, '' removes it. */
@@ -30,5 +50,6 @@ export interface NetworkUpdate {
 }
 
 export const DEFAULT_NETWORK: NetworkSettings = {
-  proxy: { mode: 'none', url: '', username: '', bypass: '', hasPassword: false }
+  proxy: { mode: 'none', url: '', username: '', bypass: '', hasPassword: false },
+  certs: []
 }

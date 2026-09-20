@@ -8,7 +8,6 @@ import java.net.ProxySelector;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -80,7 +79,7 @@ public final class ProxyRouter {
         String password = config.username() != null && !config.username().isEmpty()
                 ? config.password() : parsed.password();
         Route route = new Route(new Endpoint(parsed.host(), parsed.port(), username, password), null);
-        return new ProxyRouter(route, route, tokens(config.bypass()));
+        return new ProxyRouter(route, route, HostPattern.tokens(config.bypass()));
     }
 
     private static ProxyRouter system(Map<String, String> env) {
@@ -89,7 +88,7 @@ public final class ProxyRouter {
         Route https = route(variable(env, "HTTPS_PROXY"), all, "HTTPS_PROXY");
         String noProxy = variable(env, "NO_PROXY");
         return new ProxyRouter(http, https,
-                noProxy == null ? List.of() : tokens(List.of(noProxy.split("[,\\s]+"))));
+                noProxy == null ? List.of() : HostPattern.tokens(List.of(noProxy.split("[,\\s]+"))));
     }
 
     private static Route route(String own, String all, String name) {
@@ -207,68 +206,12 @@ public final class ProxyRouter {
                 (endpoint.username() + ":" + password).getBytes(StandardCharsets.UTF_8));
     }
 
-    // --- bypass -------------------------------------------------------------------------------
-
-    private static List<String> tokens(List<String> raw) {
-        List<String> tokens = new ArrayList<>();
-        if (raw != null) {
-            for (String token : raw) {
-                String trimmed = token == null ? "" : token.trim().toLowerCase(Locale.ROOT);
-                if (!trimmed.isEmpty()) {
-                    tokens.add(trimmed);
-                }
-            }
-        }
-        return tokens;
-    }
-
-    /**
-     * {@code *} matches everything; {@code example.com}, {@code .example.com} and
-     * {@code *.example.com} match the host and its subdomains; {@code host:port} matches only
-     * that port. Loopback is bypassed only when listed, as {@code localhost} or an address.
-     * CIDR ranges are not understood.
-     */
     private boolean bypassed(URI uri) {
-        String host = plain(uri.getHost());
-        if (host == null) {
+        if (uri.getHost() == null) {
             return false;
         }
         int port = uri.getPort() >= 0 ? uri.getPort()
                 : "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
-        for (String token : bypass) {
-            if (token.equals("*")) {
-                return true;
-            }
-            String pattern = token;
-            int colon = pattern.lastIndexOf(':');
-            if (colon > 0 && pattern.indexOf(':') == colon && digits(pattern.substring(colon + 1))) {
-                if (Integer.parseInt(pattern.substring(colon + 1)) != port) {
-                    continue;
-                }
-                pattern = pattern.substring(0, colon);
-            }
-            pattern = plain(pattern.startsWith("*.") ? pattern.substring(1) : pattern);
-            if (pattern.startsWith(".")) {
-                if (host.endsWith(pattern) || host.equals(pattern.substring(1))) {
-                    return true;
-                }
-            } else if (host.equals(pattern) || host.endsWith("." + pattern)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean digits(String value) {
-        return !value.isEmpty() && value.chars().allMatch(Character::isDigit);
-    }
-
-    /** Lower-case, without the brackets of an IPv6 literal. */
-    private static String plain(String host) {
-        if (host == null) {
-            return null;
-        }
-        String lower = host.toLowerCase(Locale.ROOT);
-        return lower.startsWith("[") && lower.endsWith("]") ? lower.substring(1, lower.length() - 1) : lower;
+        return HostPattern.matchesAny(bypass, uri.getHost(), port);
     }
 }

@@ -174,10 +174,13 @@ assertions plus the runner change what the project is for.
     with `Proxy-Authorization` sent to the proxy only, a bypass list, a Network settings dialog,
     CLI `--proxy`/`--proxy-user`/`--no-proxy` (and the environment by default), and a per-request
     `httpVersion` pin. SOCKS and TLS-to-the-proxy are refused, not ignored: `java.net.http`
-    cannot do either. *Not yet exercised: Basic proxy auth over an HTTPS `CONNECT` tunnel, which
-    needs a TLS origin; it lands with 19b's TLS fixtures.*
-  - [ ] **19b. Client certificates (mTLS).** PKCS#12 first, then PEM; the certificate path is
-    chosen only by a shell dialog, the passphrase never leaves `safeStorage`.
+    cannot do either.
+  - [x] **19b. Client certificates (mTLS).** PKCS#12, and PEM with a PKCS#8 key (plain or
+    encrypted; the traditional RSA/EC formats are refused with the `openssl pkcs8` conversion).
+    Per-host, so a redirect never sends a certificate to another host; the files are chosen only
+    by a shell dialog, the passphrase is `safeStorage`-encrypted and never returned. Also closes
+    19a's gap: Basic proxy auth over an HTTPS `CONNECT` tunnel is now tested, and a proxy's 407 on
+    a tunnel is returned as the response instead of failing the request.
   - [ ] **19c. Connect/TLS probe.** Opt-in, on a separate socket, labelled as a probe.
 
 - [x] **20. Cookie jar.** Sends are stateless today — `Set-Cookie` is parsed for display and

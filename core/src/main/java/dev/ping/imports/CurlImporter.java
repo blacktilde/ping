@@ -219,7 +219,7 @@ public final class CurlImporter {
                 case "-x", "--proxy", "--proxy-user", "-U", "--proxy-header" ->
                         "a proxy is set in Network settings, not in a request";
                 case "-E", "--cert", "--key", "--cert-type", "--key-type", "--pass", "--user-cert" ->
-                        "a client certificate is not part of a request";
+                        "a client certificate is added in Network settings, not in a request";
                 default -> "it has no equivalent in a request";
             };
         }
