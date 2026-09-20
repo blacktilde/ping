@@ -1,7 +1,5 @@
 name: Release
 
-# Manual only, so a small change does not rebuild installers for every OS. Run it after CI is
-# green, with the tag the release should carry; the tag is created if it does not exist.
 on:
   workflow_dispatch:
     inputs:
@@ -18,16 +16,21 @@ on:
 jobs:
   core:
     name: Native core (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ fromJSON(matrix.runner) }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: linux
+            runner: '["self-hosted", "Linux", "X64"]'
+          - os: macos-latest
+            runner: '["macos-latest"]'
+          - os: windows-latest
+            runner: '["windows-latest"]'
 
     steps:
       - uses: actions/checkout@v7
 
-      # native-image cannot cross-compile, so every target OS builds its own binary.
       - uses: graalvm/setup-graalvm@v1
         with:
           java-version: '25'
@@ -35,7 +38,6 @@ jobs:
           cache: gradle
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Pass the tag through so core.info matches the installers the package job names from it.
       - name: Build the native core
         shell: bash
         run: ./gradlew :core:nativeCompile "-PappVersion=${TAG#v}"
@@ -53,11 +55,17 @@ jobs:
   package:
     name: Package (${{ matrix.os }})
     needs: core
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ fromJSON(matrix.runner) }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: linux
+            runner: '["self-hosted", "Linux", "X64"]'
+          - os: macos-latest
+            runner: '["macos-latest"]'
+          - os: windows-latest
+            runner: '["windows-latest"]'
 
     steps:
       - uses: actions/checkout@v7
@@ -73,9 +81,6 @@ jobs:
           name: ping-core-${{ matrix.os }}
           path: core/build/native/nativeCompile
 
-      # upload-artifact/download-artifact do not preserve the Unix executable bit, so the core
-      # arrives mode 644. electron-builder copies it verbatim, and the AppImage then cannot exec
-      # it — spawn fails with EACCES. Restore the bit before packaging.
       - name: Make the core executable
         if: runner.os != 'Windows'
         working-directory: core/build/native/nativeCompile
@@ -84,10 +89,6 @@ jobs:
       - run: npm ci
         working-directory: desktop
 
-      # The version comes from the tag, written into package.json so installer names and the
-      # latest*.yml update metadata agree with the release the updater compares against.
-      # Done here rather than with an electron-builder CLI override: PowerShell on Windows
-      # parses `-c.key=value` differently and treats the tail as a config file path.
       - name: Set version from the tag
         shell: bash
         working-directory: desktop
@@ -98,8 +99,6 @@ jobs:
       - run: npm run build
         working-directory: desktop
 
-      # Unsigned by default. A signed release supplies CSC_LINK / CSC_KEY_PASSWORD and the
-      # Apple credentials; electron-builder picks them up without a config change.
       - name: Package
         run: npx electron-builder --publish never
         working-directory: desktop

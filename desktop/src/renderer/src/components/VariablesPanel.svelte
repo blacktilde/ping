@@ -42,29 +42,42 @@
   })
 </script>
 
-<!-- Overlays the workspace, so opening it does not shove the request and response around. -->
-<div
+<!-- Docked on the right in a SplitPane, the mirror of the sidebar: same chrome, other edge. -->
+<!-- Escape closes it from anywhere inside; the listener bubbles from the fields. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<aside
   data-role="variables"
-  role="dialog"
-  tabindex="-1"
   aria-label="Variables"
   onkeydown={(event) => {
     if (event.key === 'Escape') onClose()
   }}
-  class="absolute inset-y-0 right-0 z-20 flex w-[28rem] max-w-full flex-col border-l border-line
-         bg-panel shadow-2xl"
+  class="flex h-full w-full flex-col border-l border-line bg-panel"
 >
-  <header class="flex items-center justify-between border-b border-line px-3 py-2">
-    <span class="text-xs font-medium uppercase tracking-wide text-fg-muted">Variables</span>
+  <div class="flex items-center justify-between border-b border-line px-3 py-2">
+    <span class="rounded-md bg-line px-2 py-1 text-xs font-medium uppercase tracking-wide text-fg">
+      Variables
+    </span>
     <button
       type="button"
       onclick={onClose}
       aria-label="Close variables"
-      class="rounded px-2 text-lg leading-none text-fg-muted transition hover:text-fg"
+      title="Close variables"
+      class="rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-fg"
     >
-      ×
+      <svg
+        viewBox="0 0 24 24"
+        class="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
     </button>
-  </header>
+  </div>
 
   <div class="flex-1 overflow-auto">
     <section class="border-b border-line">
@@ -248,4 +261,4 @@
       Save variables
     </button>
   </footer>
-</div>
+</aside>

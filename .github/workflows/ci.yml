@@ -16,7 +16,7 @@ concurrency:
 jobs:
   wrapper:
     name: Gradle wrapper
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
       - uses: actions/checkout@v7
@@ -27,7 +27,7 @@ jobs:
 
   core:
     name: Core tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
       - uses: actions/checkout@v7
@@ -72,7 +72,7 @@ jobs:
 
   native:
     name: Native compatibility
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
       - uses: actions/checkout@v7
@@ -95,7 +95,7 @@ jobs:
 
   desktop:
     name: Desktop
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
       - uses: actions/checkout@v7

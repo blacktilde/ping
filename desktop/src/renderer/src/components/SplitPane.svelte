@@ -1,9 +1,14 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte'
+  import { untrack, type Snippet } from 'svelte'
 
   interface Props {
     direction?: 'horizontal' | 'vertical'
     unit?: 'fraction' | 'pixels'
+    // With `end`, the pixel size belongs to the second pane and the first takes the rest.
+    anchor?: 'start' | 'end'
+    // Slides the anchored pane (the second for `end`, else the first) shut and unmounts it once
+    // it is out of sight. The other pane stays mounted throughout. Pixel splits only.
+    collapsed?: boolean
     initial?: number
     min?: number
     max?: number
@@ -16,6 +21,8 @@
   let {
     direction = 'vertical',
     unit = 'fraction',
+    anchor = 'start',
+    collapsed = false,
     initial = unit === 'fraction' ? 0.5 : 256,
     min = unit === 'fraction' ? 0.15 : 180,
     max = unit === 'fraction' ? 0.85 : 520,
@@ -27,6 +34,8 @@
 
   // A vertical split stacks the panes, so its divider is horizontal to the reader.
   const vertical = $derived(direction === 'vertical')
+  // Dragging toward the anchored pane's far edge grows it, so the deltas flip.
+  const sign = $derived(unit === 'pixels' && anchor === 'end' ? -1 : 1)
 
   function clamp(value: number): number {
     return Math.min(max, Math.max(min, value))
@@ -81,7 +90,7 @@
     const move = (moveEvent: PointerEvent): void => {
       const current = vertical ? moveEvent.clientY : moveEvent.clientX
       if (unit === 'pixels') {
-        apply(start + (current - origin))
+        apply(start + sign * (current - origin))
         return
       }
       const bounds = container?.getBoundingClientRect()
@@ -102,8 +111,8 @@
 
   function onKeydown(event: KeyboardEvent): void {
     const step = unit === 'fraction' ? (event.shiftKey ? 0.1 : 0.02) : event.shiftKey ? 48 : 16
-    const decrease = vertical ? 'ArrowUp' : 'ArrowLeft'
-    const increase = vertical ? 'ArrowDown' : 'ArrowRight'
+    const decrease = vertical ? 'ArrowUp' : sign < 0 ? 'ArrowRight' : 'ArrowLeft'
+    const increase = vertical ? 'ArrowDown' : sign < 0 ? 'ArrowLeft' : 'ArrowRight'
     if (event.key === decrease) {
       apply(size - step)
     } else if (event.key === increase) {
@@ -134,44 +143,107 @@
     }
   })
 
-  const firstStyle = $derived(unit === 'fraction' ? `flex: ${size} 1 0%` : `flex: 0 0 ${size}px`)
-  const secondStyle = $derived(unit === 'fraction' ? `flex: ${1 - size} 1 0%` : 'flex: 1 1 0%')
+  // The anchored pane grows from nothing on open and shrinks to nothing on close. It stays
+  // mounted while it slides, then goes, so a closed panel costs nothing and reopening starts fresh.
+  const SLIDE_MS = 200
+  const anchoredSecond = $derived(unit === 'pixels' && anchor === 'end')
+  let rendered = $state(untrack(() => !collapsed))
+  let open = $state(untrack(() => !collapsed))
+
+  $effect(() => {
+    if (!collapsed) {
+      rendered = true
+      // Two frames: the first paints the pane at zero width, so the second has something to animate from.
+      let second = 0
+      const first = requestAnimationFrame(() => {
+        second = requestAnimationFrame(() => (open = true))
+      })
+      return () => {
+        cancelAnimationFrame(first)
+        cancelAnimationFrame(second)
+      }
+    }
+    open = false
+    const timer = setTimeout(() => (rendered = false), SLIDE_MS)
+    return () => clearTimeout(timer)
+  })
+
+  const fill = 'flex: 1 1 0%'
+  const shown = $derived(open ? size : 0)
+  const firstStyle = $derived(
+    anchoredSecond ? fill : unit === 'fraction' ? `flex: ${size} 1 0%` : `flex: 0 0 ${shown}px`
+  )
+  const secondStyle = $derived(
+    anchoredSecond ? `flex: 0 0 ${shown}px` : unit === 'fraction' ? `flex: ${1 - size} 1 0%` : fill
+  )
+  const slide = $derived(
+    dragging ? '' : 'transition-[flex-basis] duration-200 ease-out motion-reduce:transition-none'
+  )
   const valueNow = $derived(Math.round(unit === 'fraction' ? size * 100 : size))
   const valueMin = $derived(Math.round(unit === 'fraction' ? min * 100 : min))
   const valueMax = $derived(Math.round(unit === 'fraction' ? max * 100 : max))
 </script>
 
+{#snippet pinned(content: Snippet, toEnd: boolean)}
+  <!-- Fixed to the pane's full width, so what slides in and out is clipped, not squeezed. -->
+  <div class="h-full {toEnd ? 'justify-self-end' : 'justify-self-start'}" style="width: {size}px">
+    {@render content()}
+  </div>
+{/snippet}
+
 <div
   bind:this={container}
   class="flex min-h-0 min-w-0 flex-1 {vertical ? 'flex-col' : 'flex-row'}"
 >
-  <div class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden" style={firstStyle}>
-    {@render first()}
-  </div>
+  {#if anchoredSecond || rendered}
+    <div
+      class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden {anchoredSecond ? '' : slide}"
+      style={firstStyle}
+    >
+      {#if unit === 'pixels' && !anchoredSecond}
+        {@render pinned(first, false)}
+      {:else}
+        {@render first()}
+      {/if}
+    </div>
+  {/if}
 
-  <!-- A focusable separator is a widget: the ARIA splitter pattern, which the linter misses. -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div
-    role="separator"
-    aria-orientation={vertical ? 'horizontal' : 'vertical'}
-    aria-label={label}
-    aria-valuenow={valueNow}
-    aria-valuemin={valueMin}
-    aria-valuemax={valueMax}
-    tabindex="0"
-    onpointerdown={onPointerDown}
-    onkeydown={onKeydown}
-    class="group flex shrink-0 items-center justify-center outline-none
-           {vertical ? 'h-3 cursor-row-resize' : 'w-3 cursor-col-resize'}"
-  >
-    <span
-      class="rounded-full bg-line transition group-hover:bg-accent group-focus-visible:bg-accent
-             {vertical ? 'h-1 w-10' : 'h-10 w-1'}"
-    ></span>
-  </div>
+  {#if rendered}
+    <!-- A focusable separator is a widget: the ARIA splitter pattern, which the linter misses. -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      role="separator"
+      aria-orientation={vertical ? 'horizontal' : 'vertical'}
+      aria-label={label}
+      aria-valuenow={valueNow}
+      aria-valuemin={valueMin}
+      aria-valuemax={valueMax}
+      tabindex="0"
+      onpointerdown={onPointerDown}
+      onkeydown={onKeydown}
+      style:width={vertical ? undefined : open ? '0.75rem' : '0'}
+      class="group flex shrink-0 items-center justify-center overflow-hidden outline-none
+             {slide ? 'transition-[width] duration-200 ease-out motion-reduce:transition-none' : ''}
+             {vertical ? 'h-3 cursor-row-resize' : 'cursor-col-resize'}"
+    >
+      <span
+        class="rounded-full bg-line transition group-hover:bg-accent group-focus-visible:bg-accent
+               {vertical ? 'h-1 w-10' : 'h-10 w-1'}"
+      ></span>
+    </div>
+  {/if}
 
-  <div class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden" style={secondStyle}>
-    {@render second()}
-  </div>
+  {#if !anchoredSecond || rendered}
+    <div
+      class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden {anchoredSecond ? slide : ''}"
+      style={secondStyle}
+    >
+      {#if anchoredSecond}
+        {@render pinned(second, true)}
+      {:else}
+        {@render second()}
+      {/if}
+    </div>
+  {/if}
 </div>

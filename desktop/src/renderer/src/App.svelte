@@ -1414,51 +1414,67 @@
     </main>
   {/snippet}
 
-  {#if sidebarCollapsed}
-    {@render mainContent()}
-  {:else}
+  <!-- The variables panel docks on the right, the mirror of the sidebar. -->
+  {#snippet workspace()}
     <SplitPane
       direction="horizontal"
       unit="pixels"
-      storageKey="ping.split.sidebar"
-      label="Resize sidebar"
+      anchor="end"
+      collapsed={!showVariables}
+      initial={448}
+      min={320}
+      max={720}
+      storageKey="ping.split.variables"
+      label="Resize variables"
     >
       {#snippet first()}
-        <Sidebar
-          {nodes}
-          activePath={active.path}
-          {workspaceRoot}
-          history={history.entries}
-          bind:panel={sidebarPanel}
-          onSelect={selectNode}
-          onCreate={createIn}
-          onDelete={deleteNode}
-          onOpenLocation={openLocation}
-          onRename={(node, name) => void renameNode(node, name)}
-          onDuplicate={(node) => void duplicateNode(node)}
-          onMove={(node, target) => void moveNode(node, target)}
-          onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
-          onNewCollection={newCollection}
-          onOpenFolder={openFolder}
-          onImport={() => void importCollection()}
-          onSelectHistory={selectHistory}
-          onClearHistory={clearHistoryEntries}
-        />
+        {@render mainContent()}
       {/snippet}
 
       {#snippet second()}
-        {@render mainContent()}
+        <VariablesPanel
+          onClose={() => (showVariables = false)}
+          onSave={onSaveVariables}
+          onAddEnvironment={onAddEnvironment}
+        />
       {/snippet}
     </SplitPane>
-  {/if}
+  {/snippet}
 
-  {#if showVariables}
-    <VariablesPanel
-      onClose={() => (showVariables = false)}
-      onSave={onSaveVariables}
-      onAddEnvironment={onAddEnvironment}
-    />
-  {/if}
+  <SplitPane
+    direction="horizontal"
+    unit="pixels"
+    collapsed={sidebarCollapsed}
+    storageKey="ping.split.sidebar"
+    label="Resize sidebar"
+  >
+    {#snippet first()}
+      <Sidebar
+        {nodes}
+        activePath={active.path}
+        {workspaceRoot}
+        history={history.entries}
+        bind:panel={sidebarPanel}
+        onSelect={selectNode}
+        onCreate={createIn}
+        onDelete={deleteNode}
+        onOpenLocation={openLocation}
+        onRename={(node, name) => void renameNode(node, name)}
+        onDuplicate={(node) => void duplicateNode(node)}
+        onMove={(node, target) => void moveNode(node, target)}
+        onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
+        onNewCollection={newCollection}
+        onOpenFolder={openFolder}
+        onImport={() => void importCollection()}
+        onSelectHistory={selectHistory}
+        onClearHistory={clearHistoryEntries}
+      />
+    {/snippet}
+
+    {#snippet second()}
+      {@render workspace()}
+    {/snippet}
+  </SplitPane>
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
 
