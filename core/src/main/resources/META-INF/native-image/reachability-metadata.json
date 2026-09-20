@@ -426,6 +426,57 @@
       ]
     },
     {
+      "type": "dev.ping.imports.CollectionWriter$Output",
+      "methods": [
+        {
+          "name": "collections",
+          "parameterTypes": []
+        },
+        {
+          "name": "secrets",
+          "parameterTypes": []
+        },
+        {
+          "name": "warnings",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.imports.CollectionWriter$Secret",
+      "methods": [
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "value",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.imports.CollectionWriter$Written",
+      "methods": [
+        {
+          "name": "environments",
+          "parameterTypes": []
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "path",
+          "parameterTypes": []
+        },
+        {
+          "name": "requests",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "dev.ping.imports.ImportResult",
       "methods": [
         {
@@ -617,7 +668,8 @@
             "java.lang.String",
             "java.lang.Boolean",
             "java.lang.Integer",
-            "java.util.List"
+            "java.util.List",
+            "java.lang.String"
           ]
         },
         {
@@ -630,6 +682,10 @@
         },
         {
           "name": "body",
+          "parameterTypes": []
+        },
+        {
+          "name": "docs",
           "parameterTypes": []
         },
         {

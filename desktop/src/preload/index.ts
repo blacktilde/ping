@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { HistoryEntry } from '../shared/history'
+import type { ImportReport } from '../shared/import'
 import type { UpdateState } from '../shared/updates'
 
 /** A core failure in transit. `code` is null when the failure was not a JSON-RPC error. */
@@ -52,6 +53,15 @@ const api = {
     base64?: string
   }): Promise<string | null> {
     return ipcRenderer.invoke('response:save', payload) as Promise<string | null>
+  },
+
+  /**
+   * Imports a Postman or Insomnia export. The shell shows the file picker, reads the file and
+   * stores any credentials it contains; the renderer only learns what was created. Resolves
+   * with `value: null` when the dialog is dismissed.
+   */
+  importCollection(): Promise<CoreResult<ImportReport | null>> {
+    return ipcRenderer.invoke('import:collection') as Promise<CoreResult<ImportReport | null>>
   },
 
   /** Fires when the open folder changes on disk, so the tree can be rescanned. */

@@ -3,7 +3,12 @@
   import { authToSpec, cancelRequest, sendRequest, type RequestDraft } from './lib/http'
   import { copyText } from './lib/clipboard'
   import { toCurl } from './lib/curl'
-  import { importCurl, looksLikeCurl } from './lib/import'
+  import {
+    importCollectionFile,
+    importCurl,
+    looksLikeCurl,
+    type ImportReport
+  } from './lib/import'
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { confirmDialog } from './lib/confirm.svelte'
@@ -357,6 +362,24 @@
 
   let curlStatusTimer: number | undefined
 
+  /** What the last collection import created and could not carry over; stays until dismissed. */
+  let importReport = $state<ImportReport | null>(null)
+
+  /** Asks the shell for a Postman or Insomnia file and shows what came of it. */
+  async function importCollection(): Promise<void> {
+    try {
+      const report = await importCollectionFile()
+      if (!report) {
+        return
+      }
+      nodes = await scanStore()
+      storeError = ''
+      importReport = report
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
   /** What the last import did, shown under the URL bar while its tab is active. */
   let importNotice = $state<{
     tabId: string
@@ -700,6 +723,7 @@
       { id: 'previous-tab', label: 'Previous tab', hint: `${modKey}⇧[`, run: () => cycleTab(-1) },
       { id: 'focus-url', label: 'Focus request URL', hint: `${modKey}L`, run: focusUrl },
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
+      { id: 'import', label: 'Import collection…', run: () => void importCollection() },
       {
         id: 'sidebar',
         label: sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar',
@@ -1056,6 +1080,54 @@
         </p>
       {/if}
 
+      {#if importReport}
+        <div
+          data-role="import-report"
+          role="status"
+          class="flex items-start gap-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="font-medium text-fg">
+              Imported {importReport.collections.length}
+              {importReport.collections.length === 1 ? 'collection' : 'collections'}
+            </p>
+            <ul class="mt-1 space-y-0.5 text-xs">
+              {#each importReport.collections as created (created.path)}
+                <li data-role="import-collection">
+                  {created.name}: {created.requests}
+                  {created.requests === 1 ? 'request' : 'requests'}{created.environments > 0
+                    ? `, ${created.environments} ${created.environments === 1 ? 'environment' : 'environments'}`
+                    : ''}
+                </li>
+              {/each}
+            </ul>
+            {#if importReport.secretsStored > 0}
+              <p data-role="import-secrets" class="mt-1 text-xs">
+                {importReport.secretsStored}
+                {importReport.secretsStored === 1 ? 'credential was' : 'credentials were'} moved into
+                your secret store; the files only refer to them by name.
+              </p>
+            {/if}
+            {#if importReport.warnings.length > 0}
+              <p class="mt-2 text-xs font-medium text-warning">Not carried over</p>
+              <ul class="mt-1 max-h-40 list-disc space-y-0.5 overflow-auto pl-4 text-xs text-warning">
+                {#each importReport.warnings as warning, index (index)}
+                  <li data-role="import-report-warning">{warning}</li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+          <button
+            type="button"
+            onclick={() => (importReport = null)}
+            aria-label="Dismiss import report"
+            class="rounded-md px-1.5 text-lg leading-none text-fg-faint transition hover:text-fg"
+          >
+            ×
+          </button>
+        </div>
+      {/if}
+
       {#if active.error || bootError}
         <p
           data-role="error"
@@ -1154,6 +1226,7 @@
           onOpenLocation={openLocation}
           onNewCollection={newCollection}
           onOpenFolder={openFolder}
+          onImport={() => void importCollection()}
           onSelectHistory={selectHistory}
           onClearHistory={clearHistoryEntries}
         />

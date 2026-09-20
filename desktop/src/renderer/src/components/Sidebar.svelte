@@ -17,6 +17,7 @@
     onOpenLocation: (node: StoreNode) => void
     onNewCollection: (name: string) => void
     onOpenFolder: () => void
+    onImport: () => void
     onSelectHistory: (entry: HistoryEntry) => void
     onClearHistory: () => void
   }
@@ -33,6 +34,7 @@
     onOpenLocation,
     onNewCollection,
     onOpenFolder,
+    onImport,
     onSelectHistory,
     onClearHistory
   }: Props = $props()
@@ -162,6 +164,30 @@
                 aria-hidden="true"
               >
                 <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          {/if}
+          {#if workspaceRoot}
+            <button
+              type="button"
+              onclick={onImport}
+              aria-label="Import collection"
+              title="Import a Postman or Insomnia export"
+              class="rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-fg"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
           {/if}

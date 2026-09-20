@@ -119,9 +119,84 @@ public final class YamlStore {
         Path file = unique(directory, slugify(name));
         StoredRequest request = new StoredRequest(name, "GET", "",
                 List.of(), List.of(), new RequestSpec.Body("none", null, null, null),
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
         write(base, relative(base, file), request);
         return relative(base, file);
+    }
+
+    /**
+     * Creates a new, empty folder under {@code parentPath} and returns its relative path.
+     *
+     * <p>The name is sanitised for every platform's filesystem and made unique among its
+     * siblings ({@code Name}, {@code Name 2}, ...), so an import can never overwrite a folder
+     * that is already there. An empty parent means the workspace root.
+     */
+    public String newFolder(Path root, String parentPath, String name) {
+        Path base = normalize(root);
+        Path parent = parentPath == null || parentPath.isBlank() ? base : resolve(base, parentPath);
+        if (!Files.isDirectory(parent)) {
+            throw RpcException.storeFailed("No such folder: " + parentPath);
+        }
+
+        String clean = folderName(name, "Imported");
+        try {
+            for (int suffix = 1; ; suffix++) {
+                Path candidate = parent.resolve(suffix == 1 ? clean : clean + " " + suffix).normalize();
+                if (!candidate.startsWith(parent)) {
+                    throw RpcException.invalidParams("Folder name escapes its parent: " + name);
+                }
+                try {
+                    Files.createDirectory(candidate);
+                    return relative(base, candidate);
+                } catch (java.nio.file.FileAlreadyExistsException taken) {
+                    // Try the next suffix; createDirectory is what makes this race-free.
+                }
+            }
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not create a folder for " + name, e);
+        }
+    }
+
+    /**
+     * Writes a request into an existing folder under a unique file name derived from its name.
+     *
+     * @param fallbackSlug used when the name has nothing usable for a file name
+     * @return the relative path of the file that was written
+     */
+    public String writeUnique(Path root, String directoryPath, String fallbackSlug, StoredRequest request) {
+        Path base = normalize(root);
+        Path directory = resolve(base, directoryPath);
+        if (!Files.isDirectory(directory)) {
+            throw RpcException.storeFailed("No such folder: " + directoryPath);
+        }
+        Path file = unique(directory, slugify(request.name(), fallbackSlug));
+        write(base, relative(base, file), request);
+        return relative(base, file);
+    }
+
+    /**
+     * A folder name that is safe on Linux, macOS and Windows: no separators, reserved
+     * characters, control characters, leading or trailing dots and spaces, or device names,
+     * and never {@code environments}, which the tree treats as reserved at every level.
+     */
+    public static String folderName(String name, String fallback) {
+        String clean = (name == null ? "" : name)
+                .replaceAll("[\\p{Cntrl}/\\\\:*?\"<>|]+", " ")
+                .replaceAll("\\s+", " ")
+                .replaceAll("^[. ]+|[. ]+$", "");
+        if (clean.length() > 100) {
+            clean = clean.substring(0, 100).replaceAll("[. ]+$", "");
+        }
+        if (clean.isEmpty()) {
+            return fallback;
+        }
+        if (clean.equalsIgnoreCase(ENVIRONMENTS_DIR)) {
+            return clean + " folder";
+        }
+        if (clean.toLowerCase(Locale.ROOT).matches("(con|prn|aux|nul|com[1-9]|lpt[1-9])(\\..*)?")) {
+            return clean + "_";
+        }
+        return clean;
     }
 
     /**
@@ -156,7 +231,7 @@ public final class YamlStore {
                 StoredRequest starter = new StoredRequest("Get started", "GET",
                         "https://jsonplaceholder.typicode.com/todos/1",
                         List.of(), List.of(), new RequestSpec.Body("none", null, null, null),
-                        null, null, null, null, null, null);
+                        null, null, null, null, null, null, null);
                 writeValue(collection.resolve("get-started.yaml"), starter);
             }
             return relative(base, collection);
@@ -478,11 +553,16 @@ public final class YamlStore {
     }
 
     private static String slugify(String name) {
+        return slugify(name, "environment");
+    }
+
+    /** Lowercase, dash-separated file stem for a display name; the fallback covers names with nothing ASCII in them. */
+    public static String slugify(String name, String fallback) {
         String slug = (name == null ? "" : name)
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-+)|(-+$)", "");
-        return slug.isEmpty() ? "environment" : slug;
+        return slug.isEmpty() ? fallback : slug;
     }
 
     private static void move(Path temp, Path target) throws IOException {

@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.ping.rpc.RpcServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,9 +25,16 @@ class ImportMethodsTest {
 
     private final ObjectMapper json = new ObjectMapper();
 
+    @TempDir
+    Path workspace;
+
     private JsonNode call(Map<String, Object> params) throws Exception {
+        return call("import.curl", params);
+    }
+
+    private JsonNode call(String method, Map<String, Object> params) throws Exception {
         String line = json.writeValueAsString(Map.of(
-                "jsonrpc", "2.0", "id", 1, "method", "import.curl", "params", params));
+                "jsonrpc", "2.0", "id", 1, "method", method, "params", params));
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         RpcServer server = new RpcServer(
                 new ByteArrayInputStream((line + "\n").getBytes(StandardCharsets.UTF_8)), out);
@@ -72,5 +82,47 @@ class ImportMethodsTest {
         assertEquals(-32602, call(Map.of("command", "wget https://x.io")).path("error").path("code").asInt());
         assertEquals(-32602, call(Map.of("command", "")).path("error").path("code").asInt());
         assertEquals(-32602, call(Map.of("other", "x")).path("error").path("code").asInt());
+    }
+
+    private static final String POSTMAN = """
+            {"info": {"name": "Demo", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+             "item": [{"name": "Login", "event": [{"listen": "test", "script": {"exec": ["pm.test('x')"]}}],
+                       "request": {"method": "POST", "url": "https://x.io/login",
+                         "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "s3cr3t-token"}]},
+                         "body": {"mode": "file", "file": {"src": "/tmp/x"}}}}]}""";
+
+    @Test
+    void importsACollectionIntoTheWorkspaceAndReturnsSecretsWarningsAndCounts() throws Exception {
+        JsonNode result = call("import.collection",
+                Map.of("root", workspace.toString(), "content", POSTMAN)).path("result");
+
+        JsonNode collection = result.path("collections").get(0);
+        assertEquals("Demo", collection.path("path").asText());
+        assertEquals("Demo", collection.path("name").asText());
+        assertEquals(1, collection.path("requests").asInt());
+
+        assertEquals(1, result.path("warnings").size());
+        JsonNode secret = result.path("secrets").get(0);
+        assertEquals("import-demo-login-token", secret.path("name").asText());
+        assertEquals("s3cr3t-token", secret.path("value").asText());
+
+        String yaml = Files.readString(workspace.resolve("Demo/login.yaml"));
+        assertTrue(yaml.contains("{{import-demo-login-token}}"), yaml);
+        assertFalse(yaml.contains("s3cr3t-token"), yaml);
+        assertTrue(yaml.contains("docs:"), yaml);
+    }
+
+    @Test
+    void rejectsAnUnusableCollectionImportAsInvalidParams() throws Exception {
+        String root = workspace.toString();
+        assertEquals(-32602, call("import.collection", Map.of("root", root, "content", "nope"))
+                .path("error").path("code").asInt());
+        assertEquals(-32602, call("import.collection", Map.of("root", root, "content", ""))
+                .path("error").path("code").asInt());
+        assertEquals(-32602, call("import.collection", Map.of("content", POSTMAN))
+                .path("error").path("code").asInt());
+        try (var files = Files.list(workspace)) {
+            assertEquals(0, files.count(), "a rejected import writes nothing");
+        }
     }
 }

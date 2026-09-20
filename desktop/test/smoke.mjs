@@ -132,6 +132,40 @@ writeFileSync(
   ].join('\n')
 )
 
+// A Postman export the import flow reads. The shell normally asks a file dialog; the smoke
+// test cannot drive a native dialog, so PING_IMPORT_FILE stands in for it.
+const importFile = join(workspaceDir, '..', `ping-smoke-import-${process.pid}.json`)
+writeFileSync(
+  importFile,
+  JSON.stringify({
+    info: {
+      name: 'Imported demo',
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+    },
+    variable: [{ key: 'host', value: base }],
+    item: [
+      {
+        name: 'Whoami',
+        event: [{ listen: 'test', script: { exec: ["pm.test('ok', () => {});"] } }],
+        request: {
+          method: 'GET',
+          url: { raw: '{{host}}/whoami?from=postman' },
+          auth: { type: 'bearer', bearer: [{ key: 'token', value: 'smoke-import-token' }] },
+          description: 'Who am I.'
+        }
+      },
+      {
+        name: 'Upload',
+        request: {
+          method: 'PUT',
+          url: '{{host}}/upload',
+          body: { mode: 'file', file: { src: '/tmp/payload.bin' } }
+        }
+      }
+    ]
+  })
+)
+
 const userDataDir = mkdtempSync(join(tmpdir(), 'ping-smoke-userdata-'))
 
 const app = spawn(
@@ -152,7 +186,12 @@ const app = spawn(
     detached: true,
     // The fake updater drives the same state machine without a network, so the in-app flow
     // is covered even though a source build is not `isPackaged`.
-    env: { ...process.env, PING_WORKSPACE: workspaceDir, PING_FAKE_UPDATE: '1' }
+    env: {
+      ...process.env,
+      PING_WORKSPACE: workspaceDir,
+      PING_FAKE_UPDATE: '1',
+      PING_IMPORT_FILE: importFile
+    }
   }
 )
 app.stderr.on('data', (chunk) => {
@@ -1196,6 +1235,66 @@ try {
     fallback.url?.includes(`curl 'https://unterminated.example`),
     fallback.url ?? 'none'
   )
+
+  console.log('--- 15c. import a Postman collection')
+  await evaluate(clickText('Collections')) // the history section left the other panel showing
+  await evaluate(`document.querySelector('button[aria-label="Import collection"]')?.click()`)
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="import-report"]')`),
+    8000,
+    'the import report'
+  )
+  const report = await evaluate(`(() => ({
+    collections: [...document.querySelectorAll('[data-role="import-collection"]')].map(e => e.textContent.replace(/\\s+/g, ' ').trim()),
+    secrets: document.querySelector('[data-role="import-secrets"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? null,
+    warnings: [...document.querySelectorAll('[data-role="import-report-warning"]')].map(e => e.textContent.trim())
+  }))()`)
+  check('reports the created collection', report.collections.join('|') === 'Imported demo: 2 requests', report.collections.join('|'))
+  check('reports the credential it moved', report.secrets?.startsWith('1 credential was'), report.secrets ?? 'none')
+  check(
+    'reports what it could not carry over',
+    report.warnings.length === 1 && report.warnings[0].includes('file bodies'),
+    report.warnings.join(' | ')
+  )
+  check('never shows the secret value', !JSON.stringify(report).includes('smoke-import-token'))
+  await waitFor(async () => (await sidebarText()).includes('Whoami'), 8000, 'the imported request in the tree')
+
+  const importedFile = readFileSync(join(workspaceDir, 'Imported demo', 'whoami.yaml'), 'utf8')
+  check('writes a reference, not the literal', importedFile.includes('{{import-imported-demo-whoami-token}}') && !importedFile.includes('smoke-import-token'), importedFile.split('\n').find((l) => l.includes('token')) ?? 'none')
+  check('keeps the script as a note', importedFile.includes('docs:') && importedFile.includes('pm.test'))
+  const secretNames = await evaluate(`window.ping.secrets.list()`)
+  check('stored the secret by name', secretNames.includes('import-imported-demo-whoami-token'), secretNames.join(', '))
+
+  await evaluate(
+    `[...document.querySelectorAll('[data-node-type="request"] button')].find(b => b.textContent.includes('Whoami'))?.click()`
+  )
+  await waitFor(async () => (await activeTabPath())?.includes('whoami.yaml'), 5000, 'the imported request to open')
+  await clickSend()
+  await waitFor(async () => (await snap()).body.includes('authorization'), 5000, 'the echoed request')
+  const whoami = echo((await snap()).body)
+  check('resolves the imported collection variable', whoami?.url?.startsWith('/whoami'), whoami?.url ?? 'none')
+  check('sends the imported query', whoami?.url?.includes('from=postman'), whoami?.url ?? 'none')
+  check('sends the restored secret', whoami?.headers?.authorization === 'Bearer smoke-import-token', whoami?.headers?.authorization ?? 'none')
+
+  // Editing and saving an imported request must not drop its notes.
+  await evaluate(setUrl('{{host}}/whoami?from=edited'))
+  await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
+  await waitFor(
+    async () => readFileSync(join(workspaceDir, 'Imported demo', 'whoami.yaml'), 'utf8').includes('edited'),
+    5000,
+    'the save'
+  )
+  const saved = readFileSync(join(workspaceDir, 'Imported demo', 'whoami.yaml'), 'utf8')
+  check('a save keeps the notes', saved.includes('docs:') && saved.includes('pm.test'), saved.includes('docs:') ? 'has docs' : 'docs dropped')
+  check('a save still holds no literal secret', !saved.includes('smoke-import-token'))
+  await evaluate(`document.querySelector('button[aria-label="Dismiss import report"]')?.click()`)
+
+  // The generic core channel must not reach the file-writing importer: it would let the
+  // renderer choose the root and read back secret values.
+  const direct = await evaluate(
+    `window.ping.request('import.collection', { root: '/tmp', content: '{}' })`
+  )
+  check('refuses import.collection over the generic channel', direct.ok === false && /import dialog/.test(direct.error?.message ?? ''), JSON.stringify(direct))
 
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)

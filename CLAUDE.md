@@ -61,6 +61,12 @@ path, never an absolute one.
 **Secrets never touch collection files.** They live in Electron `safeStorage`; YAML holds
 only the variable name.
 
+**File-writing imports go through the shell.** `import.collection` writes new folders under
+the workspace root and returns the credentials it lifted out of the files. Only the
+`import:collection` IPC handler may call it: it picks the file, injects the root, stores the
+secrets and strips their values before the renderer sees the result. `core:request` refuses the
+method for that reason.
+
 **Develop against the JVM core.** `native-image` builds take minutes and are for releases
 and CI gates only.
 

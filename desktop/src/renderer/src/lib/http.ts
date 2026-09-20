@@ -141,6 +141,8 @@ export interface RequestDraft {
   body: RequestBody
   auth: AuthDraft
   asserts: Assert[]
+  /** Notes kept with the request; carried through edit and save, no editor yet. */
+  docs?: string
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean

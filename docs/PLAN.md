@@ -105,9 +105,9 @@ assertions plus the runner change what the project is for.
   pre-request script becomes a `docs` note on the request it came from.
   *Gate: a fixture corpus per format round-trips to YAML and back; each new RPC type has a
   test that sends it as JSON, then `make agent` and `make native-test`.*
-  *Status: shipping in slices. **cURL paste is done** (`import.curl` and the URL-bar paste
-  handler). Remaining: Postman/Insomnia, then OpenAPI, together with the `docs` field, the secrets
-  list returned to the shell, and root injection for file-writing `import.*` calls.*
+  *Status: shipping in slices. **Done:** cURL paste (`import.curl`, the URL-bar paste handler), and
+  Postman v2.x / Insomnia v4 files (`import.collection`, the sidebar Import button, the `docs`
+  field, secrets lifted into `safeStorage`). **Remaining:** OpenAPI 3 (`import.openapi`).*
 
 - [x] **15. Assertions.** A stored request gains an `asserts` list, `http.send` gains an
   `assertions` result array, and the response pane grows a pass/fail row. Declarative and

@@ -52,6 +52,7 @@ not `http.send`, whose length is the user's to set.
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
 | `auth.authorize`| `{ auth, variables? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
 | `import.curl` | `{ command: string }`     | `{ request: StoredRequest, warnings?: string[] }`   |
+| `import.collection`| `{ root, content }`  | `{ collections, warnings?, secrets? }`, see `import.schema.json` |
 | `run.collection`| `{ runId?, root, collection, environment?, variables? }` | `RunResult`, see `run.schema.json` |
 
 `core.info.nativeImage` reports whether the running core is the GraalVM native image or
@@ -183,9 +184,34 @@ written. A header whose name looks like a credential (`X-Api-Key`, `Cookie`, …
 flagged without echoing its value. An unusable command is `-32602`.
 
 Credentials land in the auth fields, which the shell moves into `safeStorage` on save, so the
-"secrets never touch collection files" rule holds. Importers that write files (Postman,
-Insomnia, OpenAPI) will go through the store's path rules and return the secrets they lifted
-out for the shell to store; that arrives with them.
+"secrets never touch collection files" rule holds.
+
+`import.collection` reads a Postman collection (v2.0/v2.1) or an Insomnia v4 export (JSON) and
+writes a **new** collection folder under `root`: `collection.yaml`, subfolders, one file per
+request, and `environments/`. A name that is already taken becomes `Name 2`, so nothing is
+ever merged into or overwritten, and every name is sanitised for all platforms and written
+through the store's path rules. Requests are listed alphabetically, as everywhere in the tree;
+the source's order is not kept. A failure part-way removes what the call created.
+
+- Mapped: URL (query rows keep their disabled state), headers, bodies (`json`, `raw`, `form`,
+  `multipart`; GraphQL becomes a JSON envelope), `bearer`/`basic`/`apikey` auth with Postman's
+  folder-to-collection inheritance, collection variables, and Insomnia's base and sub
+  environments. Insomnia's `{{ _.name }}` becomes `{{name}}`.
+- Reported in `warnings`: file bodies and uploads, unsupported auth (`oauth2`, digest, AWS,
+  Hawk, NTLM), Postman `:path` variables, Insomnia `{% %}` tags and folder environments, and
+  scripts. A request's scripts and description are kept in its `docs` so the logic can be
+  ported by hand.
+- **Secrets.** Before a request is written, a literal `auth` token, password or API key value,
+  and the value of any header, query parameter or form field whose name looks like a
+  credential (`token`, `api_key`, `password`, `secret`, `cookie`, `authorization`), is replaced
+  by `{{import-<collection>-<request>-<field>}}` and returned in `secrets`. Values that already
+  contain `{{ }}` are left alone. JSON bodies are not scanned. The shell stores each secret in
+  `safeStorage` and strips `secrets` from the result before the renderer sees it; the renderer
+  cannot call `import.collection` through the generic channel, because that would let it pick
+  the root and read the values back.
+- Rejected with `-32602`, and a specific reason: not JSON, a Postman environment export,
+  Postman v1, an Insomnia format other than 4 (including v5 YAML), or an export with no
+  workspace.
 
 ### Error codes
 
