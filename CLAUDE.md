@@ -23,6 +23,7 @@ lists open review findings, each tagged with the phase it should be folded into.
 | `make native`| Compile the core to a native image (minutes)        |
 | `make native-test`| Run the suite compiled as a native image       |
 | `make agent`| Regenerate native-image reachability metadata        |
+| `make ci-run`| Drive the runner CLI against a loopback server (`BIN=` for native) |
 
 The Electron dev server does not rebuild Java. After editing the core, run `make core`
 and restart.

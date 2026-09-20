@@ -426,6 +426,87 @@
       ]
     },
     {
+      "type": "dev.ping.run.RequestResult",
+      "methods": [
+        {
+          "name": "assertions",
+          "parameterTypes": []
+        },
+        {
+          "name": "durationMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "error",
+          "parameterTypes": []
+        },
+        {
+          "name": "method",
+          "parameterTypes": []
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "passed",
+          "parameterTypes": []
+        },
+        {
+          "name": "path",
+          "parameterTypes": []
+        },
+        {
+          "name": "status",
+          "parameterTypes": []
+        },
+        {
+          "name": "url",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.run.RequestResult[]"
+    },
+    {
+      "type": "dev.ping.run.RunResult",
+      "methods": [
+        {
+          "name": "collection",
+          "parameterTypes": []
+        },
+        {
+          "name": "durationMs",
+          "parameterTypes": []
+        },
+        {
+          "name": "environment",
+          "parameterTypes": []
+        },
+        {
+          "name": "errored",
+          "parameterTypes": []
+        },
+        {
+          "name": "failed",
+          "parameterTypes": []
+        },
+        {
+          "name": "passed",
+          "parameterTypes": []
+        },
+        {
+          "name": "requests",
+          "parameterTypes": []
+        },
+        {
+          "name": "total",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "dev.ping.store.CollectionDoc",
       "methods": [
         {
@@ -1089,6 +1170,9 @@
   "resources": [
     {
       "glob": "META-INF/services/com.sun.net.httpserver.spi.HttpServerProvider"
+    },
+    {
+      "glob": "META-INF/services/java.net.spi.InetAddressResolverProvider"
     },
     {
       "glob": "META-INF/services/java.net.spi.URLStreamHandlerProvider"

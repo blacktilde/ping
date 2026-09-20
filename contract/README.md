@@ -51,6 +51,7 @@ not `http.send`, whose length is the user's to set.
 | `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
 | `auth.authorize`| `{ auth, variables? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
+| `run.collection`| `{ runId?, root, collection, environment?, variables? }` | `RunResult`, see `run.schema.json` |
 
 `core.info.nativeImage` reports whether the running core is the GraalVM native image or
 the JVM build, so the UI can show which one is in use.
@@ -139,6 +140,34 @@ A JSON `null` counts as present. `target` and `expected` are interpolated with t
 `variables`. A misconfigured assertion (unknown type or op, bad path, non-JSON body) is a
 failed result carrying a `message`, not an RPC error, so a typo in a collection file never
 stops the request from being sent.
+
+### run.collection and the CLI
+
+`run.collection` runs every request in a collection folder, one after another, in sidebar
+order. The handler runs on a virtual thread, so a `run.progress` notification
+(`{ runId?, index, total, request }`) arrives after each request while the run is still going;
+the response carries the whole `RunResult`. A request that gets no response is *errored*, one
+that gets a response and fails an assertion is *failed*, and either way the run continues.
+
+The same code backs the command line. The core binary with **no arguments** serves this
+protocol on stdio, which is how the desktop shell spawns it; with arguments it is a CLI:
+
+```
+ping-core run <collection-dir> [-e NAME] [-r human|json|junit] [-o FILE] [--var NAME=VALUE]...
+```
+
+| Exit | Meaning                                                                   |
+|------|---------------------------------------------------------------------------|
+| 0    | every request passed                                                      |
+| 1    | an assertion failed, or a request got no response                         |
+| 2    | the run could not start: unknown environment, bad flag, missing folder    |
+
+In CLI mode stdout carries only the report (or nothing, with `-o`); diagnostics go to stderr.
+Secrets are read from `PING_SECRET_<NAME>` environment variables, which become the variable
+`NAME`, or from `--var`, which is visible in the process list. Both outrank every other scope,
+the way the shell's `safeStorage` values do, and are masked as `***` in any result they
+resurface in. The OAuth2 authorization-code flow needs a browser, so a CLI run of a request
+using it fails with `-32004` unless it carries an `accessToken`.
 
 ### Error codes
 

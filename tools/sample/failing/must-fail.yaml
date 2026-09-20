@@ -1,0 +1,6 @@
+name: Must fail
+method: GET
+url: "{{baseUrl}}/ok"
+asserts:
+- type: status
+  expected: "404"

@@ -5,7 +5,7 @@
 GRAALVM_HOME ?= $(lastword $(sort $(wildcard $(HOME)/.sdkman/candidates/java/*-graalce)))
 export GRAALVM_HOME
 
-.PHONY: help setup core test dev build check smoke package clean native native-test agent
+.PHONY: help setup core test dev build check smoke package clean native native-test agent ci-run
 
 help:
 	@echo "setup  Install desktop dependencies and build the core"
@@ -20,6 +20,7 @@ help:
 	@echo ""
 	@echo "native       Compile the core to a GraalVM native image (minutes, needs GraalVM)"
 	@echo "native-test  Run the same test suite compiled as a native image"
+	@echo "ci-run       Drive the runner CLI against a loopback server (JVM launcher)"
 	@echo "agent        Regenerate native-image reachability metadata (see CLAUDE.md)"
 
 setup: core
@@ -52,6 +53,12 @@ package: native
 
 native: require-graalvm
 	./gradlew :core:nativeCompile
+
+# The runner's gate. Pass BIN=core/build/native/nativeCompile/ping-core to run it on the
+# native image instead of the JVM launcher.
+BIN ?= core/build/install/ping-core/bin/ping-core
+ci-run: core
+	tools/sample-run.sh $(BIN)
 
 # The real gate on the shipped artifact: the whole suite, compiled the way it ships.
 native-test: require-graalvm
