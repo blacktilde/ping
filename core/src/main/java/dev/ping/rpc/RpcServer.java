@@ -107,8 +107,10 @@ public final class RpcServer {
             }
         } catch (RpcException e) {
             writeError(idNode, e.code(), e.getMessage());
-        } catch (Exception e) {
-            writeError(idNode, RpcException.INTERNAL_ERROR, e.toString());
+        } catch (Throwable t) {
+            // Throwable, not Exception: an Error escaping here answers the caller nothing.
+            t.printStackTrace(System.err);
+            writeError(idNode, RpcException.INTERNAL_ERROR, t.toString());
         }
     }
 

@@ -25,6 +25,12 @@ prefix.
 
 A request without an `id` is a notification: the core runs it and answers nothing.
 
+**Every request that carries an `id` is answered exactly once**, with a result or an error —
+a handler that fails, however unexpectedly, still replies. Silence would be invisible to the
+client: handlers run on virtual threads, so one dying leaves the core serving everyone else
+while that caller waits forever. The shell backs this with a 60s deadline on calls that are
+not `http.send`, whose length is the user's to set.
+
 ## Methods
 
 | Method        | Params                    | Result                                              |
