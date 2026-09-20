@@ -14,7 +14,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import electron from 'electron'
 
 const PORT = 8791
@@ -28,6 +28,7 @@ let slowStarted = false
 let lastTokenForm = ''
 
 // Echoes what reached the server so the test can prove the editors are wired to the wire.
+let lastUpload = null
 const server = http.createServer(async (req, res) => {
   if (req.url.startsWith('/slow')) {
     slowStarted = true
@@ -67,6 +68,8 @@ const server = http.createServer(async (req, res) => {
 
   const chunks = []
   for await (const chunk of req) chunks.push(chunk)
+  // The raw bytes of the last upload, for the file-body checks; the echo below is text.
+  if (req.url.startsWith('/upload')) lastUpload = { headers: req.headers, body: Buffer.concat(chunks) }
 
   res.writeHead(200, {
     'Content-Type': 'application/json',
@@ -166,6 +169,17 @@ writeFileSync(
   })
 )
 
+// Files for the upload section. The bytes are ones a text-oriented implementation would mangle.
+// One lives outside the workspace (stored absolute, readable only once a dialog chose it) and
+// one inside the collection (stored relative to it).
+const uploadBytes = (seed) =>
+  Buffer.concat([Buffer.from([0, 1, 2, 255, 254, 13, 10, 13, 10, seed]), Buffer.from('--PingBoundaryDecoy\r\n')])
+const outsideUpload = join(tmpdir(), `ping-smoke-upload-${process.pid}.bin`)
+writeFileSync(outsideUpload, uploadBytes(7))
+mkdirSync(join(workspaceDir, 'demo', 'fixtures'), { recursive: true })
+const insideUpload = join(workspaceDir, 'demo', 'fixtures', 'logo.bin')
+writeFileSync(insideUpload, uploadBytes(9))
+
 const userDataDir = mkdtempSync(join(tmpdir(), 'ping-smoke-userdata-'))
 
 const app = spawn(
@@ -190,7 +204,9 @@ const app = spawn(
       ...process.env,
       PING_WORKSPACE: workspaceDir,
       PING_FAKE_UPDATE: '1',
-      PING_IMPORT_FILE: importFile
+      PING_IMPORT_FILE: importFile,
+      // Consumed in order: the first pick is the outside file, the second the one in the collection.
+      PING_UPLOAD_FILE: [outsideUpload, insideUpload].join(delimiter)
     }
   }
 )
@@ -1253,7 +1269,7 @@ try {
   check('reports the credential it moved', report.secrets?.startsWith('1 credential was'), report.secrets ?? 'none')
   check(
     'reports what it could not carry over',
-    report.warnings.length === 1 && report.warnings[0].includes('file bodies'),
+    report.warnings.length === 1 && report.warnings[0].includes('/tmp/payload.bin'),
     report.warnings.join(' | ')
   )
   check('never shows the secret value', !JSON.stringify(report).includes('smoke-import-token'))
@@ -1368,6 +1384,12 @@ try {
   const clickButton = (label) =>
     evaluate(`(() => { const b = document.querySelector('button[aria-label="${label}"]'); if (!b) return false; b.click(); return true })()`)
   const rowExists = (path) => evaluate(`!!${row(path)}`)
+  // The tree re-renders after a rescan, so a button may not exist yet: wait for it, then click.
+  const clickWhenReady = async (label) => {
+    await waitFor(async () => await evaluate(`!!document.querySelector('button[aria-label="${label}"]')`), 5000, `the ${label} button`)
+    await clickButton(label)
+    await waitFor(async () => await evaluate(`!!document.querySelector('input[aria-label="${label}"]')`), 5000, `the ${label} input`)
+  }
   const drag = (fromPath, toPath) => evaluate(`(() => {
     const from = ${row(fromPath)}; const to = ${row(toPath)};
     if (!from || !to) return false;
@@ -1413,13 +1435,13 @@ try {
   check('a collection cannot be dropped anywhere', existsSync(join(workspaceDir, 'demo', 'get.yaml')))
 
   // Renaming a folder re-points every tab inside it.
-  await clickButton('Rename Archive')
+  await clickWhenReady('Rename Archive')
   await evaluate(setInput('Rename Archive', 'Old stuff'))
   await evaluate(`document.querySelector('input[aria-label="Rename Archive"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
   await waitFor(async () => (await tabPaths()).includes('demo/Old stuff/ping-rename.yaml'), 5000, 'the tab to follow the folder rename')
   check('renaming a folder moves it on disk', existsSync(join(workspaceDir, 'demo', 'Old stuff', 'ping-rename.yaml')) && !existsSync(join(workspaceDir, 'demo', 'Archive')))
   check('a reserved folder name is sanitised, not obeyed', await (async () => {
-    await clickButton('Rename Old stuff')
+    await clickWhenReady('Rename Old stuff')
     await evaluate(setInput('Rename Old stuff', 'environments'))
     await evaluate(`document.querySelector('input[aria-label="Rename Old stuff"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
     await waitFor(async () => existsSync(join(workspaceDir, 'demo', 'environments folder')), 5000, 'the sanitised rename')
@@ -1514,6 +1536,71 @@ try {
   await waitFor(async () => !readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the notes to clear')
   check('clearing the notes removes them from the file', true)
   await evaluate(clickText('Variables'))
+
+  console.log('--- 15g. upload files: multipart parts and a binary body')
+  await clickButton('New request in demo')
+  await waitFor(async () => (await tabPaths()).includes('demo/new-request.yaml'), 5000, 'the upload tab')
+  await evaluate(setUrl(`${base}/upload`))
+  await evaluate(setMethod('POST'))
+  await evaluate(clickTab('Body'))
+  await evaluate(setSelect('Body mode', 'multipart'))
+  await evaluate(clickText('+ Add field'))
+  await evaluate(setInput('Field name', 'note'))
+  await evaluate(setInput('Field value', 'hello'))
+  await evaluate(clickText('+ Add file'))
+  await evaluate(setInput('Field name', 'logo'))
+  const clickChoose = () => evaluate(`(() => { const all = [...document.querySelectorAll('button[aria-label^="Choose "]')]; const b = all[all.length - 1]; if (!b) return false; b.click(); return true })()`)
+  await clickChoose()
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="chosen-file"]')`), 5000, 'the chosen file')
+  check('shows the chosen file by name', (await evaluate(`document.querySelector('[data-role="chosen-file"]').textContent.trim()`)) === outsideUpload.split(/[\\/]/).pop())
+  await clickSend()
+  await waitFor(async () => (lastUpload?.headers['content-type'] ?? '').startsWith('multipart/form-data'), 5000, 'the upload')
+  const multipartEcho = lastUpload
+  const sent = multipartEcho.body
+  const boundary = multipartEcho.headers['content-type'].split('boundary=')[1]
+  const marker = Buffer.from('name="logo"')
+  const at = sent.indexOf(marker)
+  const start = sent.indexOf(Buffer.from('\r\n\r\n'), at) + 4
+  const end = sent.indexOf(Buffer.from(`\r\n--${boundary}`), start)
+  check('a multipart file part arrives byte-identical', sent.subarray(start, end).equals(uploadBytes(7)), `${end - start} bytes`)
+  check('the text field arrives too', sent.toString('latin1').includes('name="note"\r\n\r\nhello'))
+  check('the length is fixed, not chunked', multipartEcho.headers['content-length'] === String(sent.length) && !multipartEcho.headers['transfer-encoding'])
+
+  // A file inside the collection is stored relative to it, so the collection stays portable.
+  await evaluate(setSelect('Body mode', 'file'))
+  await waitFor(async () => await evaluate(`!!document.querySelector('button[aria-label="Choose body file"]')`), 5000, 'the binary body editor')
+  await evaluate(`document.querySelector('button[aria-label="Choose body file"]').click()`)
+  await waitFor(async () => (await evaluate(`document.querySelector('[data-role="chosen-file"]')?.textContent.trim()`)) === 'logo.bin', 5000, 'the inside file')
+  await clickSend()
+  await waitFor(async () => lastUpload?.headers['content-type'] === 'application/octet-stream', 5000, 'the binary upload')
+  const binaryEcho = lastUpload
+  check('a binary body is the file byte for byte', binaryEcho.body.equals(uploadBytes(9)))
+  check('a binary body defaults to octet-stream', binaryEcho.headers['content-type'] === 'application/octet-stream', binaryEcho.headers['content-type'])
+  const fileCurl = await evaluate(`document.querySelector('[data-role="copy-curl"]')?.dataset.curl ?? ''`)
+  check('copied cURL points at the file', fileCurl.includes("--data-binary '@fixtures/logo.bin'"), fileCurl.slice(-120))
+
+  await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
+  await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'new-request.yaml'), 'utf8').includes('type: file'), 5000, 'the save')
+  const uploadYaml = readFileSync(join(workspaceDir, 'demo', 'new-request.yaml'), 'utf8')
+  check('a file inside the collection is saved relative to it', uploadYaml.includes('file: fixtures/logo.bin'), uploadYaml.split('\n').filter((l) => l.includes('file')).join(' | '))
+
+  // The shell decides what the core may read.
+  const attempt = (body, extra = {}) =>
+    evaluate(`window.ping.request('http.send', ${JSON.stringify({ url: `${base}/upload`, method: 'POST', body, ...extra })})`)
+  const ungranted = await attempt({ type: 'file', file: process.platform === 'win32' ? 'C:\\Windows\\win.ini' : '/etc/hostname' })
+  check('refuses a path the user never chose', ungranted.ok === false && /not chosen in this session/.test(ungranted.error?.message ?? ''), JSON.stringify(ungranted).slice(0, 140))
+  const escaping = await attempt({ type: 'file', file: '../secret.txt' }, { collection: 'demo' })
+  check('refuses a relative path that leaves the collection', escaping.ok === false && /outside the collection/.test(escaping.error?.message ?? ''), JSON.stringify(escaping).slice(0, 140))
+  const spoofed = await attempt({ type: 'file', file: 'demo/get.yaml' }, { filesBase: workspaceDir })
+  check('ignores a base the renderer invents', spoofed.ok === false, JSON.stringify(spoofed).slice(0, 140))
+  const partRefused = await attempt({ type: 'multipart', fields: [{ name: 'f', file: process.platform === 'win32' ? 'C:\\Windows\\win.ini' : '/etc/hostname', enabled: true }] })
+  check('refuses an ungranted file part too', partRefused.ok === false && /not chosen in this session/.test(partRefused.error?.message ?? ''))
+  const disabledIgnored = await attempt({ type: 'multipart', fields: [{ name: 'f', file: '/etc/hostname', enabled: false }, { name: 'a', value: '1', enabled: true }] })
+  check('a disabled file row is not checked or read', disabledIgnored.ok === true, JSON.stringify(disabledIgnored).slice(0, 140))
+  const granted = await attempt({ type: 'file', file: outsideUpload })
+  check('a path the dialog chose stays readable this session', granted.ok === true, JSON.stringify(granted).slice(0, 140))
+  const insideOk = await attempt({ type: 'file', file: 'fixtures/logo.bin' }, { collection: 'demo' })
+  check('a relative path in the collection needs no grant', insideOk.ok === true, JSON.stringify(insideOk).slice(0, 140))
 
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)

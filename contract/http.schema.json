@@ -5,12 +5,18 @@
   "$defs": {
     "param": {
       "type": "object",
-      "description": "A name/value pair the user can disable without deleting it.",
+      "description": "A name/value pair the user can disable without deleting it. In a multipart body a row with `file` (or `filename`/`contentType`) is a file part.",
       "required": ["name"],
       "properties": {
         "name": { "type": "string" },
         "value": { "type": "string" },
-        "enabled": { "type": "boolean", "default": true }
+        "enabled": { "type": "boolean", "default": true },
+        "file": {
+          "type": "string",
+          "description": "Multipart file part: the path to read, literal (never interpolated). Relative paths resolve against the collection and must stay inside it; absolute paths need permission (the desktop shell only allows files a dialog chose this session)."
+        },
+        "filename": { "type": "string", "description": "What the part is called on the wire. Defaults to the file's own name." },
+        "contentType": { "type": "string", "description": "The part's Content-Type. Defaults to what the file system reports, else application/octet-stream." }
       },
       "additionalProperties": false
     },
@@ -54,7 +60,11 @@
         "variables": {
           "type": "object",
           "additionalProperties": { "type": "string" },
-          "description": "Resolved values for {{name}} placeholders in the url, query, headers and body. An unknown name is left exactly as written."
+          "description": "Resolved values for {{name}} placeholders in the url, query, headers and body. An unknown name is left exactly as written. File paths are not interpolated."
+        },
+        "filesBase": {
+          "type": "string",
+          "description": "The collection folder (absolute) that relative file paths resolve against. The desktop shell sets it from the request's collection and ignores any value from the renderer. Without it a relative path is refused."
         },
         "auth": { "$ref": "#/$defs/auth" },
         "asserts": {
@@ -176,7 +186,11 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["none", "json", "raw", "form", "multipart"] },
+        "type": { "enum": ["none", "json", "raw", "form", "multipart", "file"] },
+        "file": {
+          "type": "string",
+          "description": "For `file`: the path of the file sent as the whole body. Literal, streamed from disk with an exact Content-Length; same resolution rules as a multipart `file`."
+        },
         "content": {
           "type": "string",
           "description": "The literal payload for json and raw."

@@ -298,9 +298,9 @@ final class OpenApiImporter {
         JsonNode schema = media.get("schema");
 
         if (bare.equals("application/octet-stream") || isBinary(schema)) {
-            warnings.add(label + " sends a file as its body; file bodies are not supported yet, "
-                    + "so the body was left out.");
-            return null;
+            // A spec names no file: the body is a file the user has yet to choose.
+            warnings.add(label + " sends a file as its body. Choose the file in the Body tab.");
+            return new RequestSpec.Body("file", null, mediaType, null, null);
         }
 
         JsonNode example = exampleOf(media);
@@ -376,8 +376,11 @@ final class OpenApiImporter {
         while (entries.hasNext()) {
             Map.Entry<String, JsonNode> entry = entries.next();
             if (properties != null && isBinary(properties.get(entry.getKey()))) {
+                // A file part with no file yet: the content type keeps the row a file row.
                 warnings.add(label + " uploads a file in the field \"" + entry.getKey()
-                        + "\"; file parts are not supported yet, so it was left out.");
+                        + "\". Choose the file in the Body tab.");
+                fields.add(new RequestSpec.Param(entry.getKey(), null, true, null, null,
+                        "application/octet-stream"));
                 continue;
             }
             fields.add(new RequestSpec.Param(entry.getKey(), text(entry.getValue()), true));

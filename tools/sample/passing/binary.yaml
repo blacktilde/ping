@@ -1,0 +1,13 @@
+name: Binary
+method: PUT
+url: "{{baseUrl}}/bin"
+body:
+  type: file
+  file: fixtures/logo.bin
+asserts:
+- type: status
+  expected: "200"
+- type: jsonpath
+  target: $.sha256
+  op: equals
+  expected: fa5f1c196433ae99bea2509acb8c80e4705c20cd592a56b9bc3a5ca7af7975ab

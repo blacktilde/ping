@@ -308,12 +308,15 @@ class OpenApiImporterTest {
         CollectionImporter.Parsed parsed = parse(SPEC);
         assertEquals(new RequestSpec.Body("form", null, null, List.of(param("a", "1", true), param("b", "0", true))),
                 named(parsed, "Form").body());
-        assertEquals(new RequestSpec.Body("multipart", null, null, List.of(param("note", "hi", true))),
+        assertEquals(new RequestSpec.Body("multipart", null, null, List.of(param("note", "hi", true),
+                        new RequestSpec.Param("photo", null, true, null, null, "application/octet-stream"))),
                 named(parsed, "Upload").body());
         assertEquals(new RequestSpec.Body("raw", "hello", "text/plain", null), named(parsed, "Raw").body());
-        assertNull(named(parsed, "Bin").body());
+        assertEquals(new RequestSpec.Body("file", null, "application/octet-stream", null, null),
+                named(parsed, "Bin").body(), "a file body with no file chosen yet");
         assertTrue(warned(parsed, "photo"), parsed.warnings().toString());
         assertTrue(warned(parsed, "PUT /bin sends a file"), parsed.warnings().toString());
+        assertTrue(warned(parsed, "Choose the file"), parsed.warnings().toString());
     }
 
     @Test

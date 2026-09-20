@@ -134,15 +134,28 @@ class InsomniaImporterTest {
     }
 
     @Test
-    void multipartFileParamsAreReported() {
+    void multipartFileParamsBecomeFileRows() {
         CollectionImporter.Parsed parsed = parse(WORKSPACE + """
                 ,
                 {"_id": "r", "_type": "request", "parentId": "wrk_1", "name": "Up", "method": "POST", "url": "https://s.io",
                     "body": {"mimeType": "multipart/form-data", "params": [
                         {"name": "note", "value": "hi"}, {"name": "photo", "type": "file", "fileName": "/tmp/p.png"}]}}""");
-        assertEquals(new RequestSpec.Body("multipart", null, null, List.of(param("note", "hi", true))),
+        assertEquals(new RequestSpec.Body("multipart", null, null, List.of(param("note", "hi", true),
+                        new RequestSpec.Param("photo", null, true, "/tmp/p.png", null, null))),
                 parsed.collections().get(0).root().requests().get(0).body());
         assertTrue(warned(parsed, "photo"), parsed.warnings().toString());
+        assertTrue(warned(parsed, "choose the file again"), parsed.warnings().toString());
+    }
+
+    @Test
+    void aFileBodyIsImportedNotDroppedSilently() {
+        CollectionImporter.Parsed parsed = parse(WORKSPACE + """
+                ,
+                {"_id": "r", "_type": "request", "parentId": "wrk_1", "name": "Blob", "method": "PUT", "url": "https://s.io",
+                    "body": {"mimeType": "application/octet-stream", "fileName": "/tmp/blob.bin"}}""");
+        assertEquals(new RequestSpec.Body("file", null, "application/octet-stream", null, "/tmp/blob.bin"),
+                parsed.collections().get(0).root().requests().get(0).body());
+        assertTrue(warned(parsed, "/tmp/blob.bin"), parsed.warnings().toString());
     }
 
     @Test

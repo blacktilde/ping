@@ -277,4 +277,85 @@ class RunnerTest {
                 .map(c -> new CaptureResultView(c.found(), c.message(), c.value()))
                 .orElseThrow(() -> new AssertionError("no capture named " + name));
     }
+
+    // --- files ---------------------------------------------------------------------------------
+
+    private static final byte[] BLOB = {0, 1, 2, (byte) 0xFF, '\r', '\n', 42, 7};
+
+    private String sha256(byte[] bytes) throws Exception {
+        return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+    }
+
+    /** A collection whose requests upload {@code fixtures/blob.bin}, by the given stored path. */
+    private void writeUploads(String storedPath) throws Exception {
+        java.nio.file.Path upload = root.resolve("upload");
+        java.nio.file.Files.createDirectories(upload.resolve("fixtures"));
+        java.nio.file.Files.write(upload.resolve("fixtures/blob.bin"), BLOB);
+        java.nio.file.Files.writeString(upload.resolve("collection.yaml"), """
+                name: Upload
+                variables:
+                - name: baseUrl
+                  value: "%s"
+                  enabled: true
+                """.formatted(RunFixture.baseUrl(server)));
+        java.nio.file.Files.writeString(upload.resolve("a-binary.yaml"), """
+                name: A binary
+                method: PUT
+                url: "{{baseUrl}}/upload"
+                body:
+                  type: file
+                  file: "%s"
+                asserts:
+                - type: jsonpath
+                  target: $.sha256
+                  op: equals
+                  expected: "%s"
+                """.formatted(storedPath.replace("\\", "\\\\"), sha256(BLOB)));
+        java.nio.file.Files.writeString(upload.resolve("b-multipart.yaml"), """
+                name: B multipart
+                method: POST
+                url: "{{baseUrl}}/upload"
+                body:
+                  type: multipart
+                  fields:
+                  - name: logo
+                    file: "%s"
+                    filename: logo.bin
+                asserts:
+                - type: body
+                  op: contains
+                  expected: filename=\\"logo.bin\\"
+                """.formatted(storedPath.replace("\\", "\\\\")));
+    }
+
+    @Test
+    void aRelativeFileResolvesAgainstTheCollectionFolder() throws Exception {
+        writeUploads("fixtures/blob.bin");
+        RunResult result = runner.run(root, "upload", RunOptions.none(), null);
+        assertTrue(result.succeeded(), result.requests().toString());
+        assertEquals(2, result.total());
+    }
+
+    @Test
+    void aCollectionCannotReachOutsideItselfWithARelativePath() throws Exception {
+        writeUploads("../outside.bin");
+        RunResult result = runner.run(root, "upload", RunOptions.none(), null);
+        assertEquals(2, result.errored());
+        assertTrue(result.requests().get(0).error().contains("outside the collection"),
+                result.requests().get(0).error());
+    }
+
+    @Test
+    void anAbsolutePathNeedsPermissionAndIsRefusedByDefault() throws Exception {
+        java.nio.file.Path absolute = root.resolve("elsewhere.bin");
+        java.nio.file.Files.write(absolute, BLOB);
+        writeUploads(absolute.toString());
+
+        RunResult refused = runner.run(root, "upload", new RunOptions(null, Map.of(), false), null);
+        assertEquals(2, refused.errored(), "the desktop app never allows absolute files in a run");
+        assertTrue(refused.requests().get(0).error().contains("absolute path"), refused.requests().get(0).error());
+
+        RunResult allowed = runner.run(root, "upload", new RunOptions(null, Map.of(), true), null);
+        assertTrue(allowed.succeeded(), allowed.requests().toString());
+    }
 }

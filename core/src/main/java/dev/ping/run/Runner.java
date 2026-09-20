@@ -2,6 +2,7 @@ package dev.ping.run;
 
 import dev.ping.http.AssertionResult;
 import dev.ping.http.CaptureResult;
+import dev.ping.http.FileAccess;
 import dev.ping.http.HttpEngine;
 import dev.ping.http.RequestSpec;
 import dev.ping.http.ResponseData;
@@ -67,7 +68,7 @@ public final class Runner {
                 variables.putAll(options.variables());
             }
 
-            Step step = runOne(root, nodes.get(index), variables);
+            Step step = runOne(root, collection, nodes.get(index), variables, options);
             for (CaptureResult captured : step.captured()) {
                 // A miss puts nothing here, so a later {{name}} stays as written rather than empty.
                 if (captured.found() && captured.value() != null) {
@@ -105,7 +106,9 @@ public final class Runner {
     private record Step(RequestResult result, List<CaptureResult> captured) {
     }
 
-    private Step runOne(Path root, CollectionNode node, Map<String, String> variables) {
+    private Step runOne(
+            Path root, String collection, CollectionNode node, Map<String, String> variables,
+            RunOptions options) {
         String url = null;
         String method = node.method();
         try {
@@ -114,7 +117,10 @@ public final class Runner {
             url = spec.url();
             method = spec.methodOrDefault();
 
-            ResponseData response = engine.send(spec, variables);
+            // Files resolve against the collection folder, so a request keeps working wherever
+            // the collection is checked out.
+            ResponseData response = engine.send(spec, variables,
+                    new FileAccess(root.resolve(collection), options.allowAbsoluteFiles()));
             List<AssertionResult> assertions = response.assertions();
             boolean passed = assertions.stream().allMatch(AssertionResult::passed);
             List<CaptureResult> captured = response.captured();

@@ -39,7 +39,8 @@ public final class RunMethods {
             String collection = requiredText(params, "collection");
             String runId = params.path("runId").asText(null);
             RunOptions options = new RunOptions(
-                    params.path("environment").asText(null), variables(params.get("variables")));
+                    params.path("environment").asText(null), variables(params.get("variables")),
+                    params.path("allowAbsoluteFiles").asBoolean(false));
 
             return runner.run(root, collection, options, (index, total, result) -> {
                 Map<String, Object> progress = new LinkedHashMap<>();

@@ -92,6 +92,8 @@ public final class CurlImporter {
         private final List<RequestSpec.Param> headers = new ArrayList<>();
         private final List<Piece> data = new ArrayList<>();
         private final List<RequestSpec.Param> form = new ArrayList<>();
+        /** The file a -d/--data-binary/--json @file reads as the whole body. */
+        private String dataFile;
         private int index;
 
         private String url;
@@ -209,13 +211,14 @@ public final class CurlImporter {
                 case "-X", "--request" -> method = argument.toUpperCase(Locale.ROOT);
                 case "--url" -> positional(argument);
                 case "-H", "--header" -> header(argument);
-                case "-d", "--data", "--data-ascii", "--data-binary" -> fileOr(argument, "--data", () ->
+                case "-d", "--data", "--data-ascii" -> fileOr(argument, true, () ->
                         data.add(new Piece(argument)));
+                case "--data-binary" -> fileOr(argument, false, () -> data.add(new Piece(argument)));
                 case "--data-raw" -> data.add(new Piece(argument));
                 case "--data-urlencode" -> urlencoded(argument);
                 case "--json" -> {
                     json = true;
-                    fileOr(argument, "--json", () -> data.add(new Piece(argument)));
+                    fileOr(argument, false, () -> data.add(new Piece(argument)));
                 }
                 case "-F", "--form" -> formPart(argument);
                 case "-u", "--user" -> user(argument);
@@ -228,20 +231,30 @@ public final class CurlImporter {
             }
         }
 
-        /** {@code @file} reads from disk, which a request cannot yet; say so instead of sending "@file". */
-        private void fileOr(String argument, String option, Runnable literal) {
-            if (argument.startsWith("@")) {
-                warnings.add(option + " " + argument + " reads a file; file bodies are not supported yet, "
-                        + "so the body was left out");
-            } else {
+        /**
+         * {@code @file} makes the file the body. It is kept as the path was written and must be
+         * chosen again in the editor, since a file is picked and never typed.
+         *
+         * @param stripsNewlines true for {@code -d}/{@code --data}, which curl feeds through a filter
+         *                       that removes line breaks; the file is sent unchanged here
+         */
+        private void fileOr(String argument, boolean stripsNewlines, Runnable literal) {
+            if (!argument.startsWith("@")) {
                 literal.run();
+                return;
+            }
+            dataFile = argument.substring(1);
+            warnings.add("The body is read from " + dataFile + ". Choose the file again in the Body tab; "
+                    + "paths are picked, not typed.");
+            if (stripsNewlines) {
+                warnings.add("curl removes line breaks from a file given with -d; it is sent unchanged here.");
             }
         }
 
         private void urlencoded(String argument) {
             if (argument.startsWith("@") || (argument.contains("@") && !argument.contains("="))) {
-                warnings.add("--data-urlencode " + argument + " reads a file; file bodies are not "
-                        + "supported yet, so it was left out");
+                warnings.add("--data-urlencode " + argument + " reads and encodes a file, which is not "
+                        + "supported, so it was left out");
                 return;
             }
             int eq = argument.indexOf('=');
@@ -264,16 +277,33 @@ public final class CurlImporter {
             }
             String name = argument.substring(0, eq);
             String content = argument.substring(eq + 1);
-            if (content.startsWith("@") || content.startsWith("<")) {
-                warnings.add("Form field " + name + " uploads a file; file parts are not supported yet, "
+            if (content.startsWith("<")) {
+                warnings.add("Form field " + name + " takes its text from a file, which is not supported, "
                         + "so it was left out");
                 return;
             }
-            int type = content.lastIndexOf(";type=");
-            if (type >= 0) {
-                content = content.substring(0, type);
+            // ;type=... and ;filename=... follow the value (or the @path).
+            String[] pieces = content.split(";");
+            String contentType = null;
+            String filename = null;
+            StringBuilder value = new StringBuilder(pieces[0]);
+            for (int i = 1; i < pieces.length; i++) {
+                if (pieces[i].startsWith("type=")) {
+                    contentType = pieces[i].substring("type=".length());
+                } else if (pieces[i].startsWith("filename=")) {
+                    filename = pieces[i].substring("filename=".length());
+                } else {
+                    value.append(';').append(pieces[i]);
+                }
             }
-            form.add(new RequestSpec.Param(name, content, true));
+            if (value.toString().startsWith("@")) {
+                String path = value.substring(1);
+                warnings.add("Form field " + name + " uploads " + path + ". Choose the file again in the "
+                        + "Body tab; paths are picked, not typed.");
+                form.add(new RequestSpec.Param(name, null, true, path, filename, contentType));
+            } else {
+                form.add(new RequestSpec.Param(name, value.toString(), true));
+            }
         }
 
         private void user(String argument) {
@@ -349,6 +379,11 @@ public final class CurlImporter {
                 warnings.add("The command has both -d and -F; only the form fields were imported");
                 hasData = false;
             }
+            if (dataFile != null && (hasData || !form.isEmpty())) {
+                warnings.add("The command mixes a file body with other data; the file " + dataFile
+                        + " was left out.");
+                dataFile = null;
+            }
 
             String contentType = takeHeader("content-type");
             RequestSpec.Body body = bodyOf(hasData, joined, contentType);
@@ -385,6 +420,10 @@ public final class CurlImporter {
         }
 
         private RequestSpec.Body bodyOf(boolean hasData, String joined, String contentType) {
+            if (dataFile != null) {
+                String type = contentType != null ? contentType : json ? "application/json" : null;
+                return new RequestSpec.Body("file", null, type, null, dataFile);
+            }
             if (!form.isEmpty()) {
                 if (contentType != null && !contentType.toLowerCase(Locale.ROOT).startsWith("multipart/")) {
                     headers.add(new RequestSpec.Param("Content-Type", contentType, true));

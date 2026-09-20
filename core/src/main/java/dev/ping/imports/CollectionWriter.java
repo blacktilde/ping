@@ -145,7 +145,8 @@ public final class CollectionWriter {
             if (param.name() != null && ImportSupport.SENSITIVE_NAME.matcher(param.name()).matches()) {
                 value = liftValue(value, prefix, kind + "-" + YamlStore.slugify(param.name(), "value"));
             }
-            lifted.add(new RequestSpec.Param(param.name(), value, param.enabled()));
+            lifted.add(new RequestSpec.Param(param.name(), value, param.enabled(),
+                    param.file(), param.filename(), param.contentType()));
         }
         return lifted;
     }

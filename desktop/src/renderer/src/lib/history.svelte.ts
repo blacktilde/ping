@@ -42,7 +42,33 @@ function historyRequest(draft: RequestDraft): unknown {
       }
     }
   }
+  dropAbsoluteFiles(stored)
   return stored
+}
+
+/** True for a path that names a location by itself, on any platform. */
+function isAbsolutePath(path: string): boolean {
+  return path.startsWith('/') || path.startsWith('\\') || /^[a-zA-Z]:[\\/]/.test(path)
+}
+
+/**
+ * An absolute file path is a personal directory layout, and it stops working anyway once the
+ * session that chose it ends, so history keeps the file's role and drops the path. A path
+ * relative to the collection is kept: it is part of the collection, not of this machine.
+ */
+function dropAbsoluteFiles(stored: ReturnType<typeof draftToStored>): void {
+  const body = stored.body
+  if (!body) {
+    return
+  }
+  if (body.file && isAbsolutePath(body.file)) {
+    delete body.file
+  }
+  for (const field of body.fields ?? []) {
+    if (field.file && isAbsolutePath(field.file)) {
+      field.file = ''
+    }
+  }
 }
 
 export interface HistoryInput {

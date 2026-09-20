@@ -32,6 +32,7 @@ export interface StoredRequest {
     content?: string | null
     contentType?: string | null
     fields?: Param[]
+    file?: string | null
   }
   auth?: AuthSpec
   asserts?: Assert[]
@@ -127,11 +128,19 @@ export function openInFileManager(path: string): Promise<void> {
 
 /** Fixed key order, so two drafts that mean the same thing fingerprint the same. */
 function plainParams(items: Param[] | undefined): Param[] {
-  return (items ?? []).map((param) => ({
-    name: param.name ?? '',
-    value: param.value ?? '',
-    enabled: param.enabled ?? true
-  }))
+  return (items ?? []).map((param) => {
+    const row: Param = {
+      name: param.name ?? '',
+      value: param.value ?? '',
+      enabled: param.enabled ?? true
+    }
+    // Same order every time, so two drafts that mean the same thing fingerprint the same. A file
+    // that changed must change the fingerprint, or the tab would not read as dirty.
+    if (param.file !== undefined) row.file = param.file
+    if (param.filename) row.filename = param.filename
+    if (param.contentType) row.contentType = param.contentType
+    return row
+  })
 }
 
 export function storedToDraft(stored: StoredRequest): RequestDraft {
@@ -145,6 +154,7 @@ export function storedToDraft(stored: StoredRequest): RequestDraft {
       type: (stored.body?.type as BodyMode) ?? 'none',
       content: stored.body?.content ?? '',
       contentType: stored.body?.contentType ?? '',
+      file: stored.body?.file ?? undefined,
       fields: plainParams(stored.body?.fields)
     },
     auth: normalizeAuth(stored.auth),
@@ -169,7 +179,13 @@ export function draftToStored(draft: RequestDraft): StoredRequest {
       type: draft.body.type,
       content: draft.body.content,
       contentType: draft.body.contentType || undefined,
-      fields: plainParams(draft.body.fields)
+      file: draft.body.type === 'file' ? draft.body.file || undefined : undefined,
+      // Only the modes that use fields keep them, so a file path left in a row after switching
+      // to another mode is not written into the collection.
+      fields:
+        draft.body.type === 'form' || draft.body.type === 'multipart'
+          ? plainParams(draft.body.fields)
+          : []
     },
     auth: authToSpec(draft.auth),
     asserts: plainAsserts(draft.asserts),

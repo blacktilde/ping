@@ -28,19 +28,50 @@ public record RequestSpec(
         List<Assertion> asserts,
         List<Capture> capture) {
 
-    /** A name/value pair the user can disable without deleting. */
-    public record Param(String name, String value, Boolean enabled) {
+    /**
+     * A name/value pair the user can disable without deleting.
+     *
+     * <p>In a multipart body a row with a {@code file} is a file part rather than a text field:
+     * {@code name} is the field name, {@code file} the path to read (literal, never
+     * interpolated), and {@code filename} and {@code contentType} optionally override what
+     * is sent for it. Rows elsewhere never carry those three.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Param(
+            String name, String value, Boolean enabled, String file, String filename, String contentType) {
+
+        public Param(String name, String value, Boolean enabled) {
+            this(name, value, enabled, null, null, null);
+        }
+
         public boolean isEnabled() {
             return enabled == null || enabled;
+        }
+
+        /**
+         * True for a multipart file part. A part with a content type or a filename is a file part
+         * even before a file is chosen (an import can leave the choice to the user), so the row
+         * keeps its shape through a YAML file that omits the empty path. Named so Jackson does
+         * not read it as a second {@code file} property.
+         */
+        public boolean usesFile() {
+            return file != null || filename != null || contentType != null;
         }
     }
 
     /**
-     * @param type    one of {@code none}, {@code json}, {@code raw}, {@code form}, {@code multipart}
+     * @param type    one of {@code none}, {@code json}, {@code raw}, {@code form},
+     *                {@code multipart}, {@code file}
      * @param content the literal payload for {@code json} and {@code raw}
      * @param fields  the field list for {@code form} and {@code multipart}
+     * @param file    the path of the file sent as the whole body for {@code file}; literal
      */
-    public record Body(String type, String content, String contentType, List<Param> fields) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Body(String type, String content, String contentType, List<Param> fields, String file) {
+
+        public Body(String type, String content, String contentType, List<Param> fields) {
+            this(type, content, contentType, fields, null);
+        }
     }
 
     /**
@@ -129,6 +160,30 @@ public record RequestSpec(
         return timeoutMs == null || timeoutMs <= 0 ? DEFAULT_TIMEOUT_MS : timeoutMs;
     }
 
+    /**
+     * Uploads get longer by default: the request timeout runs until response headers arrive,
+     * which for a large file includes sending all of it. An explicit {@code timeoutMs} wins.
+     */
+    public static final int DEFAULT_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+
+    public int requestTimeoutMs() {
+        if (timeoutMs != null && timeoutMs > 0) {
+            return timeoutMs;
+        }
+        return hasFile() ? DEFAULT_UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+    }
+
+    /** True when the body reads a file: a binary body, or an enabled file part. */
+    public boolean hasFile() {
+        if (body == null || body.type() == null) {
+            return false;
+        }
+        if (body.type().equalsIgnoreCase("file")) {
+            return true;
+        }
+        return body.fields() != null && body.fields().stream().anyMatch(p -> p.isEnabled() && p.usesFile());
+    }
+
     public int maxBodyBytesOrDefault() {
         return maxBodyBytes == null || maxBodyBytes <= 0 ? DEFAULT_MAX_BODY_BYTES : maxBodyBytes;
     }
@@ -215,6 +270,12 @@ public record RequestSpec(
             List<Param> fields = new ArrayList<>();
             fields.add(new Param(name, value, true));
             this.body = new Body("form", null, null, fields);
+            return this;
+        }
+
+        /** A binary body read from {@code path}. */
+        public Builder fileBody(String path, String contentType) {
+            this.body = new Body("file", null, contentType, null, path);
             return this;
         }
 

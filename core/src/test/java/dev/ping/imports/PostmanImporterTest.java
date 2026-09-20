@@ -134,7 +134,7 @@ class PostmanImporterTest {
     }
 
     @Test
-    void formBodiesKeepDisabledRowsAndFileUploadsAreReported() {
+    void formBodiesKeepDisabledRowsAndFileUploadsBecomeFileRows() {
         CollectionImporter.Parsed parsed = parse("", """
                 {"name": "Form", "request": {"method": "POST", "url": "https://x.io",
                     "body": {"mode": "urlencoded", "urlencoded": [
@@ -142,11 +142,12 @@ class PostmanImporterTest {
                 {"name": "Upload", "request": {"method": "POST", "url": "https://x.io",
                     "body": {"mode": "formdata", "formdata": [
                         {"key": "note", "value": "hi", "type": "text"},
-                        {"key": "photo", "type": "file", "src": "/tmp/p.png"}]}}}""");
+                        {"key": "photo", "type": "file", "src": ["/tmp/p.png"], "contentType": "image/png"}]}}}""");
         List<StoredRequest> requests = parsed.collections().get(0).root().requests();
         assertEquals(new RequestSpec.Body("form", null, null,
                 List.of(param("a", "1", true), param("b", "2", false))), requests.get(0).body());
-        assertEquals(new RequestSpec.Body("multipart", null, null, List.of(param("note", "hi", true))),
+        assertEquals(new RequestSpec.Body("multipart", null, null, List.of(param("note", "hi", true),
+                        new RequestSpec.Param("photo", null, true, "/tmp/p.png", null, "image/png"))),
                 requests.get(1).body());
         assertTrue(warned(parsed, "photo"), parsed.warnings().toString());
     }
@@ -163,12 +164,20 @@ class PostmanImporterTest {
     }
 
     @Test
-    void fileBodiesAndUnknownModesAreReportedNotSent() {
+    void fileBodiesBecomeFileBodies() {
         CollectionImporter.Parsed parsed = parse("", """
                 {"name": "F", "request": {"method": "PUT", "url": "https://x.io",
                     "body": {"mode": "file", "file": {"src": "/tmp/a.bin"}}}}""");
-        assertNull(only(parsed).body());
-        assertTrue(warned(parsed, "file bodies are not supported"), parsed.warnings().toString());
+        assertEquals(new RequestSpec.Body("file", null, null, null, "/tmp/a.bin"), only(parsed).body());
+        assertTrue(warned(parsed, "/tmp/a.bin"), parsed.warnings().toString());
+        assertTrue(warned(parsed, "choose the file again"), parsed.warnings().toString());
+
+        CollectionImporter.Parsed none = parse("", """
+                {"name": "F", "request": {"method": "PUT", "url": "https://x.io",
+                    "body": {"mode": "binary"}}}""");
+        assertEquals("file", only(none).body().type());
+        assertNull(only(none).body().file());
+        assertTrue(warned(none, "no file chosen"), none.warnings().toString());
     }
 
     @Test

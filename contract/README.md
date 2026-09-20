@@ -181,6 +181,34 @@ A JSON `null` counts as present. `target` and `expected` are interpolated with t
 failed result carrying a `message`, not an RPC error, so a typo in a collection file never
 stops the request from being sent.
 
+### Files in a request body
+
+A multipart body can carry **file parts** (a `param` with `file`) and a request can send a file as the
+**whole body** (`body.type: "file"`). The core reads the file, so a large upload never crosses the
+stdio pipe as base64 and is never held in memory: it is streamed with `BodyPublishers.concat`/`ofFile`,
+which keeps an exact `Content-Length` (a chunked upload is refused by many servers). A file part is sent
+with `filename` (default the file's name; quotes and line breaks are neutralised) and `Content-Type`
+(the row's, else the file system's, else `application/octet-stream`). A request that reads a file and sets
+no `timeoutMs` gets 10 minutes, not 30 seconds, because the timeout runs until response headers arrive.
+
+**How a path is stored and who may read it.** The path is *literal*: it is never interpolated, so no
+variable, environment value or captured response can redirect it.
+
+- A file **inside the collection** is stored **relative to the collection folder** (forward slashes),
+  which makes a collection with its fixtures portable in Git. The core resolves it against `filesBase`
+  and refuses anything that leaves the folder, including through a symlink.
+- A file **anywhere else** is stored **absolute**. The desktop shell only lets the core read an absolute
+  path that a file dialog chose in this session (a *grant*) and refuses every other one before the core
+  sees it, so the sandboxed renderer cannot name an arbitrary file. A restored tab, a history entry or an
+  imported path outside the collection therefore asks for the file to be chosen again.
+- The shell sets `filesBase` from the request's collection and overwrites whatever the renderer sent.
+- **Collection runs** resolve files against the collection folder. The command line allows absolute paths
+  (it is the user's own shell); `run.collection` refuses them unless `allowAbsoluteFiles` is true, and the
+  desktop shell forces it false, so a shared collection cannot make the app upload an arbitrary file.
+
+A missing, unreadable or non-regular file, an escape from the collection, and a forbidden absolute path are
+all `-32602` with a message naming the field and the file, raised before anything is sent.
+
 ### Capture
 
 `http.send` accepts a `capture` list (see `http.schema.json`) and returns a `captured` array with
@@ -211,7 +239,7 @@ to it without a file changing.
 ### run.collection and the CLI
 
 `run.collection` runs every request in a collection folder, one after another, in sidebar
-order. The handler runs on a virtual thread, so a `run.progress` notification
+order. File paths in a request resolve against that folder (see *Files in a request body*). The handler runs on a virtual thread, so a `run.progress` notification
 (`{ runId?, index, total, request }`) arrives after each request while the run is still going;
 the response carries the whole `RunResult`. A request that gets no response is *errored*, one
 that gets a response and fails an assertion is *failed*, and either way the run continues.
@@ -242,8 +270,7 @@ using it fails with `-32004` unless it carries an `accessToken`.
 it takes no `root`. The query string becomes `query` params (percent-decoded, so the engine's
 own encoding is not applied twice); `Authorization: Bearer`/`Basic` and `-u` become `auth`;
 `Content-Type` and the data flags choose the body mode (`json`, `form`, `raw` or `multipart`).
-Whatever a request cannot express is reported in `warnings` instead of being dropped: file
-bodies and uploads (`-d @file`, `-F f=@file`), proxies, client certificates, HTTP version pins,
+Whatever a request cannot express is reported in `warnings` instead of being dropped: proxies, client certificates, HTTP version pins,
 unsupported auth schemes, unknown options, and `$VAR` shell expansions, which are left as
 written. A header whose name looks like a credential (`X-Api-Key`, `Cookie`, …) is kept and
 flagged without echoing its value. An unusable command is `-32602`.
@@ -262,7 +289,11 @@ the source's order is not kept. A failure part-way removes what the call created
   `multipart`; GraphQL becomes a JSON envelope), `bearer`/`basic`/`apikey` auth with Postman's
   folder-to-collection inheritance, collection variables, and Insomnia's base and sub
   environments. Insomnia's `{{ _.name }}` becomes `{{name}}`.
-- Reported in `warnings`: file bodies and uploads, unsupported auth (`oauth2`, digest, AWS,
+- Files: a curl `-F name=@path` or `--data-binary @file`, a Postman file part or body, an Insomnia
+  file param or file body, and an OpenAPI binary field or body become **file rows/bodies**. An
+  export's path came from another machine, so each such file is also reported and has to be chosen
+  again in the Body tab (a spec names no file at all, so its row starts empty).
+- Reported in `warnings`: unsupported auth (`oauth2`, digest, AWS,
   Hawk, NTLM), Postman `:path` variables, Insomnia `{% %}` tags and folder environments, and
   scripts. A request's scripts and description are kept in its `docs` so the logic can be
   ported by hand.

@@ -61,6 +61,13 @@ path, never an absolute one.
 **Secrets never touch collection files.** They live in Electron `safeStorage`; YAML holds
 only the variable name.
 
+**A file path in a request body is chosen by the shell, never typed.** The core reads the bytes, so what
+crosses the boundary is a path. A file inside the collection is stored relative to it; a file elsewhere is
+stored absolute and only readable if a file dialog chose it this session (`main/files.ts`, the grants).
+`http.send` refuses any other absolute path before the core sees it, the shell overwrites `filesBase`
+itself, `run.*` forces `allowAbsoluteFiles: false`, and paths are literal (never interpolated). New code
+that reads a file from a request must go through `FileAccess`.
+
 **File-writing imports go through the shell.** `import.collection` writes new folders under
 the workspace root and returns the credentials it lifted out of the files. Only the
 `import:collection` IPC handler may call it: it picks the file, injects the root, stores the

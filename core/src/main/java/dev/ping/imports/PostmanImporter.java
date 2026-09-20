@@ -237,9 +237,10 @@ final class PostmanImporter {
                 return graphql(body.path("graphql"), where);
             }
             case "file", "binary" -> {
-                warnings.add(where + " sends a file as its body; file bodies are not supported yet, "
-                        + "so the body was left out.");
-                return null;
+                String path = ImportSupport.filePath(body.path("file").isTextual()
+                        ? body.get("file") : body.path("file").get("src"));
+                warnings.add(ImportSupport.fileNote(where, "its body", path));
+                return new RequestSpec.Body("file", null, null, null, path);
             }
             default -> {
                 warnings.add(where + " has an unsupported body mode \"" + mode + "\"; the body was left out.");
@@ -268,8 +269,10 @@ final class PostmanImporter {
                 continue;
             }
             if (allowFiles && "file".equals(ImportSupport.text(entry, "type"))) {
-                warnings.add(where + " uploads a file in the form field \"" + key
-                        + "\"; file parts are not supported yet, so it was left out.");
+                String path = ImportSupport.filePath(entry.get("src"));
+                warnings.add(ImportSupport.fileNote(where, "the form field \"" + key + "\"", path));
+                fields.add(new RequestSpec.Param(key, null, !ImportSupport.isDisabled(entry), path, null,
+                        ImportSupport.text(entry, "contentType")));
                 continue;
             }
             String value = ImportSupport.text(entry, "value");

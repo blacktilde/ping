@@ -1,9 +1,10 @@
 import { readFile, stat } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
+import { basename, delimiter, join, resolve, sep } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { writeFileSyncAtomic } from './atomic'
 import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
+import { checkBodyFiles, FileGrants, isRelativePath, storedPathFor } from './files'
 import { finishImport, MAX_IMPORT_BYTES } from './importer'
 import { OAuthTokenStore } from './oauth'
 import { absorbCaptures, RuntimeStore } from './runtime'
@@ -21,6 +22,7 @@ const core = new CoreClient()
 const workspace = new Workspace()
 const secrets = new SecretStore()
 const runtime = new RuntimeStore()
+const grants = new FileGrants()
 const history = new HistoryStore()
 const oauthTokens = new OAuthTokenStore()
 let mainWindow: BrowserWindow | null = null
@@ -140,16 +142,25 @@ async function chooseImportFile(): Promise<string | null> {
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
 }
 
-function failure(code: number | null, message: string): { ok: false; error: { code: number | null; message: string } } {
-  return { ok: false, error: { code, message } }
+/**
+ * The file for an upload. `PING_UPLOAD_FILE` (a `path.delimiter` list, used in order) stands in for
+ * the dialog so the smoke test can drive it, like `PING_IMPORT_FILE`.
+ */
+const uploadOverrides = (process.env.PING_UPLOAD_FILE ?? '').split(delimiter).filter(Boolean)
+
+async function chooseUploadFile(): Promise<string | null> {
+  if (uploadOverrides.length > 0) {
+    return uploadOverrides.shift() ?? null
+  }
+  const options: Electron.OpenDialogOptions = { properties: ['openFile'] }
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
 }
 
-/** Rejects anything that is not a plain path inside the workspace. */
-function isRelativePath(value: string): boolean {
-  if (value.startsWith('/') || value.startsWith('\\') || /^[a-zA-Z]:[\\/]/.test(value)) {
-    return false
-  }
-  return !value.split(/[\\/]/).includes('..')
+function failure(code: number | null, message: string): { ok: false; error: { code: number | null; message: string } } {
+  return { ok: false, error: { code, message } }
 }
 
 /** A save-dialog suggestion, sanitized: the name comes from the renderer, so it is untrusted. */
@@ -180,6 +191,20 @@ function withWorkspaceRoot(
     }
   }
   return { params: safe }
+}
+
+/**
+ * Relative file paths resolve against the request's collection. The renderer names the collection;
+ * the shell turns it into a folder under the workspace root and overwrites anything the renderer
+ * sent as `filesBase`, so a compromised renderer cannot point relative paths anywhere else.
+ */
+function withFilesBase(params: unknown): Record<string, unknown> {
+  const { collection, filesBase: _ignored, ...rest } = (params ?? {}) as Record<string, unknown>
+  const current = workspace.current()
+  if (current && typeof collection === 'string' && collection && isRelativePath(collection)) {
+    return { ...rest, filesBase: join(current.root, collection) }
+  }
+  return rest
 }
 
 /** Merges secret values into an outgoing request's variables; secrets always win. */
@@ -394,6 +419,26 @@ function registerIpc(): void {
     mainWindow?.close()
   })
 
+  // Choosing a file for an upload. The dialog runs here, so every path the renderer stores came
+  // from it: inside the collection it is stored relative, elsewhere it is stored absolute and
+  // granted for this session.
+  ipcMain.handle('file:pick', async (_event, collection: unknown) => {
+    const current = workspace.current()
+    const collectionDir =
+      current && typeof collection === 'string' && collection && isRelativePath(collection)
+        ? join(current.root, collection)
+        : null
+    const chosen = await chooseUploadFile()
+    if (!chosen) {
+      return null
+    }
+    const { stored, grant } = storedPathFor(chosen, collectionDir)
+    if (grant) {
+      grants.grant(chosen)
+    }
+    return { stored, name: basename(chosen), size: (await stat(chosen)).size }
+  })
+
   ipcMain.handle('secrets:list', () => secrets.names())
   ipcMain.handle('runtime:list', () => runtime.names())
   ipcMain.handle('runtime:clear', () => runtime.clear())
@@ -450,6 +495,19 @@ function registerIpc(): void {
     }
     if (method === 'http.send') {
       args = withOAuthTokens(args)
+
+      // Files: an absolute path must be one a dialog chose this session, and a relative one
+      // must stay inside the collection. The core never sees a path that fails this.
+      const refused = checkBodyFiles(args, grants)
+      if (refused) {
+        return failure(null, refused)
+      }
+      args = withFilesBase(args)
+    }
+    if (method.startsWith('run.')) {
+      // A collection is data from disk and possibly from someone else: it must not be able to make
+      // the app upload an arbitrary absolute path, and the renderer cannot ask it to.
+      args = { ...(args as Record<string, unknown>), allowAbsoluteFiles: false }
     }
 
     try {

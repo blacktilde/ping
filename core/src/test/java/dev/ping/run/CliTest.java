@@ -77,6 +77,23 @@ class CliTest {
     }
 
     @Test
+    void theCommandLineMayUploadAFileByAbsolutePath() throws IOException {
+        Path blob = root.resolve("blob.bin");
+        Files.write(blob, new byte[] {0, 1, 2, (byte) 0xFF});
+        Path demo = collection(false);
+        Files.writeString(demo.resolve("upload.yaml"), """
+                name: Upload
+                method: PUT
+                url: "{{baseUrl}}/upload"
+                body:
+                  type: file
+                  file: "%s"
+                """.formatted(blob.toString().replace("\\", "\\\\")));
+        assertEquals(0, cli("run", demo.toString(), "-e", "staging"), stdout());
+        assertTrue(stdout().contains("PASS  PUT Upload"), stdout());
+    }
+
+    @Test
     void exitsOneWhenTheEnvironmentIsWhatMakesItPass() throws IOException {
         Path demo = collection(false);
         assertEquals(1, cli("run", demo.toString()), "no environment: {{who}} is never resolved");
