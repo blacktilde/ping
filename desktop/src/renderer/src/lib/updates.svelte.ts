@@ -8,9 +8,18 @@
 
 import type { UpdateState } from '../../../shared/updates'
 
-export const updates = $state<{ state: UpdateState }>({
-  state: { status: 'idle', enabled: false, version: null, progress: null, error: null }
+export const updates = $state<{
+  state: UpdateState
+  dismissed: string | null
+}>({
+  state: { status: 'idle', enabled: false, version: null, progress: null, error: null },
+  dismissed: null
 })
+
+/** Hides the current notice; the next distinct status is shown again. */
+export function dismissUpdate(): void {
+  updates.dismissed = updates.state.status
+}
 
 export async function loadUpdateState(): Promise<void> {
   updates.state = await window.ping.updates.state()
@@ -21,6 +30,8 @@ export function watchUpdates(): () => void {
 }
 
 export async function checkForUpdates(): Promise<void> {
+  // A manual check re-reveals the banner even if this status was dismissed before.
+  updates.dismissed = null
   updates.state = await window.ping.updates.check()
 }
 

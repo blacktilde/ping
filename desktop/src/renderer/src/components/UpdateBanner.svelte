@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     checkForUpdates,
+    dismissUpdate,
     downloadUpdate,
     installUpdate,
     updates
@@ -13,21 +14,17 @@
 
   let { hasUnsaved = false }: Props = $props()
 
-  // A status the user dismissed stays hidden; a new status is shown again.
-  let dismissed = $state<string | null>(null)
-
   const current = $derived(updates.state)
   const percent = $derived(Math.round(current.progress?.percent ?? 0))
   const visible = $derived(
-    current.enabled && current.status !== 'idle' && dismissed !== current.status
+    current.enabled && current.status !== 'idle' && updates.dismissed !== current.status
   )
 
-  // An unprompted "up to date" clears itself; an update offer stays until answered.
   $effect(() => {
     if (current.status !== 'up-to-date') {
       return
     }
-    const timer = window.setTimeout(() => (dismissed = 'up-to-date'), 4000)
+    const timer = window.setTimeout(() => (updates.dismissed = 'up-to-date'), 4000)
     return () => window.clearTimeout(timer)
   })
 
@@ -62,7 +59,7 @@
   )
 
   function dismiss(): void {
-    dismissed = current.status
+    dismissUpdate()
   }
 
   function install(): void {
