@@ -56,7 +56,51 @@
           "additionalProperties": { "type": "string" },
           "description": "Resolved values for {{name}} placeholders in the url, query, headers and body. An unknown name is left exactly as written."
         },
-        "auth": { "$ref": "#/$defs/auth" }
+        "auth": { "$ref": "#/$defs/auth" },
+        "asserts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/assert" },
+          "description": "Checks evaluated against the response; results come back as `assertions`."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "assert": {
+      "type": "object",
+      "description": "One declarative check on a response. Only the fields a type uses are read. `target` and `expected` may contain {{variable}} placeholders. A misconfigured assertion yields a failed result with a message, never an RPC error.",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["status", "header", "jsonpath", "body", "duration"],
+          "description": "status: expected is the code. header: target is the name, case-insensitive. jsonpath: target is a path. body: the decoded text. duration: expected is a ceiling in ms against total time."
+        },
+        "target": {
+          "type": "string",
+          "description": "Header name for header; path for jsonpath. The path subset is $, .name, ['name'] and [n]."
+        },
+        "op": {
+          "enum": ["equals", "exists", "contains", "lt"],
+          "description": "Defaults per type: status equals, header exists, jsonpath exists, body contains, duration lt. header and jsonpath accept exists, equals and contains; body accepts contains; duration accepts lt; status accepts equals."
+        },
+        "expected": { "type": "string" },
+        "enabled": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+
+    "assertionResult": {
+      "type": "object",
+      "description": "The outcome of one enabled assertion, echoing it with variables resolved. Disabled assertions produce no result.",
+      "required": ["type", "passed"],
+      "properties": {
+        "type": { "type": "string" },
+        "target": { "type": ["string", "null"] },
+        "op": { "type": "string" },
+        "expected": { "type": ["string", "null"] },
+        "passed": { "type": "boolean" },
+        "actual": { "type": ["string", "null"], "description": "What the response held; null when nothing matched." },
+        "message": { "type": ["string", "null"], "description": "Why it failed; null when it passed." }
       },
       "additionalProperties": false
     },
@@ -179,6 +223,11 @@
             },
             "additionalProperties": false
           }
+        },
+        "assertions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/assertionResult" },
+          "description": "One per enabled assertion, in request order. Empty when the request has none."
         }
       },
       "additionalProperties": false

@@ -216,8 +216,9 @@ public final class HttpEngine {
             Payload payload = readBody(response.body(), spec.maxBodyBytesOrDefault(), exchange);
             long downloadMs = millisSince(bodyStartedAt);
 
-            return assemble(response, payload, new ResponseData.Timing(
+            ResponseData data = assemble(response, payload, new ResponseData.Timing(
                     dnsMs, ttfbMs, downloadMs, millisSince(startedAt)), redirects);
+            return data.withAssertions(Assertions.evaluate(spec.asserts(), data, variables));
         } catch (CancellationException e) {
             throw cancelledException();
         } catch (CompletionException e) {
@@ -571,7 +572,8 @@ public final class HttpEngine {
                 headers,
                 body,
                 timing,
-                redirects);
+                redirects,
+                List.of());
     }
 
     private static boolean isTextual(String contentType) {

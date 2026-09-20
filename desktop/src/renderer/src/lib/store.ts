@@ -7,7 +7,8 @@
 
 import { call } from './core'
 import { authToSpec, normalizeAuth } from './http'
-import type { AuthSpec, BodyMode, HttpMethod, Param, RedirectPolicy, RequestDraft } from './http'
+import { plainAsserts } from './request'
+import type { Assert, AuthSpec, BodyMode, HttpMethod, Param, RedirectPolicy, RequestDraft } from './http'
 
 export type NodeType = 'collection' | 'folder' | 'request'
 
@@ -33,6 +34,7 @@ export interface StoredRequest {
     fields?: Param[]
   }
   auth?: AuthSpec
+  asserts?: Assert[]
   timeoutMs?: number
   redirects?: RedirectPolicy
   verifyTls?: boolean
@@ -116,6 +118,7 @@ export function storedToDraft(stored: StoredRequest): RequestDraft {
       fields: plainParams(stored.body?.fields)
     },
     auth: normalizeAuth(stored.auth),
+    asserts: plainAsserts(stored.asserts),
     timeoutMs: stored.timeoutMs,
     redirects: stored.redirects,
     verifyTls: stored.verifyTls,
@@ -137,6 +140,7 @@ export function draftToStored(draft: RequestDraft): StoredRequest {
       fields: plainParams(draft.body.fields)
     },
     auth: authToSpec(draft.auth),
+    asserts: plainAsserts(draft.asserts),
     timeoutMs: draft.timeoutMs,
     redirects: draft.redirects,
     verifyTls: draft.verifyTls,

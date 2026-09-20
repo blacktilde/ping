@@ -37,7 +37,7 @@ not `http.send`, whose length is the user's to set.
 |---------------|---------------------------|-----------------------------------------------------|
 | `core.ping`   | `{ message?: string }`    | `{ message: string, receivedAt: number }`           |
 | `core.info`   | none                      | `{ coreVersion, javaVersion, vendor, nativeImage }` |
-| `http.send`   | see `http.schema.json`    | status, headers, body, timing, redirect chain       |
+| `http.send`   | see `http.schema.json`    | status, headers, body, timing, redirects, assertions |
 | `http.cancel` | `{ requestId: string }`   | `{ cancelled: boolean }`                            |
 | `store.scan`  | `{ root: string }`        | `{ collections: Node[] }`                           |
 | `store.read`  | `{ root, path }`          | `StoredRequest`                                     |
@@ -119,6 +119,26 @@ same key a later send looks it up by, and emits an `auth.completed` notification
 `{ flowId, grantKey, accessToken, refreshToken?, expiresAtMillis }` or `{ flowId, error }`.
 The shell stores the tokens in `safeStorage` and restores them onto `http.send` as the
 auth's `accessToken`/`refreshToken`/`expiresAtMillis`.
+
+### Assertions
+
+`http.send` accepts an `asserts` list (see `http.schema.json`) and returns an `assertions`
+array with one result per enabled assertion, in order. They are evaluated in the core, so the
+CLI runner behaves identically. There is no scripting: the predicate set is closed.
+
+| type       | ops (default first)          | reads                                                  |
+|------------|------------------------------|--------------------------------------------------------|
+| `status`   | `equals`                     | `expected` is the code                                 |
+| `header`   | `exists`, `equals`, `contains` | `target` is the name, case-insensitive; any value of a repeated header may match |
+| `jsonpath` | `exists`, `equals`, `contains` | `target` is a path; `equals` compares a scalar's text  |
+| `body`     | `contains`                   | the decoded text                                       |
+| `duration` | `lt`                         | `expected` is a ceiling in ms against `timing.totalMs` |
+
+The JSONPath subset is `$`, `.name`, `['name']` and `[n]`: enough to address one value.
+A JSON `null` counts as present. `target` and `expected` are interpolated with the send's
+`variables`. A misconfigured assertion (unknown type or op, bad path, non-JSON body) is a
+failed result carrying a `message`, not an RPC error, so a typo in a collection file never
+stops the request from being sent.
 
 ### Error codes
 

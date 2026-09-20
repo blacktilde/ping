@@ -182,6 +182,33 @@ class StoreMethodsTest {
     }
 
     @Test
+    void assertsSurviveAYamlRoundTripAndEmptyOnesAreOmitted() throws Exception {
+        call("store.write", Map.of("root", workspace.toString(), "path", "a.yaml",
+                "request", Map.of("name", "A", "method", "GET", "url", "https://example.com",
+                        "asserts", List.of(
+                                Map.of("type", "status", "expected", "200"),
+                                Map.of("type", "jsonpath", "target", "$.id", "op", "equals",
+                                        "expected", "7", "enabled", false)))));
+
+        String yaml = Files.readString(workspace.resolve("a.yaml"));
+        assertTrue(yaml.contains("asserts:"), yaml);
+        assertTrue(yaml.indexOf("url:") < yaml.indexOf("asserts:"), "asserts key order: " + yaml);
+
+        JsonNode asserts = call("store.read",
+                Map.of("root", workspace.toString(), "path", "a.yaml"))
+                .path("result").path("asserts");
+        assertEquals(2, asserts.size());
+        assertEquals("status", asserts.get(0).path("type").asText());
+        assertEquals("$.id", asserts.get(1).path("target").asText());
+        assertFalse(asserts.get(1).path("enabled").asBoolean(true));
+
+        call("store.write", Map.of("root", workspace.toString(), "path", "b.yaml",
+                "request", Map.of("name", "B", "method", "GET", "url", "https://example.com",
+                        "asserts", List.of())));
+        assertFalse(Files.readString(workspace.resolve("b.yaml")).contains("asserts"));
+    }
+
+    @Test
     void writesYamlThatReadsBack() throws Exception {
         Map<String, Object> request = Map.of(
                 "name", "New request",

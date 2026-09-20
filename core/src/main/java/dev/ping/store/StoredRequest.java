@@ -2,6 +2,7 @@ package dev.ping.store;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import dev.ping.http.Assertion;
 import dev.ping.http.RequestSpec;
 
 import java.util.List;
@@ -18,7 +19,7 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonPropertyOrder({"name", "method", "url", "query", "headers", "body", "auth",
-        "timeoutMs", "redirects", "verifyTls", "maxBodyBytes"})
+        "timeoutMs", "redirects", "verifyTls", "maxBodyBytes", "asserts"})
 public record StoredRequest(
         String name,
         String method,
@@ -30,16 +31,17 @@ public record StoredRequest(
         Integer timeoutMs,
         String redirects,
         Boolean verifyTls,
-        Integer maxBodyBytes) {
+        Integer maxBodyBytes,
+        List<Assertion> asserts) {
 
     public RequestSpec toSpec() {
         return new RequestSpec(null, method, url, query, headers, body, auth,
-                timeoutMs, redirects, verifyTls, maxBodyBytes);
+                timeoutMs, redirects, verifyTls, maxBodyBytes, asserts);
     }
 
     public static StoredRequest fromSpec(String name, RequestSpec spec) {
         return new StoredRequest(name, spec.method(), spec.url(), spec.query(), spec.headers(),
                 spec.body(), spec.auth(), spec.timeoutMs(), spec.redirects(), spec.verifyTls(),
-                spec.maxBodyBytes());
+                spec.maxBodyBytes(), spec.asserts());
     }
 }

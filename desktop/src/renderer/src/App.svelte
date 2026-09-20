@@ -6,7 +6,7 @@
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { confirmDialog } from './lib/confirm.svelte'
-  import { enabledCount, METHODS, toRequestSpec } from './lib/request'
+  import { assertCount, enabledCount, METHODS, toRequestSpec } from './lib/request'
   import {
     activeTab,
     activateTab,
@@ -47,6 +47,7 @@
   import { cycleTheme, nextTheme, setTheme, THEMES } from './lib/theme.svelte'
   import KeyValueEditor from './components/KeyValueEditor.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
+  import AssertEditor from './components/AssertEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
   import RequestSettings from './components/RequestSettings.svelte'
   import ResponsePane from './components/ResponsePane.svelte'
@@ -92,6 +93,7 @@
 
   const queryCount = $derived(enabledCount(active.draft.query))
   const headerCount = $derived(enabledCount(active.draft.headers))
+  const assertTotal = $derived(assertCount(active.draft.asserts))
   const dirty = $derived(
     active.savedKey !== null && draftKey(active.draft) !== active.savedKey
   )
@@ -111,6 +113,7 @@
     { id: 'headers', label: 'Headers', badge: headerCount > 0 ? String(headerCount) : null },
     { id: 'body', label: 'Body', badge: active.draft.body.type === 'none' ? null : '•' },
     { id: 'auth', label: 'Auth', badge: active.draft.auth.type === 'none' ? null : 'on' },
+    { id: 'asserts', label: 'Asserts', badge: assertTotal > 0 ? String(assertTotal) : null },
     { id: 'settings', label: 'Settings', badge: null }
   ])
 
@@ -689,6 +692,7 @@
       { id: 'tab-headers', label: 'Go to Headers', run: () => (active.editorTab = 'headers') },
       { id: 'tab-body', label: 'Go to Body', run: () => (active.editorTab = 'body') },
       { id: 'tab-auth', label: 'Go to Auth', run: () => (active.editorTab = 'auth') },
+      { id: 'tab-asserts', label: 'Go to Asserts', run: () => (active.editorTab = 'asserts') },
       { id: 'env-none', label: 'Environment: none', run: () => void onEnvironmentChange('') }
     ]
 
@@ -1034,6 +1038,8 @@
                   status={active.authStatus}
                   onAuthorize={authorize}
                 />
+              {:else if active.editorTab === 'asserts'}
+                <AssertEditor items={active.draft.asserts} />
               {:else}
                 <RequestSettings draft={active.draft} />
               {/if}

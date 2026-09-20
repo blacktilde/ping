@@ -82,6 +82,77 @@
       ]
     },
     {
+      "type": "dev.ping.http.Assertion",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.Boolean"
+          ]
+        },
+        {
+          "name": "enabled",
+          "parameterTypes": []
+        },
+        {
+          "name": "expected",
+          "parameterTypes": []
+        },
+        {
+          "name": "op",
+          "parameterTypes": []
+        },
+        {
+          "name": "target",
+          "parameterTypes": []
+        },
+        {
+          "name": "type",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.http.AssertionResult",
+      "methods": [
+        {
+          "name": "actual",
+          "parameterTypes": []
+        },
+        {
+          "name": "expected",
+          "parameterTypes": []
+        },
+        {
+          "name": "message",
+          "parameterTypes": []
+        },
+        {
+          "name": "op",
+          "parameterTypes": []
+        },
+        {
+          "name": "passed",
+          "parameterTypes": []
+        },
+        {
+          "name": "target",
+          "parameterTypes": []
+        },
+        {
+          "name": "type",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "dev.ping.http.AssertionResult[]"
+    },
+    {
       "type": "dev.ping.http.RequestSpec",
       "methods": [
         {
@@ -97,7 +168,8 @@
             "java.lang.Integer",
             "java.lang.String",
             "java.lang.Boolean",
-            "java.lang.Integer"
+            "java.lang.Integer",
+            "java.util.List"
           ]
         }
       ]
@@ -253,6 +325,10 @@
     {
       "type": "dev.ping.http.ResponseData",
       "methods": [
+        {
+          "name": "assertions",
+          "parameterTypes": []
+        },
         {
           "name": "body",
           "parameterTypes": []
@@ -446,8 +522,13 @@
             "java.lang.Integer",
             "java.lang.String",
             "java.lang.Boolean",
-            "java.lang.Integer"
+            "java.lang.Integer",
+            "java.util.List"
           ]
+        },
+        {
+          "name": "asserts",
+          "parameterTypes": []
         },
         {
           "name": "auth",

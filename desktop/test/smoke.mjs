@@ -399,6 +399,49 @@ try {
     withRows?.headers?.['x-only'] ?? 'none'
   )
 
+  console.log('--- 2a. assertions: one green, one red')
+  await evaluate(clickTab('Asserts'))
+  await evaluate(clickText('+ Add assertion')) // status equals 200: passes against /data
+  await evaluate(clickText('+ Add assertion'))
+  await evaluate(`(() => {
+    const inputs = document.querySelectorAll('input[aria-label="Assertion expected value"]');
+    const second = inputs[1];
+    if (!second) return false;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(second, '404');
+    second.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`)
+  await clickSend()
+  await waitFor(
+    async () =>
+      (await evaluate(`document.querySelectorAll('[data-role="assertion"]').length`)) === 2,
+    5000,
+    'two assertion results'
+  )
+  const assertions = await evaluate(`(() => ({
+    summary: document.querySelector('[data-role="assertions-summary"]')?.textContent.trim() ?? null,
+    passed: [...document.querySelectorAll('[data-role="assertion"]')].map(li => li.dataset.passed),
+    badge: [...document.querySelectorAll('[role=tab]')].find(t => t.textContent.trim().startsWith('Asserts'))?.textContent.trim() ?? null,
+    status: document.querySelector('[data-role="response"] header span')?.textContent.trim() ?? null
+  }))()`)
+  check(
+    'reports how many assertions passed',
+    assertions.summary === '1/2 assertions passed',
+    assertions.summary ?? 'none'
+  )
+  check(
+    'marks one green and one red',
+    assertions.passed.join() === 'true,false',
+    assertions.passed.join()
+  )
+  check('badges the tab with the assertion count', assertions.badge?.includes('2'), assertions.badge ?? 'none')
+  check('leaves the status as the first header span', assertions.status === '200', assertions.status ?? 'none')
+  await evaluate(`(() => {
+    for (const button of [...document.querySelectorAll('button[aria-label="Remove assertion"]')]) button.click();
+  })()`)
+  await evaluate(clickTab('Params'))
+
   console.log('--- 2b. environment precedence')
   await evaluate(setSelect('Environment', ''))
   await wait(600)

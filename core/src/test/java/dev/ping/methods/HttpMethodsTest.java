@@ -92,6 +92,48 @@ class HttpMethodsTest {
     }
 
     @Test
+    void evaluatesAssertionsSentAsJson() throws Exception {
+        handle("/items", 200, "application/json", "{\"id\":7,\"name\":\"ping\"}");
+
+        List<JsonNode> out = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{\
+                "url":"%s/items","variables":{"want":"ping"},\
+                "asserts":[\
+                {"type":"status","expected":"200"},\
+                {"type":"header","target":"content-type","op":"contains","expected":"json"},\
+                {"type":"jsonpath","target":"$.name","op":"equals","expected":"{{want}}"},\
+                {"type":"jsonpath","target":"$.id","op":"equals","expected":"8"},\
+                {"type":"body","op":"contains","expected":"ping"},\
+                {"type":"duration","op":"lt","expected":"60000"},\
+                {"type":"status","expected":"500","enabled":false}]}}""".formatted(baseUrl));
+
+        JsonNode results = out.get(0).path("result").path("assertions");
+        assertEquals(6, results.size());
+        assertTrue(results.get(0).path("passed").asBoolean());
+        assertTrue(results.get(1).path("passed").asBoolean());
+        assertTrue(results.get(2).path("passed").asBoolean());
+        assertEquals("ping", results.get(2).path("expected").asText());
+        assertFalse(results.get(3).path("passed").asBoolean());
+        assertEquals("7", results.get(3).path("actual").asText());
+        assertTrue(results.get(4).path("passed").asBoolean());
+        assertTrue(results.get(5).path("passed").asBoolean());
+    }
+
+    @Test
+    void aMisconfiguredAssertionDoesNotFailTheSend() throws Exception {
+        handle("/items", 200, "application/json", "{}");
+
+        List<JsonNode> out = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{\
+                "url":"%s/items","asserts":[{"type":"telepathy"}]}}""".formatted(baseUrl));
+
+        assertFalse(out.get(0).has("error"));
+        JsonNode result = out.get(0).path("result").path("assertions").get(0);
+        assertFalse(result.path("passed").asBoolean());
+        assertEquals("Unknown assertion type: telepathy", result.path("message").asText());
+    }
+
+    @Test
     void bindsAFullRequestFromJson() throws Exception {
         AtomicReference<String> method = new AtomicReference<>();
         AtomicReference<String> body = new AtomicReference<>();

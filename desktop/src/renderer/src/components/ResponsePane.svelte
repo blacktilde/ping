@@ -2,6 +2,7 @@
   import type { HttpResponse } from '../lib/http'
   import { formatBytes, formatDuration, statusTone, versionLabel } from '../lib/format'
   import { parseCookies } from '../lib/response'
+  import ResponseAssertions from './ResponseAssertions.svelte'
   import ResponseBody from './ResponseBody.svelte'
   import ResponseCookies from './ResponseCookies.svelte'
   import ResponseHeaders from './ResponseHeaders.svelte'
@@ -132,6 +133,10 @@
         </button>
       </div>
     </header>
+
+    {#if response.assertions && response.assertions.length > 0}
+      <ResponseAssertions results={response.assertions} />
+    {/if}
 
     <Tabs tabs={tabs} bind:active={tab} idPrefix="response" />
 
