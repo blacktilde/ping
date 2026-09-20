@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # Keep the workflow actions current — several are on deprecated Node runtimes.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -12,7 +11,6 @@ updates:
           - minor
           - patch
 
-  # The desktop shell's Electron/Vite/Svelte toolchain.
   - package-ecosystem: npm
     directory: /desktop
     schedule:
@@ -23,8 +21,17 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: vite
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@sveltejs/vite-plugin-svelte"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
 
-  # Gradle dependencies and the native-build plugin.
   - package-ecosystem: gradle
     directory: /
     schedule:
