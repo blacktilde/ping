@@ -109,8 +109,8 @@ the drift impossible; failing that, the release workflow should set all three.
 phase 10. Request tabs (`lib/tabs.svelte.ts`), shell-local history (`main/history.ts`), the
 cURL export (`lib/curl.ts`), the split panes and `store.delete` all shipped after it and
 appear nowhere, so the document that is meant to carry the rationale carries none for a
-sizeable part of the UI. The phase 6 entry is now wrong where it says "there is no delete or
-rename".
+sizeable part of the UI. The phase 6 entry is also stale: it says "there is no delete or
+rename", and delete has since landed.
 
 The fix is a phase entry written the way the others are — what it cost, what it taught, what
 was deliberately left — not a changelog.

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.ping.rpc.RpcException;
 import dev.ping.rpc.RpcServer;
+import dev.ping.store.YamlStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -275,6 +276,31 @@ class StoreMethodsTest {
         call("store.scaffold", Map.of("root", workspace.toString(), "collection", "My Collection"));
         assertTrue(Files.readString(starter).contains("name: Mine"),
                 "scaffolding must not overwrite an existing collection");
+    }
+
+    @Test
+    void scaffoldsIntoAWorkspaceThatDoesNotExistYet() throws Exception {
+        // The first run names a folder that is not there yet, so scaffolding creates the
+        // workspace as well as the collection inside it.
+        //
+        // The root is reached through a symlink here on purpose. That is the shape of a real
+        // macOS run, where the home and temp directories sit behind /private, and it is what
+        // the boundary check has to survive: comparing a real collection path against a root
+        // that had not been created yet would reject a name that is perfectly inside it.
+        Files.createDirectories(workspace.resolve("real"));
+        try {
+            Files.createSymbolicLink(workspace.resolve("link"), workspace.resolve("real"));
+        } catch (IOException | UnsupportedOperationException e) {
+            assumeTrue(false, "symlinks are unavailable here: " + e.getMessage());
+        }
+
+        Path root = workspace.resolve("link/fresh");
+        JsonNode result = call("store.scaffold",
+                Map.of("root", root.toString(), "collection", "My Collection"));
+
+        assertEquals("My Collection", result.path("result").path("collection").asText());
+        assertTrue(Files.isRegularFile(
+                workspace.resolve("real/fresh/My Collection").resolve(YamlStore.COLLECTION_FILE)));
     }
 
     @Test
