@@ -43,7 +43,7 @@
   } from './lib/vars.svelte'
   import { loadSecretRows, persistSecretRows } from './lib/secrets.svelte'
   import { setSecret } from './lib/secrets'
-  import { cycleTheme, theme } from './lib/theme.svelte'
+  import { cycleTheme, nextTheme } from './lib/theme.svelte'
   import KeyValueEditor from './components/KeyValueEditor.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
@@ -568,7 +568,7 @@
       },
       {
         id: 'theme',
-        label: theme.resolved === 'dark' ? 'Theme: light' : 'Theme: dark',
+        label: `Theme: ${nextTheme()}`,
         run: cycleTheme
       },
       { id: 'tab-params', label: 'Go to Params', run: () => (active.editorTab = 'params') },

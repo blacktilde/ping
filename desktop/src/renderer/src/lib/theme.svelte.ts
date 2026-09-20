@@ -1,15 +1,43 @@
-/** Theme choice: follow the system, or force light or dark. Persisted in the renderer only. */
+/**
+ * Theme choice: follow the system, or force one of the concrete themes. Persisted in the
+ * renderer only.
+ */
 
-export type ThemeChoice = 'system' | 'light' | 'dark'
+/** The themes that actually paint. The two `rocket-*` themes carry a photograph behind the UI. */
+export type ThemeName = 'light' | 'dark' | 'rocket-night' | 'rocket-daylight'
+export type ThemeChoice = 'system' | ThemeName
 
-export const theme = $state<{ choice: ThemeChoice; resolved: 'light' | 'dark' }>({
+const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night', 'rocket-daylight']
+
+/*
+ * The order the palette cycles through. Light comes straight after dark so the long-standing
+ * dark-to-light flip still works on the first press; the photo themes follow it.
+ */
+const CYCLE: ThemeName[] = ['dark', 'light', 'rocket-night', 'rocket-daylight']
+
+export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
   choice: 'system',
   resolved: 'dark'
 })
 
+/*
+ * Which themes paint a dark surface. This is not the same question as "is it a photo
+ * theme": rocket-daylight carries an image but is light, so it belongs with light here.
+ */
+const DARK: ThemeName[] = ['dark', 'rocket-night']
+
+/**
+ * Whether the resolved theme wants light-on-dark syntax colours. Anything keying off
+ * darkness must ask this rather than compare against 'dark', or a new dark theme silently
+ * gets the light editor — and a new light one gets the dark editor on a white page.
+ */
+export function isDark(): boolean {
+  return DARK.includes(theme.resolved)
+}
+
 const systemPreference = window.matchMedia('(prefers-color-scheme: light)')
 
-function resolve(choice: ThemeChoice): 'light' | 'dark' {
+function resolve(choice: ThemeChoice): ThemeName {
   if (choice === 'system') {
     return systemPreference.matches ? 'light' : 'dark'
   }
@@ -32,7 +60,13 @@ export function setTheme(choice: ThemeChoice): void {
 }
 
 export function cycleTheme(): void {
-  setTheme(theme.resolved === 'dark' ? 'light' : 'dark')
+  const next = CYCLE[(CYCLE.indexOf(theme.resolved) + 1) % CYCLE.length]
+  setTheme(next)
+}
+
+/** The theme one cycle step away, so the palette can name where it is about to go. */
+export function nextTheme(): ThemeName {
+  return CYCLE[(CYCLE.indexOf(theme.resolved) + 1) % CYCLE.length]
 }
 
 export function loadTheme(): void {
@@ -42,7 +76,10 @@ export function loadTheme(): void {
   } catch {
     saved = null
   }
-  theme.choice = saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system'
+  theme.choice =
+    saved === 'system' || (saved !== null && NAMES.includes(saved as ThemeName))
+      ? (saved as ThemeChoice)
+      : 'system'
   applyTheme()
 
   systemPreference.addEventListener('change', () => {

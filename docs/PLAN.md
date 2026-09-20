@@ -214,7 +214,14 @@ Phases 0–5 produce a usable tool. 6–8 complete the MVP: core request/respons
   `Cmd/Ctrl-S` saves. Themes are semantic: components use `text-fg`/`text-fg-muted`/
   `text-fg-faint` over `@theme` variables, so a light theme is a variable override, chosen
   system/light/dark, remembered in the renderer, and following `prefers-color-scheme` when
-  set to system. A single `Tabs.svelte` now backs both tabbed surfaces with the full ARIA
+  set to system. `rocket-night` and `rocket-daylight` extend the same mechanism past flat
+  colour: they override the surface variables to translucent fills and paint a photograph, a
+  scrim and scanlines on the body. The pair are not a dark/light inversion of one image — each
+  carries its own photograph, and the scrim fades toward black or white to match it. The photo stays sharp — no `backdrop-filter` — because blurring it discards the image
+  the theme exists to show, so the panels carry their own opacity instead. Anything keying off
+  darkness calls `isDark()` rather than comparing against `'dark'`: carrying a photograph and
+  being dark are different questions, and `rocket-daylight` is light despite being a photo
+  theme. A single `Tabs.svelte` now backs both tabbed surfaces with the full ARIA
   pattern and arrow-key navigation, the response view control is a labelled radio group, and
   motion is one entrance animation behind a `prefers-reduced-motion` stop. Empty states name
   the next action ("Open a folder", "No response yet.").

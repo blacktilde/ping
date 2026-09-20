@@ -15,6 +15,93 @@
   --color-fg-faint: #6b7280;
 }
 
+/*
+ * A dark theme wearing a photograph. The image stays sharp — no backdrop blur — because
+ * blurring it throws away the picture, which is the whole point of the theme. Panels are
+ * flat translucent fills instead, dark enough to carry body text over the bright exhaust.
+ *
+ * Three background layers on the body, topmost first: scanlines, the scrim that crushes
+ * the lower third to black, then the photo itself. The scrim is what keeps header text
+ * legible; without it the sunset burns straight through the labels.
+ */
+:root[data-theme='rocket-night'] {
+  --color-base: rgb(9 12 18 / 0.55);
+  --color-panel: rgb(7 10 15 / 0.78);
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-accent: #6f9dff;
+  --color-fg: #eef1f6;
+  --color-fg-muted: #b3bcc9;
+  --color-fg-faint: #7d8798;
+}
+
+:root[data-theme='rocket-night'] body {
+  /* Sits under the photo, so a slow decode never flashes white. */
+  background-color: #03050a;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.26) 0,
+      rgb(0 0 0 / 0.26) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(4 7 12 / 0.06) 0%,
+      rgb(4 7 12 / 0.18) 22%,
+      rgb(4 7 12 / 0.52) 46%,
+      rgb(3 5 9 / 0.88) 68%,
+      #03050a 88%
+    ),
+    url('./assets/rocket-night.webp');
+  background-repeat: repeat, no-repeat, no-repeat;
+  background-size: auto, auto, cover;
+  /* The rocket is a tall column; 22% lifts it clear of the request editor. */
+  background-position: center, center, center 22%;
+  background-attachment: fixed;
+}
+
+/*
+ * The daylight companion to rocket-night. Same three layers, inverted: the scrim fades to
+ * near-white and the panels are light, because the photograph is a bright sky and a dark
+ * scrim would mud it. It is a light theme that happens to carry an image, so isDark() must
+ * report false for it or the editor arrives in one-dark on a white page.
+ */
+:root[data-theme='rocket-daylight'] {
+  --color-base: rgb(255 255 255 / 0.5);
+  --color-panel: rgb(255 255 255 / 0.72);
+  --color-line: rgb(15 23 42 / 0.12);
+  --color-accent: #2563eb;
+  --color-fg: #16202e;
+  --color-fg-muted: #45546a;
+  --color-fg-faint: #76849a;
+}
+
+:root[data-theme='rocket-daylight'] body {
+  background-color: #f5f7fa;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.07) 0,
+      rgb(0 0 0 / 0.07) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.02) 0%,
+      rgb(255 255 255 / 0.1) 26%,
+      rgb(248 250 252 / 0.34) 52%,
+      rgb(246 249 252 / 0.72) 74%,
+      #f5f7fa 94%
+    ),
+    url('./assets/rocket-daylight.webp');
+  background-repeat: repeat, no-repeat, no-repeat;
+  background-size: auto, auto, cover;
+  background-position: center, center, center 22%;
+  background-attachment: fixed;
+}
+
 :root[data-theme='light'] {
   --color-base: #f3f4f6;
   --color-panel: #ffffff;
