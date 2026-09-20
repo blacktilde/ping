@@ -385,7 +385,7 @@ final class OpenApiImporter {
 
     private static String pretty(JsonNode node) {
         try {
-            return ImportSupport.JSON.writerWithDefaultPrettyPrinter().writeValueAsString(node);
+            return ImportSupport.pretty(node);
         } catch (Exception e) {
             return node.toString();
         }

@@ -78,7 +78,7 @@ graalvmNative {
 // entry, unlike a classpath properties file.
 val generatedBuildInfoDir = layout.buildDirectory.dir("generated/sources/build-info/java")
 
-val generateBuildInfo by tasks.registering {
+val generateBuildInfo = tasks.register("generateBuildInfo") {
     val version = appVersion
     val outputDir = generatedBuildInfoDir
     inputs.property("version", version)
