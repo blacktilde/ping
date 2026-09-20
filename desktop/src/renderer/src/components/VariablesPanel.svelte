@@ -42,9 +42,17 @@
   })
 </script>
 
-<aside
+<!-- Overlays the workspace, so opening it does not shove the request and response around. -->
+<div
   data-role="variables"
-  class="flex h-full w-96 shrink-0 flex-col border-l border-line bg-panel"
+  role="dialog"
+  tabindex="-1"
+  aria-label="Variables"
+  onkeydown={(event) => {
+    if (event.key === 'Escape') onClose()
+  }}
+  class="absolute inset-y-0 right-0 z-20 flex w-[28rem] max-w-full flex-col border-l border-line
+         bg-panel shadow-2xl"
 >
   <header class="flex items-center justify-between border-b border-line px-3 py-2">
     <span class="text-xs font-medium uppercase tracking-wide text-fg-muted">Variables</span>
@@ -69,18 +77,20 @@
                  outline-none transition focus:border-accent"
         />
       </div>
-      <div class="h-52 border-t border-line/60">
-        <p class="px-3 pt-2 text-xs text-fg-faint">Notes about this collection</p>
-        {#key variables.collection}
-          <DocsEditor
-            value={variables.docs}
-            label="Collection notes"
-            placeholder="What this collection is for, how to authenticate, links…"
-            onChange={(value) => (variables.docs = value)}
-          />
-        {/key}
+      <div class="flex h-48 flex-col border-t border-line/60">
+        <p class="shrink-0 px-3 pt-2 text-xs text-fg-faint">Notes about this collection</p>
+        <div class="min-h-0 flex-1">
+          {#key variables.collection}
+            <DocsEditor
+              value={variables.docs}
+              label="Collection notes"
+              placeholder="What this collection is for, how to authenticate, links…"
+              onChange={(value) => (variables.docs = value)}
+            />
+          {/key}
+        </div>
       </div>
-      <div class="h-52 border-t border-line/60">
+      <div class="border-t border-line/60">
         <KeyValueEditor
           items={variables.collectionVariables}
           nameLabel="Variable name"
@@ -118,7 +128,7 @@
         {/if}
       </div>
       {#if variables.environment}
-        <div class="h-52">
+        <div>
           <KeyValueEditor
             items={variables.environmentVariables}
             nameLabel="Variable name"
@@ -238,4 +248,4 @@
       Save variables
     </button>
   </footer>
-</aside>
+</div>

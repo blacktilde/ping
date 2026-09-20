@@ -255,8 +255,7 @@
     onclick={run}
     aria-label={label}
     title={label}
-    class="rounded px-1 text-fg-faint opacity-0 transition group-hover:opacity-100
-           hover:text-accent focus:opacity-100"
+    class="rounded px-1 text-fg-faint transition hover:text-accent"
   >
     <svg
       viewBox="0 0 24 24"
@@ -463,8 +462,8 @@
             if (dropTarget === node.path) dropTarget = null
           }}
           ondrop={(event) => drop(event, node)}
-          class="group flex items-center {dropTarget === node.path ? 'bg-accent/15 ring-1 ring-accent' : ''}"
-          style="padding-left: {row.depth * 12 + 6}px"
+          class="group relative flex items-center {dropTarget === node.path ? 'bg-accent/15 ring-1 ring-accent' : ''}"
+          style="padding-left: {row.depth * 12 + 6}px; padding-right: 6px"
         >
           {#if renaming === node.path}
             <input
@@ -522,6 +521,14 @@
           {/if}
 
           {#if renaming !== node.path}
+            <!-- Overlaid rather than in flow: eight hidden buttons would otherwise take the
+                 room the name needs, clipping it and shortening the selected highlight. -->
+            <div
+              class="absolute inset-y-0 right-1 flex items-center rounded bg-line pl-1
+                     {confirming === node.path
+                ? ''
+                : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100'}"
+            >
             {#if confirming === node.path}
               <button
                 type="button"
@@ -553,12 +560,12 @@
                 type="button"
                 onclick={() => (confirming = node.path)}
                 aria-label="Delete {node.name}"
-                class="mr-1 rounded px-1.5 text-fg-faint opacity-0 transition
-                       group-hover:opacity-100 hover:text-danger"
+                class="mr-1 rounded px-1.5 text-fg-faint transition hover:text-danger"
               >
                 ×
               </button>
             {/if}
+            </div>
           {/if}
         </div>
 

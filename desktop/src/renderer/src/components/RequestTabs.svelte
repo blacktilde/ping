@@ -137,7 +137,8 @@
         onclick={() => onClose(tab.id)}
         aria-label="Close {tab.draft.name || 'request'}"
         class="mr-1 rounded px-1 text-base leading-none text-fg-faint transition
-               hover:bg-line/60 hover:text-fg"
+               hover:bg-line/60 hover:text-fg focus:opacity-100
+               {active ? '' : 'opacity-0 group-hover:opacity-100'}"
       >
         ×
       </button>
