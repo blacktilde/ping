@@ -32,6 +32,9 @@ It also distorts the panel the app is built around. A handshake the JDK does not
 separately lands inside `ttfbMs`, so the second send to the same host looks as expensive as
 the first, when a reusing client would show it as much cheaper.
 
+Measured against the built core: five `http.send` calls to the same host opened five TCP
+connections, one per send.
+
 The fix is a small cache keyed on the settings that actually vary — timeout, redirect
 policy, `verifyTls` — rather than on the request. Worth doing with the timing work, since
 the numbers change when it lands.
@@ -44,6 +47,11 @@ Nothing in the core looks at `Content-Encoding`. `java.net.http` does not send
 production call does. The gzip bytes then come back with `Content-Type: application/json`,
 `HttpEngine.isTextual` says textual, and `assemble` decodes them as UTF-8, so the body pane
 shows mojibake and `Size` reports the compressed length with no hint why.
+
+Confirmed against the built core: a request carrying `Accept-Encoding: gzip` came back with
+`textual: true` and a body that is the gzip magic number `1f 8b 08` decoded as UTF-8 — the
+second byte is not valid UTF-8, so it arrives as a replacement character — while `bytes`
+reported the compressed 55 rather than the payload.
 
 curl and Postman both decode. Decoding `gzip` and `deflate` in `readBody` when the response
 declares them is a contained change; the honest alternative, if it is not worth doing, is to
@@ -62,6 +70,10 @@ pointing anywhere, and the value goes out on the wire without the renderer ever 
 or the user seeing it. The secrets editor is write-only, so there is no screen that shows
 which requests reference which secret either.
 
+Confirmed in the running app: a secret stored while one collection was open was put on the
+wire by a request in a second collection that merely named it, in a header the user never
+looked at, with the renderer unable to read the value at any point.
+
 Scoping secrets to the workspace that created them, or resolving only names a request has
 been granted, both close it. This is a design decision rather than a patch, which is why it
 belongs with the auth work rather than in a fix.
@@ -74,11 +86,15 @@ before an entry is persisted, precisely because history is plain JSON in `userDa
 (`Authorization: Bearer …`) or into a form body is recorded verbatim, so the invariant holds
 only for credentials entered through the auth editor.
 
-The same is true of the collection file — `protectAuthSecrets` also migrates auth fields
-only — but a file is written when the user asks for it, whereas history is written on every
-send, before any save, and is never shown as something that holds a credential. Either
-extend the blanking to the fields that commonly carry one, or state in the history panel
-what it keeps.
+Confirmed in the running app: a literal typed into a header row was in `history.json`
+verbatim after one send, while the same literal typed into the auth editor was blanked.
+
+This is why `make smoke`'s "never records a literal credential" check passes — it only ever
+types credentials into the auth editor, and a secret the shell resolves is substituted in
+the core, so the renderer records the `{{name}}` placeholder rather than the value. The
+guarantee holds for exactly the two paths the test exercises and for no other. Either
+extend the blanking to the fields that commonly carry a credential, or narrow the claim and
+say in the history panel what it keeps.
 
 ### A core that dies stays dead for the rest of the session — phase 3, medium
 
@@ -87,6 +103,11 @@ nothing restarts it: after a crash (or an `exit` for any other reason) every lat
 rejects with "Core is not running", so the window stays open with an app that can no longer
 send a request, read a collection or save one. There is no banner saying so either — the
 message arrives as whatever error the last action happened to raise.
+
+Confirmed in the running app: killing the core process left the window open and fully
+painted, `core.info`, `store.scan` and Send all answering "Core is not running" from then
+on, and no new core was spawned. The only sign anything is wrong is that error text in the
+request banner.
 
 `request` also has no timeout, so a core that is alive but not answering leaves the promise
 pending forever and the UI showing "Sending…", with Cancel going to the same silent process.
@@ -127,25 +148,31 @@ share one entry, and the second save would silently replace the first request's 
 
 `writeValue` creates `.ping-*.yaml` beside the target so the rename is atomic on the same
 filesystem. If `writeString` or `move` throws, that file stays in the user's collection
-folder. It is hidden from the sidebar by the leading dot, which means the likeliest way to
-notice it is in a commit. Deleting it in a `catch` costs two lines.
+folder. Reproduced by making the rename fail: `store.write` returned `-32003` and left
+`.ping-15955818546861053151.yaml` next to the request, which `store.scan` then skipped
+because of the leading dot — so the likeliest way to notice it is in a commit. Deleting it
+in a `catch` costs two lines.
 
 ### A notification gets an error reply — phase 0, low
 
 `RpcServer.invoke` calls `writeError` with the request's id whether or not there was one, so
 a notification that throws is answered with an error carrying `"id": null` — which JSON-RPC
-2.0 says must not be sent for a notification. The shell then treats that line as a
-server-initiated message with an undefined method and quietly ignores it, so nothing breaks
-today; it is the contract that is wrong, and `contract/README.md` states the rule the code
-does not keep.
+2.0 says must not be sent for a notification. Observed directly against the core: sending
+`{"jsonrpc":"2.0","method":"http.send","params":{}}` with no id answered
+`{"jsonrpc":"2.0","id":null,"error":{"code":-32602,...}}`. The shell then treats that line
+as a server-initiated message with an undefined method and quietly ignores it, so nothing
+breaks today; it is the contract that is wrong, and `contract/README.md` states the rule the
+code does not keep.
 
 ## Closed
 
 ### A collection name could escape the workspace — phase 6
 
 `YamlStore.scaffold` resolved the caller's name straight against the root, so it was the one
-store entry point that did not re-check the boundary the shell had already checked — an
-absolute name, or one containing `..`, created directories outside the open folder. It now
+store entry point that did not re-check the boundary the shell had already checked. Driven
+against a core built from the previous commit, `store.scaffold` with `../escape` and with an
+absolute path both returned success and created the directories outside the workspace; the
+same two calls against the fixed core are rejected with `-32602` and create nothing. It now
 creates the root first (so the check compares two real paths on first run) and resolves the
 name through the same `resolve` every other method uses. Covered by
 `StoreMethodsTest.refusesToScaffoldOutsideTheWorkspace`, and `withWorkspaceRoot` now also
@@ -154,8 +181,11 @@ validates `environment`, the one path-bearing field it was missing.
 ### The request method was uppercased in the default locale — phase 1
 
 `RequestSpec.methodOrDefault` called `toUpperCase()` with no locale, so a lowercase
-`options` became `OPTİONS` on a machine set to Turkish. Now `Locale.ROOT`, like every other
-case conversion in the core, and guarded by
+`options` became `OPTİONS` on a machine set to Turkish. Run under `-Duser.language=tr`, the
+previous core did not merely send the wrong method — the JDK rejected it and the user got
+`-32603 java.lang.IllegalArgumentException: illegal method "OPTİONS"`, the raw-Java surface
+this project has closed twice before. The fixed core sends `OPTIONS` and gets its 200. Now
+`Locale.ROOT`, like every other case conversion in the core, and guarded by
 `HttpEngineTest.uppercasesTheMethodIndependentlyOfTheDefaultLocale`.
 
 ### The cURL export substituted fewer variables than the core — phase 9
