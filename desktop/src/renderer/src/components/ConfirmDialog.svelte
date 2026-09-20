@@ -1,16 +1,9 @@
 <script lang="ts">
   import { confirmState, settleConfirm } from '../lib/confirm.svelte'
 
-  /**
-   * Renders the question `confirmDialog` asked. Outwardly the command palette's modal:
-   * a dimming backdrop, a bordered panel, Escape to dismiss and the confirming action in
-   * the button color — danger tones when the action discards work.
-   */
-
   let confirmButton = $state<HTMLButtonElement>()
 
-  // Focus the confirming action, since it is the expected answer; focus returns to the
-  // page once the question settles and the element disappears.
+  // The confirming action is the expected answer, so focus lands there first.
   $effect(() => {
     if (confirmState.current) {
       queueMicrotask(() => confirmButton?.focus())

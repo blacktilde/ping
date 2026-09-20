@@ -127,8 +127,7 @@ public final class HttpEngine {
     }
 
     /**
-     * Validates the configured policy eagerly, so an unknown value reports bad input here
-     * rather than producing a misnamed constant downstream.
+     * Parses the redirect policy, rejecting an unknown value as bad input at dispatch time.
      */
     private static HttpClient.Redirect redirectPolicy(String value) {
         if (value == null) {
@@ -182,8 +181,6 @@ public final class HttpEngine {
             HttpResponse<InputStream> response = future.join();
             long ttfbMs = millisSince(startedAt);
 
-            // Following redirects hop by hop lets each hop drop credentials when the target
-            // is a different host; the JDK's own NOMAL policy would replay them everywhere.
             redirectPolicy(spec.redirects()); // validates unknown policies
             List<ResponseData.Redirect> redirects = new ArrayList<>();
             int hops = 0;
@@ -200,9 +197,8 @@ public final class HttpEngine {
                         response.headers().firstValue("location").orElse(null)));
                 closeQuietly(response.body());
                 boolean crossHost = !sameOrigin(location, request.uri());
-                // "always" follows anywhere without filtering; anything else protects
-                // credentials not only from malicious redirects but also from accidental
-                // downgrades between http and https on the same host.
+                // "always" is the escape hatch that follows without filtering; every other
+                // policy drops credentials cross-host.
                 boolean dropCredentials =
                         crossHost && !"always".equals(policyName(spec.redirects()));
                 request = redirectRequest(
@@ -563,8 +559,6 @@ public final class HttpEngine {
 
         // Truncated text is still worth showing; the flag tells the UI it is partial.
         String content = textual ? new String(payload.kept(), charset) : null;
-        // Binary payloads (images, PDFs) travel as base64 so the UI can preview and save
-        // them without a filesystem round-trip through the shell.
         String base64 = textual ? null : Base64.getEncoder().encodeToString(payload.kept());
 
         ResponseData.BodyData body = new ResponseData.BodyData(

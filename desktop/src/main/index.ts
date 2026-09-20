@@ -83,9 +83,8 @@ function createWindow(): void {
     }
   })
 
-  // Unsaved work lives in the renderer, so closing always asks it first: one confirmation
-  // covers quit, window close and the updater's restart. Once-approved quits (the updater,
-  // or a renderer answer) pass through without a second prompt.
+  // Unsaved work lives in the renderer, so closing always asks it first. Already-approved
+  // closes pass through without a second prompt.
   mainWindow.on('close', (event) => {
     if (closeApproved) {
       closeApproved = false
@@ -103,7 +102,6 @@ function createWindow(): void {
   }
 }
 
-/** The URLs this shell itself loads: the dev server when developing, the packaged file otherwise. */
 function isOwnUrl(url: string): boolean {
   const devServer = process.env.ELECTRON_RENDERER_URL
   if (devServer && url.startsWith(devServer)) {
@@ -129,10 +127,7 @@ function isRelativePath(value: string): boolean {
   return !value.split(/[\\/]/).includes('..')
 }
 
-/**
- * A name the OS save dialog can use: no path separators, no traversal, no invisibles.
- * The suggestion comes from the renderer, so it is treated as untrusted.
- */
+/** A save-dialog suggestion, sanitized: the name comes from the renderer, so it is untrusted. */
 function safeDownloadName(value: string): string {
   const cleaned = value.replace(/[\\/:*?"<>|\r\n]+/g, ' ').trim()
   return cleaned.length > 0 ? cleaned.slice(0, 120) : 'response'
@@ -284,9 +279,8 @@ function registerIpc(): void {
     }
   })
 
-  // Saves a response body to a file the user picks. The renderer sends bytes it already
-  // holds (text or base64); the destination is chosen here, and the write is atomic so a
-  // crash cannot leave a half-written file the user believes is complete.
+  // Saves a response body to a file the user picks: bytes the renderer already holds,
+  // written atomically so a crash cannot leave a half-written file.
   ipcMain.handle('response:save', async (_event, payload: unknown) => {
     const body = payload as { suggestedName?: unknown; text?: unknown; base64?: unknown } | null
     if (!body || typeof body !== 'object') {

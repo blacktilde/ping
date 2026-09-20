@@ -1,22 +1,16 @@
 /**
- * Promise-based confirm dialogs, rendered by `ConfirmDialog.svelte`.
- *
- * `window.confirm` is a native dialog that cannot match the application's design, and
- * `prompt`/`alert` are worse still — so every blocking yes/no question goes through here.
- * Calls are awaited like the native dialog was; while one is on screen the next is queued,
- * so overlapping questions answer in order instead of stacking windows.
+ * Promise-based confirm dialogs, rendered by `ConfirmDialog.svelte`, so blocking
+ * yes/no questions can match the app's design instead of using the native `confirm`.
+ * Overlapping questions queue and answer in order.
  */
 
 interface PendingConfirm {
-  /** Each question gets a generation so effects can react even on identical text. */
-  id: number
   message: string
   confirmLabel: string
   destructive: boolean
   resolve: (answer: boolean) => void
 }
 
-let nextId = 1
 const queue: PendingConfirm[] = []
 
 let current = $state<PendingConfirm | null>(null)
@@ -41,7 +35,6 @@ export function confirmDialog(
 ): Promise<boolean> {
   return new Promise((resolve) => {
     queue.push({
-      id: nextId++,
       message,
       confirmLabel: options.confirmLabel ?? 'Confirm',
       destructive: options.destructive ?? false,

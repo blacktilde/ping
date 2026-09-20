@@ -109,10 +109,7 @@ const api = {
     return () => ipcRenderer.off('core:notification', handler)
   },
 
-  /**
-   * Core process lifecycle: `down` after a crash, `starting` while it respawns, `ready`
-   * once it answers again. The UI uses this to explain why requests fail and when they work.
-   */
+  /** Core process lifecycle: `down` after a crash, `starting` while it respawns, `ready` after. */
   onCoreState(listener: (state: 'down' | 'starting' | 'ready') => void): () => void {
     const handler = (_event: IpcRendererEvent, state: 'down' | 'starting' | 'ready'): void =>
       listener(state)

@@ -7,9 +7,8 @@
  * module-level value now lives on the tab it belongs to.
  *
  * The list is deeply reactive (`$state`), so `tab.draft.query` and friends stay bindable by
- * the editor components exactly as the old singleton draft was. Open tabs and the active
- * tab persist across restarts, drafts included, following what the file-bound pointers
- * already did: the files are durable, and now so is the work in progress on them.
+ * the editor components exactly as the old singleton draft was. Open tabs and drafts
+ * persist across restarts.
  */
 
 import type { HttpResponse, RequestDraft } from './http'
@@ -160,10 +159,8 @@ export function ensureTab(): void {
 }
 
 /**
- * Rebuilds the tab list saved by a previous session. A response is not restored (it is
- * a snapshot of an exchange, stale by definition), and tabs bound to a file on disk
- * survive with their saved fingerprint so the dirty indicator stays honest even if the
- * file changed on disk.
+ * Rebuilds the tab list saved by a previous session. Responses are not restored — they
+ * are stale snapshots of an exchange by definition.
  *
  * @returns false when there was nothing usable to restore, so the caller seeds a fresh tab
  */
@@ -198,7 +195,6 @@ function restore(): boolean {
   return true
 }
 
-/** Tabs are drafts plus ephemeral state; only the drafts carry over. */
 const MAX_RESTORED_TABS = 20
 
 function revive(item: unknown): RequestTab | undefined {
@@ -228,12 +224,7 @@ function revive(item: unknown): RequestTab | undefined {
   }
 }
 
-/**
- * Saves the open tabs after any change. Responses are deliberately left out — a stale
- * response is worth less than the space — so a restored tab shows its editor, not its
- * last exchange. A quota failure (locked-down profile, tab too large) keeps the session
- * alive and merely loses the persistence.
- */
+/** Rebuilt tab state saved after every change; responses are left out on purpose. */
 function persist(): void {
   const snapshot = {
     activeId: tabs.activeId,

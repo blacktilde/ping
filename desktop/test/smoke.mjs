@@ -294,9 +294,8 @@ try {
   }
 
   /**
-   * Unsaved-changes prompts are the styled in-app dialog, not a native `confirm`, so the
-   * script answers it in the DOM the way a person would. Resolves false when no prompt
-   * turned up, so actions that may or may not need confirmation stay one call.
+   * Unsaved-changes prompts are the styled in-app dialog, so the script answers it in the
+   * DOM. Returns false when no prompt turned up, so conditional confirmations stay one call.
    */
   async function acceptPrompt(timeoutMs = 2000) {
     const deadline = Date.now() + timeoutMs

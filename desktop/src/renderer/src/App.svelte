@@ -73,7 +73,6 @@
 
   let info = $state<CoreInfo | null>(null)
   let bootError = $state('')
-  // Lifecycle of the core process. `down` means every request will fail until it respawns.
   let coreState = $state<'down' | 'starting' | 'ready'>('ready')
 
   let nodes = $state<StoreNode[]>([])
@@ -84,7 +83,6 @@
   let sidebarCollapsed = $state(readSidebarCollapsed())
   let sidebarPanel = $state<'collections' | 'history'>('collections')
   let curlStatus = $state('')
-  // Set when Send is pressed with nothing to send; clears as soon as a URL is typed.
   let urlRequired = $state(false)
   let urlInput = $state<HTMLInputElement>()
 
@@ -171,8 +169,6 @@
     })
   })
 
-  // Follow the core process across crashes: `down` explains failing requests, `ready`
-  // clears the banner once the shell has respawned it.
   $effect(() => {
     return window.ping.onCoreState((state) => {
       coreState = state
@@ -229,8 +225,8 @@
       if (workspace.root === workspaceRoot) {
         return
       }
-      // Tabs point at paths in the old workspace, so they cannot survive the switch —
-      // but unsaved edits are the user's, not ours to discard silently.
+      // Tabs point at paths in the old workspace and cannot survive the switch, but the
+      // unsaved edits in them are the user's to keep or discard.
       if (anyDirty) {
         const proceed = await confirmDialog(
           'Switching folders discards unsaved changes in all tabs. Continue?',
@@ -278,8 +274,8 @@
   }
 
   async function deleteNode(node: StoreNode): Promise<void> {
-    // Deleting takes the surviving tabs' files away; dirty tabs under the deleted path
-    // cannot be saved afterwards, so they get the same veto a tab close gets.
+    // Dirty tabs under the deleted path cannot be saved afterwards, so they get the
+    // same veto a tab close gets.
     const doomed = tabs.list.filter(
       (tab) =>
         tab.savedKey !== null &&
@@ -496,8 +492,8 @@
     }
   }
 
-  // Shortcut hints. The keydown handler accepts Meta (macOS) or Ctrl (everything else),
-  // so the hint must not lie about which one.
+  // The keydown handler accepts Meta (macOS) or Ctrl (everything else), so the hint must
+  // not lie about which one.
   const modKey = $derived(navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl+')
 
   function cycleTab(delta: number): void {
@@ -597,7 +593,7 @@
     if (tab.inFlight) {
       return
     }
-    // Send with nowhere to go is a silent no-op otherwise — put the cursor where the fix goes.
+    // Otherwise Send would be a silent no-op; the cursor goes where the fix does.
     if (target.length === 0) {
       urlRequired = true
       urlInput?.focus()

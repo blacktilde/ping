@@ -36,7 +36,6 @@ const RESPONSE_TIMEOUT_MS = 60_000
 /** `http.send` runs until its own `timeoutMs` or Cancel, so the shell must not cut it off. */
 const UNBOUNDED_METHODS = new Set(['http.send'])
 
-/** Backoff between core restart attempts, doubling up to the cap. */
 const RESTART_BASE_MS = 500
 const RESTART_MAX_MS = 10_000
 
