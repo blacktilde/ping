@@ -20,7 +20,19 @@ numbering of the files they describe.
 
 ## Open
 
-_None._
+### `rocket-daylight` ships a placeholder photograph — blocking, phase 9
+
+`desktop/src/renderer/src/assets/rocket-daylight.webp` is a synthetic gradient standing in
+for the intended artwork, which could not be transferred into the session that built the
+theme. Everything else about `rocket-daylight` is finished: tokens, the light scrim, the
+cycle entry, and its exclusion from `DARK` in `lib/theme.svelte.ts`.
+
+Overwrite that one file with the real image, at roughly 16:9 so the `cover` crop behaves,
+and the theme is done — no CSS or TypeScript changes follow from it. Do not release while
+this stands: the placeholder is not the intended artwork and looks like a plain gradient.
+
+The theme must stay a *light* theme when the real image lands. It carries a photograph but
+the surface underneath it is white, so it belongs outside `DARK`, next to `light`.
 
 ## Closed
 

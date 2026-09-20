@@ -61,6 +61,50 @@
   background-attachment: fixed;
 }
 
+/*
+ * The daylight companion to rocket-night. Same three layers, inverted: the scrim fades to
+ * near-white and the panels are light, because the photograph is a bright sky and a dark
+ * scrim would mud it. It is a light theme that happens to carry an image, so isDark() must
+ * report false for it or the editor arrives in one-dark on a white page.
+ *
+ * NOTE: assets/rocket-daylight.webp is a PLACEHOLDER gradient, not the intended artwork.
+ * See docs/REVIEW.md. Overwrite that one file to finish the theme; nothing else changes.
+ */
+:root[data-theme='rocket-daylight'] {
+  --color-base: rgb(255 255 255 / 0.55);
+  --color-panel: rgb(255 255 255 / 0.8);
+  --color-line: rgb(15 23 42 / 0.12);
+  --color-accent: #2563eb;
+  --color-fg: #16202e;
+  --color-fg-muted: #45546a;
+  --color-fg-faint: #76849a;
+}
+
+:root[data-theme='rocket-daylight'] body {
+  background-color: #f5f7fa;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.07) 0,
+      rgb(0 0 0 / 0.07) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.1) 0%,
+      rgb(255 255 255 / 0.24) 22%,
+      rgb(248 250 252 / 0.58) 46%,
+      rgb(246 249 252 / 0.9) 68%,
+      #f5f7fa 88%
+    ),
+    url('./assets/rocket-daylight.webp');
+  background-repeat: repeat, no-repeat, no-repeat;
+  background-size: auto, auto, cover;
+  background-position: center, center, center 22%;
+  background-attachment: fixed;
+}
+
 :root[data-theme='light'] {
   --color-base: #f3f4f6;
   --color-panel: #ffffff;

@@ -3,30 +3,36 @@
  * renderer only.
  */
 
-/** The themes that actually paint. `rocket-night` is dark, with a photograph behind the panels. */
-export type ThemeName = 'light' | 'dark' | 'rocket-night'
+/** The themes that actually paint. The two `rocket-*` themes carry a photograph behind the UI. */
+export type ThemeName = 'light' | 'dark' | 'rocket-night' | 'rocket-daylight'
 export type ThemeChoice = 'system' | ThemeName
 
-const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night']
+const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night', 'rocket-daylight']
 
 /*
  * The order the palette cycles through. Light comes straight after dark so the long-standing
- * dark-to-light flip still works on the first press; rocket-night is the extra stop after it.
+ * dark-to-light flip still works on the first press; the photo themes follow it.
  */
-const CYCLE: ThemeName[] = ['dark', 'light', 'rocket-night']
+const CYCLE: ThemeName[] = ['dark', 'light', 'rocket-night', 'rocket-daylight']
 
 export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
   choice: 'system',
   resolved: 'dark'
 })
 
+/*
+ * Which themes paint a dark surface. This is not the same question as "is it a photo
+ * theme": rocket-daylight carries an image but is light, so it belongs with light here.
+ */
+const DARK: ThemeName[] = ['dark', 'rocket-night']
+
 /**
- * Whether the resolved theme wants dark-on-light syntax colours. Anything keying off
- * darkness must ask this rather than compare against 'dark', or the next dark theme
- * silently gets the light editor.
+ * Whether the resolved theme wants light-on-dark syntax colours. Anything keying off
+ * darkness must ask this rather than compare against 'dark', or a new dark theme silently
+ * gets the light editor — and a new light one gets the dark editor on a white page.
  */
 export function isDark(): boolean {
-  return theme.resolved !== 'light'
+  return DARK.includes(theme.resolved)
 }
 
 const systemPreference = window.matchMedia('(prefers-color-scheme: light)')
