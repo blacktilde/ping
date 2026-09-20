@@ -107,8 +107,16 @@ public final class RpcServer {
             }
         } catch (RpcException e) {
             writeError(idNode, e.code(), e.getMessage());
-        } catch (Exception e) {
-            writeError(idNode, RpcException.INTERNAL_ERROR, e.toString());
+        } catch (Throwable t) {
+            // Throwable, not Exception: an Error is neither, and a handler that dies without
+            // answering is invisible to the client. The process survives — only this virtual
+            // thread died — so the caller waits on a response that will never come while the
+            // core keeps serving everyone else. native-image reports missing reflection
+            // metadata as MissingReflectionRegistrationError, an Error, which is exactly how
+            // a collection holding an auth block once hung the app on launch. Answering is
+            // best-effort under OutOfMemoryError, where building the response may fail too.
+            t.printStackTrace(System.err);
+            writeError(idNode, RpcException.INTERNAL_ERROR, t.toString());
         }
     }
 

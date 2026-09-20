@@ -24,6 +24,22 @@ _None._
 
 ## Closed
 
+### An `Error` in a handler left the caller waiting forever — after phase 10
+
+`RpcServer.invoke` caught `RpcException` and `Exception`, so an `Error` escaped the worker
+thread with no response written. The process survived — only that virtual thread died — so
+the core went on serving every other request while the caller waited on an answer that would
+never come, and `CoreClient.request` had no deadline to notice. That is how the missing
+`RequestSpec$Auth` metadata hung the app on launch: `native-image` reports missing
+reachability metadata as `MissingReflectionRegistrationError`, an `Error`. Fixing the
+metadata closed that instance; this closes the class.
+
+`invoke` now catches `Throwable`, logs the stack to stderr and answers `INTERNAL_ERROR`, and
+the shell gives every call a 60s deadline so a lost response surfaces instead of hanging —
+`http.send` is exempt, since its own `timeoutMs` and the Cancel button already bound it.
+Guarded by `RpcServerTest.answersEvenWhenAHandlerThrowsAnError`, which asserts both halves:
+the failing request is answered, and the next one still works.
+
 ### The update feed points at the project's own public repository — phase 10
 
 `anomalyco` was confirmed third party, so the `publish` block and

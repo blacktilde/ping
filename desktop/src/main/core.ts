@@ -28,7 +28,27 @@ export class CoreRpcError extends Error {
 interface PendingCall {
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
+  timer: NodeJS.Timeout | null
 }
+
+/**
+ * How long a call may go unanswered before the shell gives up on it.
+ *
+ * The core answers every request it can, including one whose handler threw, so silence
+ * means the response was lost rather than slow — a killed worker, a corrupted line, a bug.
+ * Without a deadline that call's promise never settles and the UI waits forever on a core
+ * that is otherwise healthy, which is not a state the user can see or escape.
+ */
+const RESPONSE_TIMEOUT_MS = 60_000
+
+/**
+ * Methods that may legitimately take longer than that, so the shell must not cut them off.
+ *
+ * `http.send` runs until the request's own `timeoutMs` (30s by default, but the user may
+ * set any value) or until Cancel, and that bound belongs to the request, not to us.
+ * Everything else touches the local filesystem or memory and must answer promptly.
+ */
+const UNBOUNDED_METHODS = new Set(['http.send'])
 
 /**
  * Locates the core binary.
@@ -123,7 +143,16 @@ export class CoreClient {
 
     const id = this.nextId++
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      let timer: NodeJS.Timeout | null = null
+      if (!UNBOUNDED_METHODS.has(method)) {
+        timer = setTimeout(() => {
+          this.pending.delete(id)
+          reject(new Error(`The core did not answer ${method} within ${RESPONSE_TIMEOUT_MS}ms`))
+        }, RESPONSE_TIMEOUT_MS)
+        // An outstanding call must not keep the process alive at quit.
+        timer.unref()
+      }
+      this.pending.set(id, { resolve, reject, timer })
       child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
     })
   }
@@ -171,6 +200,9 @@ export class CoreClient {
       return
     }
     this.pending.delete(message.id)
+    if (call.timer) {
+      clearTimeout(call.timer)
+    }
 
     if (message.error) {
       call.reject(new CoreRpcError(message.error.code, message.error.message))
@@ -183,6 +215,9 @@ export class CoreClient {
   private fail(error: Error): void {
     this.failReady(error)
     for (const call of this.pending.values()) {
+      if (call.timer) {
+        clearTimeout(call.timer)
+      }
       call.reject(error)
     }
     this.pending.clear()
