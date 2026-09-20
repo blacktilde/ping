@@ -665,15 +665,23 @@ try {
   const afterColor = await evaluate(editorColor)
   check('the editor follows the theme', beforeColor !== afterColor, `${beforeColor} -> ${afterColor}`)
 
-  await evaluate(pressCtrlK)
-  await wait(200)
-  await evaluate(`${themeOption}?.click()`)
-  await waitFor(
-    async () => (await evaluate(`document.documentElement.dataset.theme`)) === initialTheme,
-    2000,
-    'the theme to return'
+  // Walk the cycle until it returns. Distinct stops prove none is skipped or repeated; the
+  // cap keeps a broken cycle from spinning forever.
+  const ring = [initialTheme, await evaluate(`document.documentElement.dataset.theme`)]
+  const MAX_THEMES = 8
+  while (ring[ring.length - 1] !== initialTheme && ring.length <= MAX_THEMES) {
+    await evaluate(pressCtrlK)
+    await wait(200)
+    await evaluate(`${themeOption}?.click()`)
+    await wait(200)
+    ring.push(await evaluate(`document.documentElement.dataset.theme`))
+  }
+  const stops = ring.slice(0, -1)
+  check(
+    'theme command cycles through every theme and returns',
+    ring[ring.length - 1] === initialTheme && stops.length >= 2 && new Set(stops).size === stops.length,
+    ring.join(' -> ')
   )
-  check('theme command switches back', true)
 
   console.log('--- 10. resizable panels')
   const handles = await evaluate(`(() => {

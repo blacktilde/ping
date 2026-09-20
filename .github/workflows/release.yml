@@ -35,8 +35,12 @@ jobs:
           cache: gradle
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Pass the tag through so core.info matches the installers the package job names from it.
       - name: Build the native core
-        run: ./gradlew :core:nativeCompile
+        shell: bash
+        run: ./gradlew :core:nativeCompile "-PappVersion=${TAG#v}"
+        env:
+          TAG: ${{ inputs.tag }}
 
       - uses: actions/upload-artifact@v4
         with:

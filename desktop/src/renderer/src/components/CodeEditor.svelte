@@ -6,7 +6,7 @@
   import { json, jsonParseLinter } from '@codemirror/lang-json'
   import { linter } from '@codemirror/lint'
   import { oneDark } from '@codemirror/theme-one-dark'
-  import { theme } from '../lib/theme.svelte'
+  import { isDark, theme } from '../lib/theme.svelte'
 
   interface Props {
     value?: string
@@ -49,7 +49,7 @@
   })
 
   function themeLayer(): Extension {
-    return theme.resolved === 'dark' ? oneDark : lightLayer
+    return isDark() ? oneDark : lightLayer
   }
 
   function extensions(): Extension[] {
