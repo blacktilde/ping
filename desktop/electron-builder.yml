@@ -39,6 +39,12 @@ mac:
     - zip
 
 win:
+  # The installer's name has to survive the round trip through a GitHub release. GitHub stores
+  # an uploaded asset's spaces as dots, while electron-updater rewrites them as hyphens when it
+  # resolves a url from the feed, so electron-builder's default `Ping Setup 0.1.9.exe` is asked
+  # for as `Ping-Setup-0.1.9.exe` and served as `Ping.Setup.0.1.9.exe` — a 404 in the update
+  # dialog. A name with no spaces is the same on both sides. No other target's default has one.
+  artifactName: ${productName}-Setup-${version}.${ext}
   target:
     - nsis
 
