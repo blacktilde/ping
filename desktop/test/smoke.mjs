@@ -398,16 +398,51 @@ try {
   })()`
 
   const snap = () => evaluate(snapshot)
-  const clickSend = () => evaluate(`document.querySelector('button[type=submit]').click()`)
 
-  async function waitFor(predicate, timeoutMs, label) {
+  /**
+   * Clicks Send once the button will take it. Send is disabled while an exchange is in
+   * flight and a click on a disabled button is dropped without a trace, so clicking a
+   * moment too early leaves the previous response on screen until the wait for the next one
+   * gives up — a failure that looks like a broken request rather than a missed click.
+   */
+  async function clickSend() {
+    await waitFor(
+      async () => await evaluate(`document.querySelector('button[type=submit]')?.disabled === false`),
+      10_000,
+      'the Send button to accept a click'
+    )
+    await evaluate(`document.querySelector('button[type=submit]').click()`)
+  }
+
+  /**
+   * A timeout throws, which abandons every check after it, so `describe` puts what was on
+   * screen into the message: a bare "timed out" says only what was missing.
+   */
+  async function waitFor(predicate, timeoutMs, label, describe) {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       if (await predicate()) return
       await wait(200)
     }
-    throw new Error(`timed out waiting for ${label}`)
+    const detail = describe ? await describe().catch((cause) => `could not be read: ${cause}`) : ''
+    throw new Error(`timed out waiting for ${label}${detail ? ` — ${detail}` : ''}`)
   }
+
+  /** What the request and response panes hold, for a timeout that has to explain itself. */
+  async function paneState() {
+    const state = await snap()
+    const url = await evaluate(`document.querySelector('input[aria-label="Request URL"]')?.value ?? null`)
+    return `url ${url ?? 'none'}, send ${state.sendLabel ?? 'none'}, status ${state.status ?? 'none'}, error ${state.error ?? 'none'}, body ${JSON.stringify(state.body.slice(0, 200))}`
+  }
+
+  /** Waits for the response pane to show text the request itself put there. */
+  const waitForEcho = (text, timeoutMs = 5000) =>
+    waitFor(
+      async () => (await snap()).body.includes(text),
+      timeoutMs,
+      `the echoed request to mention ${text}`,
+      paneState
+    )
 
   /**
    * Unsaved-changes prompts are the styled in-app dialog, so the script answers it in the
@@ -586,7 +621,15 @@ try {
   await evaluate(setInput('Secret name', 'smoke-token'))
   await evaluate(setInput('Secret value', 'secret-value'))
   await evaluate(clickText('Save variables'))
-  await wait(400)
+  // The button says so once both the variables and the secret are stored; a fixed pause
+  // would send the request before the secret the token refers to exists.
+  await waitFor(
+    async () =>
+      (await evaluate(`document.querySelector('[data-role="save-variables"]')?.textContent.trim()`)) ===
+      'Saved!',
+    5000,
+    'the variables to be saved'
+  )
   await evaluate(`document.querySelector('[aria-label="Close variables"]')?.click()`)
   await evaluate(clickTab('Auth'))
   await evaluate(setSelect('Auth type', 'bearer'))
@@ -1296,7 +1339,7 @@ try {
   )
 
   await clickSend()
-  await waitFor(async () => (await snap()).body.includes('x-pasted'), 5000, 'the echoed request')
+  await waitForEcho('x-pasted')
   const pasted = echo((await snap()).body)
   check('sends the imported method', pasted?.method === 'POST', pasted?.method ?? 'none')
   check('sends the imported query', pasted?.url?.includes('from=paste'), pasted?.url ?? 'none')
@@ -1347,7 +1390,7 @@ try {
   )
   await waitFor(async () => (await activeTabPath())?.includes('whoami.yaml'), 5000, 'the imported request to open')
   await clickSend()
-  await waitFor(async () => (await snap()).body.includes('authorization'), 5000, 'the echoed request')
+  await waitForEcho('authorization')
   const whoami = echo((await snap()).body)
   check('resolves the imported collection variable', whoami?.url?.startsWith('/whoami'), whoami?.url ?? 'none')
   check('sends the imported query', whoami?.url?.includes('from=postman'), whoami?.url ?? 'none')
@@ -1477,7 +1520,10 @@ try {
   await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
   await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'ping-rename.yaml'), 'utf8').includes('/renamed'), 5000, 'the save')
   check('a save writes to the new path, not the old one', !existsSync(join(workspaceDir, 'demo', 'new-request.yaml')))
-  check('a save clears the dirty marker', !(await dirtyShown()))
+  // The bytes land on disk before the renderer's own write resolves and clears the marker,
+  // so seeing the file is not proof the UI has caught up.
+  await waitFor(async () => !(await dirtyShown()), 5000, 'the dirty marker to clear')
+  check('a save clears the dirty marker', true)
 
   // Duplicate, create a folder, then drag the request into it.
   await clickButton('Duplicate Ping rename')
@@ -1579,7 +1625,8 @@ try {
   await evaluate(`document.querySelector('[data-role="save"]')?.click()`)
   await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'ping-rename-copy.yaml'), 'utf8').includes('docs:'), 5000, 'the notes on disk')
   check('saves the notes with the request', readFileSync(join(workspaceDir, 'demo', 'ping-rename-copy.yaml'), 'utf8').includes('# Title'))
-  check('a save clears the dirty marker again', !(await dirtyShown()))
+  await waitFor(async () => !(await dirtyShown()), 5000, 'the dirty marker to clear again')
+  check('a save clears the dirty marker again', true)
   check('the Docs tab is badged', await evaluate(`[...document.querySelectorAll('[role=tab]')].some(t => t.textContent.trim().startsWith('Docs') && t.textContent.includes('•'))`))
 
   await evaluate(clickText('Variables'))
