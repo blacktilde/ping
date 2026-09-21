@@ -13,7 +13,7 @@ help:
 	@echo "test   Run the core test suite on the JVM"
 	@echo "dev    Build the core, then start Electron with hot reload"
 	@echo "build  Production build of core and desktop"
-	@echo "check  Type-check the desktop shell with svelte-check"
+	@echo "check  Type-check and unit-test the desktop shell"
 	@echo "smoke  Build the desktop and drive the UI over CDP"
 	@echo "package  Build the native core and package the app for this OS"
 	@echo "clean  Remove all build output"
@@ -41,7 +41,7 @@ build: core
 	cd desktop && npm run build
 
 check:
-	cd desktop && npm run check
+	cd desktop && npm run check && npm test
 
 # Builds first: the smoke test drives the packaged renderer, not the dev server.
 smoke: core

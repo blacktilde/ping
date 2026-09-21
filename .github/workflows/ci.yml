@@ -125,6 +125,11 @@ jobs:
       - run: npm run check
         working-directory: desktop
 
+      # The macOS updater verifies its own downloads instead of relying on an Apple
+      # signature, so the checks that decide what may be installed are unit tested.
+      - run: npm test
+        working-directory: desktop
+
       - run: npm run build
         working-directory: desktop
 

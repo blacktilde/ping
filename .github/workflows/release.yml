@@ -99,11 +99,37 @@ jobs:
       - run: npm run build
         working-directory: desktop
 
+      # A macOS build verifies updates against the key compiled into it. Ship one that still
+      # holds the placeholder and every install reports an error instead of updating, so the
+      # release stops here rather than there.
+      - name: Check the macOS update signing key is set
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          if grep -q REPLACE_WITH_THE_RELEASE_SIGNING_PUBLIC_KEY desktop/src/main/mac-update.ts; then
+            echo "desktop/src/main/mac-update.ts still holds the placeholder public key." >&2
+            echo "Run tools/mac-update-keygen.sh, commit the public half, and store the private half as MAC_UPDATE_SIGNING_KEY." >&2
+            exit 1
+          fi
+
       - name: Package
         run: npx electron-builder --publish never
         working-directory: desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # The macOS update feed. These builds carry no Apple Developer ID, so Squirrel.Mac
+      # cannot install them and the app updates itself instead — against this signature
+      # rather than Apple's. Without the secret the step fails the release, which is the
+      # point: a feed nobody signed is one the app will refuse.
+      - name: Sign the macOS update manifest
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          tag="${{ inputs.tag }}"
+          node tools/mac-manifest.mjs desktop/dist "${tag#v}" "$tag"
+        env:
+          MAC_UPDATE_SIGNING_KEY: ${{ secrets.MAC_UPDATE_SIGNING_KEY }}
 
       - uses: actions/upload-artifact@v7
         with:
@@ -115,6 +141,7 @@ jobs:
             desktop/dist/*.zip
             desktop/dist/*.exe
             desktop/dist/*.yml
+            desktop/dist/latest-mac.json
             desktop/dist/*.blockmap
           if-no-files-found: warn
 
