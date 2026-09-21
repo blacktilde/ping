@@ -314,8 +314,8 @@
       type="button"
       onclick={() => void save()}
       disabled={!variables.collection}
-      class="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition
-             hover:brightness-110 disabled:opacity-40"
+      class="w-full rounded-lg border border-accent px-4 py-2 text-sm font-medium text-accent
+             transition hover:bg-accent/10 disabled:opacity-40 disabled:hover:bg-transparent"
     >
       <span data-role="save-variables" aria-live="polite" class="flex items-center justify-center gap-1.5">
         {#if saved}
