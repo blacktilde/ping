@@ -2143,6 +2143,32 @@ try {
   const opened = await rowState()
   check('opening a row shows the assertions that passed', opened[0].expanded === 'true', JSON.stringify(opened[0]))
 
+  // One control for the lot. Both rows that assert anything are open by now — the failed one by
+  // itself, the passing one by the click above — so it offers to close them first.
+  const toggleAll = `document.querySelector('[data-role="run-toggle-all"]')`
+  const toggleAllLabel = () => evaluate(`${toggleAll}?.getAttribute('aria-label') ?? null`)
+  check('offers to collapse every row at once', (await toggleAllLabel()) === 'Collapse all assertions', await toggleAllLabel())
+  await evaluate(`${toggleAll}.click()`)
+  await waitFor(async () => (await rowState())[1].expanded === 'false', 5000, 'the rows to collapse')
+  const collapsed = await rowState()
+  check(
+    'collapsing all closes a row that opened itself',
+    collapsed[0].expanded === 'false' && collapsed[1].expanded === 'false',
+    JSON.stringify(collapsed)
+  )
+  check('a failure stays visible in a collapsed row', collapsed[1].assertions === 'false', JSON.stringify(collapsed[1]))
+  check('and the control now offers the other direction', (await toggleAllLabel()) === 'Expand all assertions', await toggleAllLabel())
+
+  await evaluate(`${toggleAll}.click()`)
+  await waitFor(async () => (await rowState())[0].assertions === 'true', 5000, 'the rows to expand')
+  const expanded = await rowState()
+  check(
+    'expanding all opens every row that has assertions',
+    expanded[0].expanded === 'true' && expanded[1].expanded === 'true',
+    JSON.stringify(expanded)
+  )
+  check('a request with no assertions is left alone', expanded[2].expanded === null, JSON.stringify(expanded[2]))
+
   await evaluate(`document.querySelector('[data-role="run-close"]').click()`)
   await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`)), 5000, 'the run dialog to close')
   check('the run panel closes', true)

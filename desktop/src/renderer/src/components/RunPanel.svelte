@@ -15,10 +15,11 @@
   let environments = $state<EnvironmentRef[]>([])
 
   /**
-   * The rows whose disclosure the user has flipped away from its default. A request that failed
-   * opens by itself — it is what the panel was opened for — so this holds the exceptions in both
-   * directions rather than the open set.
+   * What the header's control last said, or null to leave every row on its own default — a
+   * request that did not pass opens itself. Whichever is in force, `toggled` holds the rows the
+   * user has since flipped away from it, in both directions, rather than the open set.
    */
+  let bulk = $state<'all' | 'none' | null>(null)
   let toggled = $state<string[]>([])
 
   // The collection's own environments, not the header's: a run names one of these or none.
@@ -47,9 +48,10 @@
     }
   })
 
-  // A new run replaces the list, so rows opened by hand during the last one do not carry into it.
+  // A new run replaces the list, so the disclosures set during the last one do not carry into it.
   $effect(() => {
     if (run.running) {
+      bulk = null
       toggled = []
     }
   })
@@ -69,18 +71,37 @@
     return request.passed ? 'passed' : 'failed'
   }
 
-  /** Open unless the user said otherwise, for anything that did not pass cleanly. */
   function isOpen(key: string, verdict: string): boolean {
-    return (verdict !== 'passed') !== toggled.includes(key)
+    const base = bulk === null ? verdict !== 'passed' : bulk === 'all'
+    return base !== toggled.includes(key)
   }
 
   function toggle(key: string): void {
     toggled = toggled.includes(key) ? toggled.filter((other) => other !== key) : [...toggled, key]
   }
 
+  /** The header's control speaks for every row, so the per-row exceptions on top of it go. */
+  function setBulk(next: 'all' | 'none'): void {
+    bulk = next
+    toggled = []
+  }
+
   function failures(results: AssertionResult[]): AssertionResult[] {
     return results.filter((result) => !result.passed)
   }
+
+  // Only rows with something to disclose: a request that asserts nothing never opens, so it
+  // neither offers the control nor decides which way it points.
+  const disclosable = $derived(
+    run.requests
+      .map((request, index) => ({
+        key: `${request.path}-${index}`,
+        verdict: outcome(request),
+        count: (request.assertions ?? []).length
+      }))
+      .filter((row) => row.count > 0)
+  )
+  const anyOpen = $derived(disclosable.some((row) => isOpen(row.key, row.verdict)))
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -140,10 +161,41 @@
         <p data-role="run-error" role="alert" class="text-xs text-danger">{run.error}</p>
       {/if}
 
-      {#if run.running}
-        <p data-role="run-progress" class="mb-3 text-xs text-fg-faint">
-          {run.total ? `${done}/${run.total} requests` : 'Starting…'}
-        </p>
+      {#if run.running || disclosable.length > 0}
+        {@const label = anyOpen ? 'Collapse all assertions' : 'Expand all assertions'}
+        <div class="mb-3 flex items-center justify-between gap-4">
+          {#if run.running}
+            <p data-role="run-progress" class="text-xs text-fg-faint">
+              {run.total ? `${done}/${run.total} requests` : 'Starting…'}
+            </p>
+          {:else}
+            <span></span>
+          {/if}
+          {#if disclosable.length > 0}
+            <button
+              type="button"
+              data-role="run-toggle-all"
+              onclick={() => setBulk(anyOpen ? 'none' : 'all')}
+              aria-label={label}
+              title={label}
+              class="rounded p-1 text-fg-faint transition hover:text-accent"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <!-- Chevrons meeting to close, parting to open. -->
+                <path d={anyOpen ? 'M7 20l5-5 5 5M7 4l5 5 5-5' : 'M7 15l5 5 5-5M7 9l5-5 5 5'} />
+              </svg>
+            </button>
+          {/if}
+        </div>
       {/if}
 
       {#if run.requests.length === 0 && !run.running && !run.error}
@@ -208,12 +260,23 @@
                        focus-visible:ring-1 focus-visible:ring-accent"
               >
                 {@render line(request, verdict, results)}
-                <span class="w-3 shrink-0 text-fg-faint" aria-hidden="true">{open ? '▾' : '▸'}</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-3.5 w-3.5 shrink-0 text-fg-faint"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d={open ? 'M6 9l6 6 6-6' : 'M9 18l6-6-6-6'} />
+                </svg>
               </button>
             {:else}
               <div class="flex items-center gap-2 text-xs">
                 {@render line(request, verdict, results)}
-                <span class="w-3 shrink-0" aria-hidden="true"></span>
+                <span class="w-3.5 shrink-0" aria-hidden="true"></span>
               </div>
             {/if}
             {#if request.error}

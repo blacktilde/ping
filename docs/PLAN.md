@@ -145,9 +145,10 @@ assertions plus the runner change what the project is for.
   the collection's own environment, fills in as each `run.progress` notification arrives, and ends on
   the summary. The run lives outside the panel, so closing it does not abandon one in flight. The
   shell supplies the secrets as `variables` and keeps its session runtime out of them — a run
-  carries only its own captures. Each row tallies its assertions and opens to show them all,
-  failures always visible and a request that asserts nothing saying so, since one that was never
-  checked passes on any response and should not read like one that was. No cancel yet: a started
+  carries only its own captures. Each row tallies its assertions and opens on a click to show
+  them all, with one control in the panel for the lot; failures stay visible either way, and a
+  request that asserts nothing says so, since one that was never checked passes on any response
+  and should not read like one that was. No cancel yet: a started
   run goes to the end.*
 
 - [x] **18. Bodies that come from disk.** Multipart file parts and a binary file body. Today
