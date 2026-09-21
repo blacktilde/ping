@@ -1,18 +1,9 @@
-/**
- * An installer's name has to mean the same thing on both ends of the update feed. GitHub
- * stores an uploaded release asset with its spaces turned into dots, and electron-updater
- * rewrites the same spaces as hyphens when it resolves a url out of `latest.yml`, so a name
- * with a space in it is a download that 404s — visible only to someone already running the
- * app. electron-builder's NSIS default has two. Keep the configured names free of them.
- */
-
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 const config = readFileSync(new URL('../electron-builder.yml', import.meta.url), 'utf8')
 
-/** The lines of one top-level block, up to the next key in the first column. */
 function block(key: string): string {
   const start = config.indexOf(`\n${key}:\n`)
   assert.notEqual(start, -1, `electron-builder.yml has no ${key} block`)

@@ -118,9 +118,6 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      # A space in an artifact's name is a 404 at update time: GitHub stores the uploaded asset
-      # with its spaces turned into dots, electron-updater asks for the same name with hyphens.
-      # electron-builder.yml keeps the names clean; this catches a target whose default is not.
       - name: Check no installer name carries a space
         shell: bash
         working-directory: desktop/dist
