@@ -2060,7 +2060,11 @@ try {
   const runSummary = () =>
     evaluate(`document.querySelector('[data-role="run-summary"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? null`)
 
-  await evaluate(`document.querySelector('button[aria-label="Run run demo"]').click()`)
+  // By the row, not by name: the tree labels a collection with its folder, and the tree
+  // re-renders on every rescan, so the button may not be there the instant this step starts.
+  const runButton = `document.querySelector('[data-path="run-demo"] button[aria-label^="Run "]')`
+  await waitFor(async () => await evaluate(`!!${runButton}`), 5000, 'the run button on the collection')
+  await evaluate(`${runButton}.click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`), 5000, 'the run dialog')
   check('a collection offers a run', true)
   const runEnvs = await evaluate(
