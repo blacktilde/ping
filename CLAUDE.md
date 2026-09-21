@@ -17,7 +17,7 @@ lists open review findings, each tagged with the phase it should be folded into.
 | `make core` | Rebuild the core after changing Java sources         |
 | `make test` | Run the core test suite                              |
 | `make build`| Production build                                     |
-| `make check`| Type-check the desktop shell with svelte-check       |
+| `make check`| Type-check the desktop shell and run its unit tests |
 | `make smoke`| Build the desktop and drive the UI over CDP          |
 | `make package`| Build the native core and package for this OS      |
 | `make native`| Compile the core to a native image (minutes)        |
@@ -39,6 +39,19 @@ release assets over public HTTPS with no credentials, so `publish` must name a p
 `dbohry/ping` today. A wrong or private owner is a silent 404 at best, and a stranger
 choosing what every install downloads at worst. The app checks once when packaged and never
 downloads or installs without an explicit yes (`autoDownload` is false); keep it that way.
+
+**macOS updates are verified by this project's own signature, not Apple's.** Squirrel.Mac —
+what electron-updater drives on darwin — refuses to install into a build that carries no
+Apple Developer ID, so macOS goes through `desktop/src/main/mac-update.ts` instead: a signed
+`latest-mac.json`, a sha512 the release signed with Ed25519, `ditto` into a staging directory
+beside the bundle, then a detached script that swaps it and relaunches. That signature is the
+only thing standing where Apple's would be, so the checks in `mac-update-verify.ts` are not
+optional and are unit tested: bytes that do not match a signature made by the release key, or
+an asset URL outside this repository's releases, are never unpacked. The public key is
+compiled into the app and its private half is the `MAC_UPDATE_SIGNING_KEY` secret
+(`tools/mac-update-keygen.sh` makes the pair). A build whose `PUBLIC_KEY_PEM` is still the
+placeholder reports an error rather than installing anything. Windows and Linux stay on
+electron-updater; if a Developer ID ever appears, the macOS path can retire.
 
 ## Rules
 
