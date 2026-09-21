@@ -28,6 +28,25 @@ export const variables = $state({
   resolved: {} as Record<string, string>
 })
 
+/**
+ * The load in flight, if any. Opening a request in another collection resolves that
+ * collection's scope over several round trips, so a send started in between would
+ * interpolate against the collection that was open before — or, on the first open, against
+ * nothing at all, putting `{{placeholders}}` on the wire. A send waits for this.
+ */
+let pending: Promise<unknown> = Promise.resolve()
+
+/** Resolves once the variables on screen are the active collection's. Never rejects. */
+export function variablesReady(): Promise<unknown> {
+  return pending
+}
+
+function track<T>(work: Promise<T>): Promise<T> {
+  // The tracked copy swallows the failure; the caller still sees it and reports it.
+  pending = work.catch(() => {})
+  return work
+}
+
 export function clearVariables(): void {
   variables.collection = ''
   variables.name = ''
@@ -39,7 +58,11 @@ export function clearVariables(): void {
   variables.resolved = {}
 }
 
-export async function loadCollection(collection: string): Promise<void> {
+export function loadCollection(collection: string): Promise<void> {
+  return track(applyCollection(collection))
+}
+
+async function applyCollection(collection: string): Promise<void> {
   const catalog = await varsCatalog(collection)
 
   // Keep the selected environment when it still exists, otherwise default to the first.
@@ -53,10 +76,14 @@ export async function loadCollection(collection: string): Promise<void> {
   variables.environments = catalog.environments
   variables.collectionVariables = normalizeVariables(catalog.variables)
 
-  await loadEnvironment(environment)
+  await applyEnvironment(environment)
 }
 
-export async function loadEnvironment(path: string): Promise<void> {
+export function loadEnvironment(path: string): Promise<void> {
+  return track(applyEnvironment(path))
+}
+
+async function applyEnvironment(path: string): Promise<void> {
   variables.environment = path
   variables.environmentVariables = path
     ? normalizeVariables((await readEnvironment(path)).variables)

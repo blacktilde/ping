@@ -61,7 +61,8 @@
     loadCollection,
     loadEnvironment,
     persistVariables,
-    variables
+    variables,
+    variablesReady
   } from './lib/vars.svelte'
   import { loadSecretRows, persistSecretRows } from './lib/secrets.svelte'
   import { setSecret } from './lib/secrets'
@@ -825,6 +826,11 @@
     // The pane is aria-busy so the staleness is announced rather than hidden.
 
     try {
+      // Opening a request in another collection loads that collection's variables in the
+      // background. Send is reachable the moment the tab is, so wait: otherwise the request
+      // goes out interpolated against the collection that was open before, or with its
+      // `{{placeholders}}` intact.
+      await variablesReady()
       const spec = toRequestSpec(tab.draft, requestId)
       if (Object.keys(variables.resolved).length > 0) {
         // A spread unwraps the reactive proxy, which cannot cross the context bridge.
