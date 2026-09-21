@@ -43,7 +43,7 @@ const MANIFEST_URL = 'https://github.com/dbohry/ping/releases/latest/download/la
  * every signature made with the old key, which is how a compromised key is rotated.
  */
 const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-REPLACE_WITH_THE_RELEASE_SIGNING_PUBLIC_KEY
+MCowBQYDK2VwAyEAxdllgP2g59Z6OzHI6pV/i9R+KpF3qBhx4Tjv7fdhpjc=
 -----END PUBLIC KEY-----
 `
 
