@@ -444,6 +444,29 @@ try {
       paneState
     )
 
+  const saveVariablesLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
+
+  /**
+   * Saves the variables panel and waits for it to settle. The save ends by reloading the
+   * collection, which rewrites the panel from what is now on disk: an edit typed before that
+   * lands is silently reverted, and the save after it writes the old text back. The button
+   * says "Saved!" only once that reload is in, so the next edit waits for it — and for the
+   * previous confirmation to fade first, or a leftover one would answer for this save.
+   */
+  async function saveVariables() {
+    await waitFor(
+      async () => (await evaluate(saveVariablesLabel)) === 'Save variables',
+      5000,
+      'the previous save confirmation to fade'
+    )
+    await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+    await waitFor(
+      async () => (await evaluate(saveVariablesLabel)) === 'Saved!',
+      5000,
+      'the variables to be saved'
+    )
+  }
+
   /**
    * Unsaved-changes prompts are the styled in-app dialog, so the script answers it in the
    * DOM. Returns false when no prompt turned up, so conditional confirmations stay one call.
@@ -620,16 +643,9 @@ try {
   await evaluate(clickText('+ Add secret'))
   await evaluate(setInput('Secret name', 'smoke-token'))
   await evaluate(setInput('Secret value', 'secret-value'))
-  await evaluate(clickText('Save variables'))
   // The button says so once both the variables and the secret are stored; a fixed pause
   // would send the request before the secret the token refers to exists.
-  await waitFor(
-    async () =>
-      (await evaluate(`document.querySelector('[data-role="save-variables"]')?.textContent.trim()`)) ===
-      'Saved!',
-    5000,
-    'the variables to be saved'
-  )
+  await saveVariables()
   await evaluate(`document.querySelector('[aria-label="Close variables"]')?.click()`)
   await evaluate(clickTab('Auth'))
   await evaluate(setSelect('Auth type', 'bearer'))
@@ -1635,7 +1651,7 @@ try {
   await evaluate(`document.querySelector('[data-role="toggle-notes"]').click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('textarea[aria-label="Collection notes"]')`), 5000, 'the collection notes editor')
   await evaluate(setTextarea('Collection notes', '## Demo API\n\nUse the **dev** environment.'))
-  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await saveVariables()
   await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the collection notes on disk')
   const collectionYaml = readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8')
   check('saves collection notes beside the variables', collectionYaml.includes('Use the **dev** environment') && collectionYaml.includes('collection-token'), collectionYaml.replace(/\n/g, ' | ').slice(0, 140))
@@ -1643,15 +1659,13 @@ try {
   check('reads them back', reloaded.ok && reloaded.value.docs?.startsWith('## Demo API'), JSON.stringify(reloaded).slice(0, 100))
 
   await evaluate(setTextarea('Collection notes', ''))
-  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await saveVariables()
   await waitFor(async () => !readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the notes to clear')
   check('clearing the notes removes them from the file', true)
 
-  const saveLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
-  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
-  await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 3000, 'the save confirmation')
+  await saveVariables()
   check('a save says so on the button', true)
-  await waitFor(async () => (await evaluate(saveLabel)) === 'Save variables', 5000, 'the confirmation to fade')
+  await waitFor(async () => (await evaluate(saveVariablesLabel)) === 'Save variables', 5000, 'the confirmation to fade')
   check('the confirmation fades back to the label', true)
 
   const icons = await evaluate(`document.querySelectorAll('[data-role="variables"] [data-role="info-hint"]').length`)
