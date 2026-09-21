@@ -79,15 +79,8 @@
  * near-white to suit the bright sky. A light theme, so isDark() reports false for it.
  */
 :root[data-theme='rocket-daylight'] {
-  /*
-   * The sky behind the request editor is the brightest, bluest part of the photo, and the
-   * editor is the one large surface painted with base rather than panel. A half-opaque white
-   * over that sky reads as a grey-blue haze next to the white URL bar and response card, so
-   * base is both more opaque and faintly warm: the warmth cancels what the sky still pushes
-   * through. Panel stays above it, otherwise a card looks bluer than the page it sits on.
-   */
-  --color-base: rgb(253 252 250 / 0.82);
-  --color-panel: rgb(255 255 255 / 0.9);
+  --color-base: rgb(255 255 255 / 0.5);
+  --color-panel: rgb(255 255 255 / 0.72);
   --color-line: rgb(15 23 42 / 0.12);
   --color-accent: #2563eb;
   --color-fg: #16202e;
