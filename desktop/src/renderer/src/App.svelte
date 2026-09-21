@@ -678,13 +678,17 @@
     }
   }
 
-  async function onSaveVariables(): Promise<void> {
+  // Reports success so the panel only confirms a save that happened; a failure shows in
+  // `storeError` instead.
+  async function onSaveVariables(): Promise<boolean> {
     try {
       await persistVariables()
       await persistSecretRows()
       storeError = ''
+      return true
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
+      return false
     }
   }
 
