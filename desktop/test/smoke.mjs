@@ -2229,19 +2229,31 @@ try {
   await waitFor(
     async () =>
       await evaluate(
-        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'available'`
+        `document.querySelector('[data-role="update-badge"]')?.dataset.status === 'available'`
       ),
     3000,
     'the update offer'
   )
-  const offer = await evaluate(`document.querySelector('[data-role="update-banner"]').textContent`)
+  // The badge sits in the header, so the page below it never moves when an offer arrives.
+  const shifted = await evaluate(
+    `!!document.querySelector('header')?.contains(document.querySelector('[data-role="update-badge"]'))`
+  )
+  check('puts the offer in the header, not above the page', shifted === true, String(shifted))
+
+  await evaluate(`document.querySelector('[data-role="update-badge"]').click()`)
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="update-popover"]')`),
+    2000,
+    'the update popover'
+  )
+  const offer = await evaluate(`document.querySelector('[data-role="update-popover"]').textContent`)
   check('shows the offered version', offer.includes('99.0.0'), offer.trim())
 
   await evaluate(`document.querySelector('[data-role="update-download"]').click()`)
   await waitFor(
     async () =>
       await evaluate(
-        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'downloading'`
+        `document.querySelector('[data-role="update-badge"]')?.dataset.status === 'downloading'`
       ),
     2000,
     'the download to start'
@@ -2250,20 +2262,26 @@ try {
   await waitFor(
     async () =>
       await evaluate(
-        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'downloaded'`
+        `document.querySelector('[data-role="update-badge"]')?.dataset.status === 'downloaded'`
       ),
     5000,
     'the download to finish'
   )
   check('reports the update ready to install', true)
 
+  // The popover stayed open through the download, so it now offers the restart.
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="update-install"]')`),
+    2000,
+    'the install button'
+  )
   await evaluate(`document.querySelector('[data-role="update-install"]').click()`)
   // Unsaved work gets an in-app confirmation before the restart.
   await acceptPrompt()
   await waitFor(
     async () =>
       await evaluate(
-        `document.querySelector('[data-role="update-banner"]')?.dataset.status === 'installing'`
+        `document.querySelector('[data-role="update-badge"]')?.dataset.status === 'installing'`
       ),
     3000,
     'the install to start'
