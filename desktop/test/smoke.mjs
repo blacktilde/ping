@@ -484,6 +484,20 @@ try {
       paneState
     )
 
+  const saveVariablesLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
+
+  // The file appears long before the panel has finished saving: the save ends by reloading the
+  // collection, and that reload writes the stored notes back over whatever is in the field. So
+  // an edit typed between the two is reverted under it, and the next save writes the old text —
+  // which is what "timed out waiting for the notes to clear" looked like. The button says
+  // "Saved!" only once the reload has landed, so that is the wait; the fade back to the label
+  // is waited on too, or the confirmation from one save is still on screen for the next check.
+  const saveVariables = async () => {
+    await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+    await waitFor(async () => (await evaluate(saveVariablesLabel)) === 'Saved!', 5000, 'the variables to be saved')
+    await waitFor(async () => (await evaluate(saveVariablesLabel)) === 'Save variables', 5000, 'the confirmation to fade')
+  }
+
   /**
    * Unsaved-changes prompts are the styled in-app dialog, so the script answers it in the
    * DOM. Returns false when no prompt turned up, so conditional confirmations stay one call.
@@ -660,16 +674,9 @@ try {
   await evaluate(clickText('+ Add secret'))
   await evaluate(setInput('Secret name', 'smoke-token'))
   await evaluate(setInput('Secret value', 'secret-value'))
-  await evaluate(clickText('Save variables'))
   // The button says so once both the variables and the secret are stored; a fixed pause
   // would send the request before the secret the token refers to exists.
-  await waitFor(
-    async () =>
-      (await evaluate(`document.querySelector('[data-role="save-variables"]')?.textContent.trim()`)) ===
-      'Saved!',
-    5000,
-    'the variables to be saved'
-  )
+  await saveVariables()
   await evaluate(`document.querySelector('[aria-label="Close variables"]')?.click()`)
   await evaluate(clickTab('Auth'))
   await evaluate(setSelect('Auth type', 'bearer'))
@@ -1674,19 +1681,6 @@ try {
   check('the collection notes are folded behind an icon', await evaluate(`!document.querySelector('textarea[aria-label="Collection notes"]')`))
   await evaluate(`document.querySelector('[data-role="toggle-notes"]').click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('textarea[aria-label="Collection notes"]')`), 5000, 'the collection notes editor')
-  const saveLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
-  // The file appears long before the panel has finished saving: the save ends by reloading the
-  // collection, and that reload writes the stored notes back over whatever is in the field. So
-  // an edit typed between the two is reverted under it, and the next save writes the old text —
-  // which is what "timed out waiting for the notes to clear" looked like. The button says
-  // "Saved!" only once the reload has landed, so that is the wait; the fade back to the label
-  // is waited on too, or the confirmation from one save is still on screen for the next check.
-  const saveVariables = async () => {
-    await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
-    await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 5000, 'the variables to be saved')
-    await waitFor(async () => (await evaluate(saveLabel)) === 'Save variables', 5000, 'the confirmation to fade')
-  }
-
   await evaluate(setTextarea('Collection notes', '## Demo API\n\nUse the **dev** environment.'))
   await saveVariables()
   await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the collection notes on disk')
@@ -1701,9 +1695,9 @@ try {
   check('clearing the notes removes them from the file', true)
 
   await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
-  await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 3000, 'the save confirmation')
+  await waitFor(async () => (await evaluate(saveVariablesLabel)) === 'Saved!', 3000, 'the save confirmation')
   check('a save says so on the button', true)
-  await waitFor(async () => (await evaluate(saveLabel)) === 'Save variables', 5000, 'the confirmation to fade')
+  await waitFor(async () => (await evaluate(saveVariablesLabel)) === 'Save variables', 5000, 'the confirmation to fade')
   check('the confirmation fades back to the label', true)
 
   const icons = await evaluate(`document.querySelectorAll('[data-role="variables"] [data-role="info-hint"]').length`)
@@ -2067,9 +2061,16 @@ try {
   await evaluate(`${runButton}.click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`), 5000, 'the run dialog')
   check('a collection offers a run', true)
-  const runEnvs = await evaluate(
-    `[...document.querySelectorAll('select[aria-label="Environment for the run"] option')].map(o => o.textContent.trim())`
+  const runEnvOptions = `[...document.querySelectorAll('select[aria-label="Environment for the run"] option')].map(o => o.textContent.trim())`
+  // The dialog opens on the click and reads the collection's catalog afterwards, so the picker
+  // holds nothing but "No environment" for a round trip: wait for the collection's own to land.
+  await waitFor(
+    async () => (await evaluate(runEnvOptions)).length > 1,
+    5000,
+    "the run collection's environments",
+    async () => `the picker offered ${JSON.stringify(await evaluate(runEnvOptions))}`
   )
+  const runEnvs = await evaluate(runEnvOptions)
   check("offers the run collection's own environments", runEnvs.join() === 'No environment,Dev', runEnvs.join())
   check(
     'does not take the environment from the header',
