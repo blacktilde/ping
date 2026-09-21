@@ -9,8 +9,17 @@
   import { closeRun, run, startRun } from '../lib/run.svelte'
   import { formatDuration, statusTone } from '../lib/format'
   import { varsCatalog, type EnvironmentRef } from '../lib/vars'
+  import AssertionList from './AssertionList.svelte'
+  import type { AssertionResult } from '../lib/http'
 
   let environments = $state<EnvironmentRef[]>([])
+
+  /**
+   * The rows whose disclosure the user has flipped away from its default. A request that failed
+   * opens by itself — it is what the panel was opened for — so this holds the exceptions in both
+   * directions rather than the open set.
+   */
+  let toggled = $state<string[]>([])
 
   // The collection's own environments, not the header's: a run names one of these or none.
   $effect(() => {
@@ -38,6 +47,13 @@
     }
   })
 
+  // A new run replaces the list, so rows opened by hand during the last one do not carry into it.
+  $effect(() => {
+    if (run.running) {
+      toggled = []
+    }
+  })
+
   const done = $derived(run.requests.length)
   const summary = $derived(run.result)
 
@@ -53,9 +69,17 @@
     return request.passed ? 'passed' : 'failed'
   }
 
-  function describe(assertion: { type: string; target?: string | null; op: string; expected?: string | null }): string {
-    const subject = assertion.target ? `${assertion.type} ${assertion.target}` : assertion.type
-    return assertion.expected ? `${subject} ${assertion.op} ${assertion.expected}` : `${subject} ${assertion.op}`
+  /** Open unless the user said otherwise, for anything that did not pass cleanly. */
+  function isOpen(key: string, verdict: string): boolean {
+    return (verdict !== 'passed') !== toggled.includes(key)
+  }
+
+  function toggle(key: string): void {
+    toggled = toggled.includes(key) ? toggled.filter((other) => other !== key) : [...toggled, key]
+  }
+
+  function failures(results: AssertionResult[]): AssertionResult[] {
+    return results.filter((result) => !result.passed)
   }
 </script>
 
@@ -126,39 +150,82 @@
         <p class="text-xs text-fg-faint">Nothing has run yet.</p>
       {/if}
 
+      {#snippet line(
+        request: { method?: string; name: string; status?: number; durationMs?: number },
+        verdict: string,
+        results: AssertionResult[]
+      )}
+        <span
+          class="w-3 shrink-0 {verdict === 'passed' ? 'text-success' : 'text-danger'}"
+          aria-hidden="true">{verdict === 'passed' ? '✓' : '✗'}</span
+        >
+        <span class="sr-only">{verdict}:</span>
+        <span class="w-9 shrink-0 font-mono text-[10px] uppercase text-fg-faint">
+          {request.method ?? ''}
+        </span>
+        <span class="min-w-0 flex-1 truncate text-fg">{request.name}</span>
+        <!-- The count, always: a request with no assertions passes on any response, and a run
+             that never checked anything should not read like one that did. -->
+        {#if results.length > 0}
+          {@const kept = results.filter((result) => result.passed).length}
+          <span
+            data-role="run-assert-count"
+            class="shrink-0 font-mono {kept === results.length ? 'text-success' : 'text-danger'}"
+          >
+            {kept}/{results.length}
+          </span>
+          <span class="sr-only">assertions passed</span>
+        {:else if verdict !== 'errored'}
+          <span data-role="run-assert-count" class="shrink-0 text-fg-faint">no assertions</span>
+        {/if}
+        {#if request.status !== undefined}
+          <span class="shrink-0 font-mono {statusTone(request.status)}">{request.status}</span>
+        {/if}
+        {#if request.durationMs !== undefined}
+          <span class="shrink-0 text-fg-faint">{formatDuration(request.durationMs)}</span>
+        {/if}
+      {/snippet}
+
       <ul class="space-y-1">
         {#each run.requests as request, index (`${request.path}-${index}`)}
           {@const verdict = outcome(request)}
-          <li data-role="run-request" data-outcome={verdict} class="rounded-md border border-line px-3 py-2">
-            <div class="flex items-center gap-2 text-xs">
-              <span
-                class="w-3 shrink-0 {verdict === 'passed' ? 'text-success' : 'text-danger'}"
-                aria-hidden="true">{verdict === 'passed' ? '✓' : '✗'}</span
+          {@const key = `${request.path}-${index}`}
+          {@const results = request.assertions ?? []}
+          {@const open = isOpen(key, verdict)}
+          {@const shown = open ? results : failures(results)}
+          <li
+            data-role="run-request"
+            data-outcome={verdict}
+            class="rounded-md border border-line px-3 py-2 transition
+                   {results.length > 0 ? 'hover:border-fg-faint' : ''}"
+          >
+            {#if results.length > 0}
+              <button
+                type="button"
+                onclick={() => toggle(key)}
+                aria-expanded={open}
+                class="flex w-full items-center gap-2 rounded-sm text-left text-xs outline-none
+                       focus-visible:ring-1 focus-visible:ring-accent"
               >
-              <span class="sr-only">{verdict}:</span>
-              <span class="w-9 shrink-0 font-mono text-[10px] uppercase text-fg-faint">
-                {request.method ?? ''}
-              </span>
-              <span class="min-w-0 flex-1 truncate text-fg">{request.name}</span>
-              {#if request.status !== undefined}
-                <span class="shrink-0 font-mono {statusTone(request.status)}">{request.status}</span>
-              {/if}
-              {#if request.durationMs !== undefined}
-                <span class="shrink-0 text-fg-faint">{formatDuration(request.durationMs)}</span>
-              {/if}
-            </div>
+                {@render line(request, verdict, results)}
+                <span class="w-3 shrink-0 text-fg-faint" aria-hidden="true">{open ? '▾' : '▸'}</span>
+              </button>
+            {:else}
+              <div class="flex items-center gap-2 text-xs">
+                {@render line(request, verdict, results)}
+                <span class="w-3 shrink-0" aria-hidden="true"></span>
+              </div>
+            {/if}
             {#if request.error}
               <p class="mt-1 pl-5 text-xs text-danger">{request.error}</p>
             {/if}
-            <!-- Only the failures: a run of fifty requests is a list of what went wrong. -->
-            {#each (request.assertions ?? []).filter((assertion) => !assertion.passed) as assertion, position (position)}
-              <p class="mt-1 flex gap-2 pl-5 text-xs">
-                <span class="min-w-0 truncate font-mono text-fg-muted">{describe(assertion)}</span>
-                {#if assertion.message}
-                  <span class="min-w-0 truncate text-danger">{assertion.message}</span>
-                {/if}
-              </p>
-            {/each}
+            <!-- Open shows the lot; closed still shows the failures, so a run of fifty requests
+                 reads as a list of what went wrong without hiding any of it behind a click. -->
+            {#if shown.length > 0}
+              <div data-role="run-assertions" data-open={open}>
+                <AssertionList results={shown} class="mt-1 pl-5" />
+              </div>
+            {/if}
           </li>
         {/each}
       </ul>
