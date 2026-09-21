@@ -964,6 +964,7 @@ try {
       orientations: separators.map(s => s.getAttribute('aria-orientation')),
       requestValue: handle ? Number(handle.getAttribute('aria-valuenow')) : null,
       requestFlex: handle ? handle.previousElementSibling.getAttribute('style') : null,
+      requestHeight: handle ? Math.round(handle.previousElementSibling.getBoundingClientRect().height) : null,
       labelled: !!handle?.getAttribute('aria-label')
     };
   })()`)
@@ -975,6 +976,13 @@ try {
   )
   check('the request split reports its size', handles.requestValue === 50, String(handles.requestValue))
   check('the handle is labelled', handles.labelled)
+  // Until someone sizes it by hand the request pane is only as tall as its content, and the
+  // stored split is the ceiling rather than the share it always takes.
+  check(
+    'the request pane starts fitted to its content',
+    (handles.requestFlex ?? '').includes('max-height'),
+    handles.requestFlex ?? 'none'
+  )
 
   await evaluate(`(() => {
     const section = document.querySelector('[data-role="request"]');
@@ -990,10 +998,17 @@ try {
     return {
       value: Number(handle.getAttribute('aria-valuenow')),
       focused: document.activeElement === handle,
-      flex: section.parentElement.getAttribute('style')
+      flex: section.parentElement.getAttribute('style'),
+      height: Math.round(section.parentElement.getBoundingClientRect().height)
     };
   })()`)
-  check('arrow keys resize the split', resized.value > handles.requestValue, `${handles.requestValue} -> ${resized.value}`)
+  // The first resize pins the pane at the height it was showing, so the reported value is the
+  // fitted fraction plus a step, not the ceiling plus a step. What must grow is the pane.
+  check(
+    'arrow keys resize the split',
+    resized.height > handles.requestHeight,
+    `${handles.requestHeight}px -> ${resized.height}px`
+  )
   check('the handle takes focus', resized.focused)
   check('the pane follows the handle', resized.flex !== handles.requestFlex, `${handles.requestFlex} -> ${resized.flex}`)
 
@@ -1021,6 +1036,29 @@ try {
     return Number(handle.getAttribute('aria-valuenow'));
   })()`)
   check('dragging the handle resizes the split', dragged < resized.value, `${resized.value} -> ${dragged}`)
+
+  // Double-clicking forgets the hand-set height: the pane fits its content under the default
+  // ceiling again, which is the only way back once it has been dragged.
+  await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    return true;
+  })()`)
+  await wait(100)
+  const refitted = await evaluate(`(() => {
+    const section = document.querySelector('[data-role="request"]');
+    const handle = section.parentElement.nextElementSibling;
+    return {
+      value: Number(handle.getAttribute('aria-valuenow')),
+      flex: section.parentElement.getAttribute('style')
+    };
+  })()`)
+  check(
+    'double-clicking the handle fits the pane again',
+    refitted.flex.includes('max-height') && refitted.value === 50,
+    `${refitted.value}, ${refitted.flex}`
+  )
 
   console.log('--- 11. collapse the collections sidebar')
   const sidebarVisible = async () => await evaluate(`!!document.querySelector('[data-role="sidebar"]')`)

@@ -47,10 +47,10 @@
       aria-label={label}
       {placeholder}
       spellcheck="true"
-      class="min-h-0 flex-1 resize-none bg-transparent py-3 font-mono text-sm outline-none"
+      class="min-h-0 flex-auto resize-none bg-transparent py-3 font-mono text-sm outline-none"
     ></textarea>
   {:else}
-    <div data-role="docs-preview" class="markdown min-h-0 flex-1 overflow-auto py-3 text-sm">
+    <div data-role="docs-preview" class="markdown min-h-0 flex-auto overflow-auto py-3 text-sm">
       {#if html}
         <!-- eslint-disable-next-line svelte/no-at-html-tags -- output of renderMarkdown: raw HTML is off and links are validated -->
         {@html html}

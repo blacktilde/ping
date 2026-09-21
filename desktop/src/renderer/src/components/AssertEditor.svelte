@@ -38,7 +38,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <div class="flex-1 overflow-auto">
+  <div class="min-h-0 flex-auto overflow-auto">
     {#if items.length === 0}
       <p class="py-6 text-sm text-fg-faint">
         No assertions. Add one to check status, headers, JSON values, body text or timing on

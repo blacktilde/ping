@@ -39,7 +39,7 @@
     {/if}
   </div>
 
-  <div class="min-h-0 flex-1">
+  <div class="min-h-0 flex-auto">
     {#if body.type === 'none'}
       <p class="py-6 text-sm text-fg-faint">This request sends no body.</p>
     {:else if body.type === 'json'}

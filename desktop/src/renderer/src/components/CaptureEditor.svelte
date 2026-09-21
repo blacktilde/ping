@@ -21,7 +21,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <div class="flex-1 overflow-auto">
+  <div class="min-h-0 flex-auto overflow-auto">
     {#if items.length === 0}
       <p class="py-6 text-sm text-fg-faint">
         Nothing captured. Keep a value from the response, such as a token, and use it in the next

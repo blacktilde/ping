@@ -142,6 +142,17 @@
   // `{{name}}` placeholder because secret values never reach the renderer.
   const curlCommand = $derived(toCurl(active.draft, { variables: variables.resolved }))
 
+  /**
+   * How much room the open editor needs before fitting to its content makes sense. A list of
+   * rows is honest at its natural height; a text surface that happens to be empty is not.
+   */
+  const editorFloor = $derived(
+    active.editorTab === 'docs' ||
+      (active.editorTab === 'body' && (active.draft.body.type === 'json' || active.draft.body.type === 'raw'))
+      ? 260
+      : 0
+  )
+
   const requestTabs = $derived([
     { id: 'params', label: 'Params', badge: queryCount > 0 ? String(queryCount) : null },
     { id: 'headers', label: 'Headers', badge: headerCount > 0 ? String(headerCount) : null },
@@ -1395,7 +1406,12 @@
         </p>
       {/if}
 
-      <SplitPane storageKey="ping.split.request" label="Resize request and response">
+      <SplitPane
+        storageKey="ping.split.request"
+        label="Resize request and response"
+        fit
+        fitMin={editorFloor}
+      >
         {#snippet first()}
           <section
             data-role="request"
@@ -1412,7 +1428,7 @@
               id="request-panel"
               role="tabpanel"
               aria-labelledby={`request-tab-${active.editorTab}`}
-              class="min-h-0 flex-1"
+              class="min-h-0 flex-auto"
             >
               {#if active.editorTab === 'params'}
                 <KeyValueEditor
