@@ -22,6 +22,7 @@
   import { confirmDialog } from './lib/confirm.svelte'
   import { assertCount, captureCount, enabledCount, METHODS, toRequestSpec } from './lib/request'
   import { refreshRuntime } from './lib/runtime.svelte'
+  import { openRun, run, watchRunProgress } from './lib/run.svelte'
   import { refreshCookies } from './lib/cookies.svelte'
   import {
     activeTab,
@@ -83,6 +84,7 @@
   import CommandPalette from './components/CommandPalette.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import NetworkSettings from './components/NetworkSettings.svelte'
+  import RunPanel from './components/RunPanel.svelte'
   import UpdateBanner from './components/UpdateBanner.svelte'
   import appIcon from '../../../build/icon.png'
   import type { HistoryEntry } from '../../shared/history'
@@ -261,6 +263,10 @@
         : 'Authorized'
     })
   })
+
+  // A run reports each request as it finishes. The subscription lives here rather than in the
+  // panel so closing the panel mid-run does not lose the rest of it.
+  $effect(() => watchRunProgress())
 
   $effect(() => {
     return window.ping.onCoreState((state) => {
@@ -469,6 +475,16 @@
       return
     }
     void openRequest(node)
+  }
+
+  /**
+   * Opens the run panel for a collection. The environment defaults to the one in the header
+   * when the run is of the collection the open tab belongs to, and to none otherwise: the
+   * header's choice says nothing about a collection the user is not editing.
+   */
+  function runCollection(node: StoreNode): void {
+    const environment = node.path === activeCollection ? variables.environment : ''
+    openRun(node.path, node.name, environment)
   }
 
   async function createIn(collectionPath: string): Promise<void> {
@@ -953,6 +969,15 @@
     }
     if (activeCollection) {
       commands.push({ id: 'new', label: 'New request', run: () => void createIn(activeCollection) })
+      const collectionNode = findNode(nodes, activeCollection)
+      commands.push({
+        id: 'run-collection',
+        label: `Run collection: ${collectionNode?.name ?? activeCollection}`,
+        run: () =>
+          runCollection(
+            collectionNode ?? { name: activeCollection, path: activeCollection, type: 'collection' }
+          )
+      })
     }
     if (active.draft.auth.type === 'oauth2-authorization-code') {
       commands.push({ id: 'authorize', label: 'Authorize (OAuth2)', run: () => void authorize() })
@@ -1467,6 +1492,7 @@
         bind:panel={sidebarPanel}
         onSelect={selectNode}
         onCreate={createIn}
+        onRun={runCollection}
         onDelete={deleteNode}
         onOpenLocation={openLocation}
         onRename={(node, name) => void renameNode(node, name)}
@@ -1490,6 +1516,10 @@
 
   {#if showNetwork}
     <NetworkSettings onClose={() => (showNetwork = false)} />
+  {/if}
+
+  {#if run.open}
+    <RunPanel />
   {/if}
 
   <ConfirmDialog />

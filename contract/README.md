@@ -372,6 +372,11 @@ order. File paths in a request resolve against that folder (see *Files in a requ
 the response carries the whole `RunResult`. A request that gets no response is *errored*, one
 that gets a response and fails an assertion is *failed*, and either way the run continues.
 
+In the app a run is started from a collection's Run button, and the shell fills in what the
+renderer has no business naming: the secrets as `variables`, the user's `network` settings, and
+`allowAbsoluteFiles: false`. A run keeps its own runtime scope, so a value the UI captured in an
+ordinary send never changes what a run puts on the wire.
+
 The same code backs the command line. The core binary with **no arguments** serves this
 protocol on stdio, which is how the desktop shell spawns it; with arguments it is a CLI:
 

@@ -33,8 +33,12 @@ interface PendingCall {
 
 const RESPONSE_TIMEOUT_MS = 60_000
 
-/** `http.send` runs until its own `timeoutMs` or Cancel, so the shell must not cut it off. */
-const UNBOUNDED_METHODS = new Set(['http.send'])
+/**
+ * Methods whose duration is the user's, not the shell's, so the timeout above must not cut
+ * them off: `http.send` runs until its own `timeoutMs` or Cancel, and a run is that timeout
+ * once per request in the collection.
+ */
+const UNBOUNDED_METHODS = new Set(['http.send', 'run.collection'])
 
 const RESTART_BASE_MS = 500
 const RESTART_MAX_MS = 10_000
