@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { Compartment, EditorState, type Extension } from '@codemirror/state'
+  import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
   import { EditorView } from '@codemirror/view'
   import { basicSetup } from 'codemirror'
   import { json, jsonParseLinter } from '@codemirror/lang-json'
@@ -13,13 +13,16 @@
     language?: 'json' | 'plain'
     label?: string
     readonly?: boolean
+    /** Horizontal inset for the editor, including its line-number gutter. */
+    pad?: string
   }
 
   let {
     value = $bindable(''),
     language = 'plain',
     label = 'Request body',
-    readonly = false
+    readonly = false,
+    pad = ''
   }: Props = $props()
 
   let host: HTMLDivElement
@@ -34,6 +37,11 @@
     },
     '.cm-content': { padding: '12px 0' },
     '.cm-gutters': { backgroundColor: 'transparent', border: 'none' }
+  })
+
+  const noActiveLine = EditorView.theme({
+    '.cm-activeLine': { backgroundColor: 'transparent' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent' }
   })
 
   const themeCompartment = new Compartment()
@@ -66,7 +74,8 @@
       list.push(json(), linter(jsonParseLinter()))
     }
     if (readonly) {
-      list.push(EditorState.readOnly.of(true))
+      // A response has no cursor, so oneDark's active-line band would mark a line for no reason.
+      list.push(EditorState.readOnly.of(true), Prec.highest(noActiveLine))
     }
     return list
   }
@@ -95,4 +104,4 @@
   })
 </script>
 
-<div bind:this={host} class="h-full overflow-hidden"></div>
+<div bind:this={host} class="h-full overflow-hidden {pad}"></div>

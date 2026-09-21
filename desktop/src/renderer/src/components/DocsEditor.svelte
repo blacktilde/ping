@@ -22,7 +22,7 @@
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
-  <div class="flex items-center gap-1 border-b border-line px-3 py-1.5">
+  <div class="flex items-center gap-1 border-b border-line py-1.5">
     <div role="tablist" aria-label="{label} view" class="flex items-center gap-1">
       {#each ['edit', 'preview'] as const as option (option)}
         <button
@@ -47,10 +47,10 @@
       aria-label={label}
       {placeholder}
       spellcheck="true"
-      class="min-h-0 flex-1 resize-none bg-base px-4 py-3 font-mono text-sm outline-none"
+      class="min-h-0 flex-1 resize-none bg-transparent py-3 font-mono text-sm outline-none"
     ></textarea>
   {:else}
-    <div data-role="docs-preview" class="markdown min-h-0 flex-1 overflow-auto px-4 py-3 text-sm">
+    <div data-role="docs-preview" class="markdown min-h-0 flex-1 overflow-auto py-3 text-sm">
       {#if html}
         <!-- eslint-disable-next-line svelte/no-at-html-tags -- output of renderMarkdown: raw HTML is off and links are validated -->
         {@html html}

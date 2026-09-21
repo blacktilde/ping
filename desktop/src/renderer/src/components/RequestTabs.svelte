@@ -92,7 +92,7 @@
              {active ? 'border-accent' : 'border-transparent'}"
     >
       {#if renaming === tab.id}
-        <span class="flex items-center gap-1.5 py-1 pl-3 text-sm">
+        <span class="flex items-center gap-1.5 py-3 pl-3 text-sm">
           <span class="font-mono text-[10px] uppercase text-fg-faint">{tab.draft.method}</span>
           <input
             bind:this={renameInput}
@@ -118,8 +118,8 @@
           ondblclick={() => startRename(tab)}
           onkeydown={(event) => onKeydown(event, index)}
           title={tab.path ?? tab.draft.name}
-          class="flex items-center gap-1.5 py-2 pl-3 text-sm transition
-                 {active ? 'text-fg' : 'text-fg-muted hover:text-fg'}"
+          class="flex items-center gap-2 py-3.5 pl-3 text-sm transition
+                 {active ? 'font-medium text-fg' : 'text-fg-muted hover:text-fg'}"
         >
           <span class="font-mono text-[10px] uppercase text-fg-faint">{tab.draft.method}</span>
           <span class="max-w-40 truncate">{tab.draft.name || 'Untitled request'}</span>
@@ -150,7 +150,7 @@
     onclick={onNew}
     aria-label="New request tab"
     title={`New request tab (${mod}T)`}
-    class="my-1 shrink-0 rounded-md px-2 text-lg leading-none text-fg-faint transition
+    class="my-2 shrink-0 rounded-md px-2 text-lg leading-none text-fg-faint transition
            hover:bg-line/60 hover:text-fg"
   >
     +

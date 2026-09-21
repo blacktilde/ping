@@ -8,7 +8,7 @@
   let { results }: Props = $props()
 </script>
 
-<div data-role="captures" class="border-b border-line px-4 py-2 text-xs">
+<div data-role="captures" class="border-b border-line px-5 py-2.5 text-xs">
   <p class="text-fg-muted">Captured for the next request</p>
   <ul class="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
     {#each results as result, index (index)}

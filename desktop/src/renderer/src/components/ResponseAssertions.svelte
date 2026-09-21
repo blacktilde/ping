@@ -12,7 +12,7 @@
   const allPassed = $derived(passed === results.length)
 </script>
 
-<div data-role="assertions" data-passed={allPassed} class="border-b border-line px-4 py-2 text-xs">
+<div data-role="assertions" data-passed={allPassed} class="border-b border-line px-5 py-2.5 text-xs">
   <p
     data-role="assertions-summary"
     class="font-medium {allPassed ? 'text-success' : 'text-danger'}"

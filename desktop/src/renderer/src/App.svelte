@@ -1109,13 +1109,16 @@
 
       <UpdateBanner hasUnsaved={anyDirty} />
 
-    <RequestTabs
-      tabs={tabs.list}
-      activeId={tabs.activeId}
-      onActivate={activateTab}
-      onClose={closeRequestTab}
-      onNew={newTab}
-    />
+    <!-- Edge to edge: the strip's rule separates it from the page, so it ignores the gutter. -->
+    <div class="-mx-5">
+      <RequestTabs
+        tabs={tabs.list}
+        activeId={tabs.activeId}
+        onActivate={activateTab}
+        onClose={closeRequestTab}
+        onNew={newTab}
+      />
+    </div>
 
     <div
       id="request-tabpanel"
@@ -1124,7 +1127,7 @@
       class="flex min-h-0 flex-1 flex-col gap-3"
     >
       <form
-        class="flex gap-2"
+        class="flex gap-2.5"
         onsubmit={(event) => {
           event.preventDefault()
           void send()
@@ -1242,10 +1245,24 @@
         <button
           type="submit"
           disabled={active.inFlight}
-          class="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white
-                 transition hover:brightness-110 disabled:opacity-40"
+          class="flex shrink-0 items-center gap-2 rounded-lg border border-accent px-7 py-2.5
+                 text-sm font-medium text-accent transition hover:bg-accent/10
+                 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           {active.inFlight ? (streaming ? 'Streaming…' : 'Sending…') : 'Send'}
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="4" y1="12" x2="19" y2="12" />
+            <polyline points="13 6 19 12 13 18" />
+          </svg>
         </button>
 
         {#if active.inFlight}
@@ -1382,9 +1399,14 @@
         {#snippet first()}
           <section
             data-role="request"
-            class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
+            class="flex min-h-0 flex-col overflow-hidden bg-base"
           >
-            <Tabs tabs={requestTabs} bind:active={active.editorTab} idPrefix="request" />
+            <Tabs
+              tabs={requestTabs}
+              bind:active={active.editorTab}
+              idPrefix="request"
+              pad="px-0"
+            />
 
             <div
               id="request-panel"

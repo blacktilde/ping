@@ -24,7 +24,7 @@
 </script>
 
 <div class="flex h-full flex-col overflow-auto">
-  <div class="flex items-center gap-3 border-b border-line px-4 py-2">
+  <div class="flex items-center gap-3 border-b border-line py-2">
     <select
       bind:value={auth.type}
       aria-label="Auth type"
@@ -42,7 +42,7 @@
     </span>
   </div>
 
-  <div class="flex flex-col gap-3 p-4">
+  <div class="flex flex-col gap-3 py-4">
     {#if auth.type === 'basic'}
       <label class="flex items-center gap-3">
         <span class="w-28 shrink-0 text-sm text-fg-muted">Username</span>

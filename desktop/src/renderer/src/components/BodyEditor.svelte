@@ -16,7 +16,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <div class="flex items-center gap-3 border-b border-line px-4 py-2">
+  <div class="flex items-center gap-3 border-b border-line py-2">
     <select
       bind:value={body.type}
       aria-label="Body mode"
@@ -41,13 +41,13 @@
 
   <div class="min-h-0 flex-1">
     {#if body.type === 'none'}
-      <p class="px-4 py-6 text-sm text-fg-faint">This request sends no body.</p>
+      <p class="py-6 text-sm text-fg-faint">This request sends no body.</p>
     {:else if body.type === 'json'}
       <CodeEditor bind:value={body.content} language="json" label="JSON request body" />
     {:else if body.type === 'raw'}
       <CodeEditor bind:value={body.content} language="plain" label="Raw request body" />
     {:else if body.type === 'file'}
-      <div class="flex items-center px-4 py-4">
+      <div class="flex items-center py-4">
         <FileField
           path={body.file || undefined}
           {collection}
@@ -55,7 +55,7 @@
           onChange={(path) => (body.file = path)}
         />
       </div>
-      <p class="px-4 text-xs text-fg-faint">
+      <p class="text-xs text-fg-faint">
         The file is sent exactly as it is on disk, streamed rather than loaded into memory.
       </p>
     {:else if body.type === 'multipart'}

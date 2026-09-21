@@ -36,7 +36,7 @@
   }
 </script>
 
-<div class="h-full overflow-auto p-4">
+<div class="h-full overflow-auto p-5">
   <div class="flex h-3 w-full overflow-hidden rounded-full bg-base" aria-hidden="true">
     <div class="bg-accent/70" style="width: {width(dns)}"></div>
     <div class="bg-accent/80" style="width: {width(timing.ttfbMs)}"></div>
