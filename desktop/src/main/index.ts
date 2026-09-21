@@ -284,6 +284,21 @@ function withSecrets(params: unknown): Record<string, unknown> {
 }
 
 /**
+ * A run's variables, which are the shell's alone.
+ *
+ * A run resolves `{{name}}` from the collection's own files; the secrets go on top, so a
+ * collection that authenticates with one runs exactly as a send of the same request does. The
+ * session's runtime map is deliberately left out: a run carries its own runtime scope from its
+ * own captures, so a value captured in the UI cannot change what a run sends. Whatever the
+ * renderer sent is discarded, the way `network` is — it has no business naming the values that
+ * outrank every file.
+ */
+function withRunVariables(params: unknown): Record<string, unknown> {
+  const source = params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
+  return { ...source, variables: secrets.all() }
+}
+
+/**
  * Restores a stored access token for an authorization-code request. The key is built the
  * same way the core builds it, so a token survives an app restart.
  */
@@ -637,7 +652,7 @@ function registerIpc(): void {
     if (method.startsWith('run.')) {
       // A collection is data from disk and possibly from someone else: it must not be able to make
       // the app upload an arbitrary absolute path, and the renderer cannot ask it to.
-      args = { ...(args as Record<string, unknown>), allowAbsoluteFiles: false }
+      args = { ...withRunVariables(args), allowAbsoluteFiles: false }
     }
 
     try {
