@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { methodTone } from '../lib/format'
   import { draftKey } from '../lib/store'
   import type { RequestTab } from '../lib/tabs.svelte'
 
@@ -93,7 +94,7 @@
     >
       {#if renaming === tab.id}
         <span class="flex items-center gap-1.5 py-3 pl-3 text-sm">
-          <span class="font-mono text-[10px] uppercase text-fg-faint">{tab.draft.method}</span>
+          <span class="font-mono text-[10px] uppercase {methodTone(tab.draft.method)}">{tab.draft.method}</span>
           <input
             bind:this={renameInput}
             bind:value={renameValue}
@@ -121,7 +122,7 @@
           class="flex items-center gap-2 py-3.5 pl-3 text-sm transition
                  {active ? 'font-medium text-fg' : 'text-fg-muted hover:text-fg'}"
         >
-          <span class="font-mono text-[10px] uppercase text-fg-faint">{tab.draft.method}</span>
+          <span class="font-mono text-[10px] uppercase {methodTone(tab.draft.method)}">{tab.draft.method}</span>
           <span class="max-w-40 truncate">{tab.draft.name || 'Untitled request'}</span>
           {#if dirty(tab)}
             <span

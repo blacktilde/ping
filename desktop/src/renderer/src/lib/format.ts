@@ -28,6 +28,29 @@ export function statusTone(status: number): string {
   return 'text-neutral-300'
 }
 
+/**
+ * The colour a verb wears in the URL bar. Read-only verbs sit on the calm end and the ones
+ * that change something on the server sit on the loud end, so a DELETE is hard to mistake
+ * for a GET at a glance. The shades are theme variables (see app.css): the dark ones are
+ * unreadable on a light panel, so a light theme redefines them.
+ */
+export function methodTone(method: string): string {
+  switch (method) {
+    case 'GET':
+      return 'text-verb-get'
+    case 'POST':
+      return 'text-verb-post'
+    case 'PUT':
+      return 'text-verb-put'
+    case 'PATCH':
+      return 'text-verb-patch'
+    case 'DELETE':
+      return 'text-verb-delete'
+    default:
+      return 'text-fg-muted'
+  }
+}
+
 const REASONS: Record<number, string> = {
   100: 'Continue', 101: 'Switching Protocols', 200: 'OK', 201: 'Created', 202: 'Accepted',
   203: 'Non-Authoritative Information', 204: 'No Content', 205: 'Reset Content',
