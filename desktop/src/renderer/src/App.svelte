@@ -1447,7 +1447,7 @@
         {#snippet first()}
           <section
             data-role="request"
-            class="flex min-h-0 flex-col overflow-hidden bg-base"
+            class="flex min-h-0 flex-col overflow-hidden"
           >
             <Tabs
               tabs={requestTabs}
