@@ -2061,9 +2061,16 @@ try {
   await evaluate(`${runButton}.click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`), 5000, 'the run dialog')
   check('a collection offers a run', true)
-  const runEnvs = await evaluate(
-    `[...document.querySelectorAll('select[aria-label="Environment for the run"] option')].map(o => o.textContent.trim())`
+  const runEnvOptions = `[...document.querySelectorAll('select[aria-label="Environment for the run"] option')].map(o => o.textContent.trim())`
+  // The dialog opens on the click and reads the collection's catalog afterwards, so the picker
+  // holds nothing but "No environment" for a round trip: wait for the collection's own to land.
+  await waitFor(
+    async () => (await evaluate(runEnvOptions)).length > 1,
+    5000,
+    "the run collection's environments",
+    async () => `the picker offered ${JSON.stringify(await evaluate(runEnvOptions))}`
   )
+  const runEnvs = await evaluate(runEnvOptions)
   check("offers the run collection's own environments", runEnvs.join() === 'No environment,Dev', runEnvs.join())
   check(
     'does not take the environment from the header',
