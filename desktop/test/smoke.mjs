@@ -1674,8 +1674,21 @@ try {
   check('the collection notes are folded behind an icon', await evaluate(`!document.querySelector('textarea[aria-label="Collection notes"]')`))
   await evaluate(`document.querySelector('[data-role="toggle-notes"]').click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('textarea[aria-label="Collection notes"]')`), 5000, 'the collection notes editor')
+  const saveLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
+  // The file appears long before the panel has finished saving: the save ends by reloading the
+  // collection, and that reload writes the stored notes back over whatever is in the field. So
+  // an edit typed between the two is reverted under it, and the next save writes the old text —
+  // which is what "timed out waiting for the notes to clear" looked like. The button says
+  // "Saved!" only once the reload has landed, so that is the wait; the fade back to the label
+  // is waited on too, or the confirmation from one save is still on screen for the next check.
+  const saveVariables = async () => {
+    await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+    await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 5000, 'the variables to be saved')
+    await waitFor(async () => (await evaluate(saveLabel)) === 'Save variables', 5000, 'the confirmation to fade')
+  }
+
   await evaluate(setTextarea('Collection notes', '## Demo API\n\nUse the **dev** environment.'))
-  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await saveVariables()
   await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the collection notes on disk')
   const collectionYaml = readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8')
   check('saves collection notes beside the variables', collectionYaml.includes('Use the **dev** environment') && collectionYaml.includes('collection-token'), collectionYaml.replace(/\n/g, ' | ').slice(0, 140))
@@ -1683,11 +1696,10 @@ try {
   check('reads them back', reloaded.ok && reloaded.value.docs?.startsWith('## Demo API'), JSON.stringify(reloaded).slice(0, 100))
 
   await evaluate(setTextarea('Collection notes', ''))
-  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await saveVariables()
   await waitFor(async () => !readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the notes to clear')
   check('clearing the notes removes them from the file', true)
 
-  const saveLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
   await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
   await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 3000, 'the save confirmation')
   check('a save says so on the button', true)
