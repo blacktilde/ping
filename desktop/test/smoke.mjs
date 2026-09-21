@@ -232,6 +232,12 @@ writeFileSync(
     ''
   ].join('\n')
 )
+// No assertions at all: it passes on any response, which the panel says out loud rather than
+// letting it read like a request that was actually checked.
+writeFileSync(
+  join(workspaceDir, 'run-demo', 'zero-checks.yaml'),
+  ['name: Zero checks', 'method: GET', "url: '{{host}}/data'", ''].join('\n')
+)
 
 // A Postman export the import flow reads. The shell normally asks a file dialog; the smoke
 // test cannot drive a native dialog, so PING_IMPORT_FILE stands in for it.
@@ -2048,7 +2054,8 @@ try {
   console.log('--- 15m. run a whole collection')
   // The run happens in the core; what is proved here is the shell's half of it: the button on a
   // collection, progress arriving as notifications, the environment picked for the run rather
-  // than taken from the header, and a failed assertion shown for the request it belongs to.
+  // than taken from the header, and every request's assertions shown with it — failures always,
+  // the passing ones behind the row's disclosure.
   const runRows = () =>
     evaluate(`[...document.querySelectorAll('[data-role="run-request"]')].map(r => r.dataset.outcome)`)
   const runSummary = () =>
@@ -2081,23 +2088,86 @@ try {
   // run reports that rather than stopping at the first one.
   await evaluate(`document.querySelector('[data-role="run-start"]').click()`)
   await waitFor(async () => (await runSummary()) !== null, 20_000, 'the run to finish')
-  check('a request with no response is errored, and the run carries on', (await runRows()).join() === 'errored,errored', (await runRows()).join())
+  check(
+    'a request with no response is errored, and the run carries on',
+    (await runRows()).join() === 'errored,errored,errored',
+    (await runRows()).join()
+  )
   const deadRun = await runSummary()
-  check('summarises the run', /0\/2 passed, 2 errored/.test(deadRun ?? ''), deadRun)
+  check('summarises the run', /0\/3 passed, 3 errored/.test(deadRun ?? ''), deadRun)
 
   // The same collection against the loopback server: one assertion holds, one does not.
   await evaluate(setSelect('Environment for the run', 'run-demo/environments/dev.yaml'))
   await evaluate(`document.querySelector('[data-role="run-start"]').click()`)
-  await waitFor(async () => /1\/2 passed/.test((await runSummary()) ?? ''), 20_000, 'the second run')
+  await waitFor(async () => /2\/3 passed/.test((await runSummary()) ?? ''), 20_000, 'the second run')
   const liveRows = await runRows()
-  check('shows each request as it finishes', liveRows.length === 2, liveRows.join())
-  check('a failed assertion is not an error', liveRows.join() === 'passed,failed', liveRows.join())
+  check('shows each request as it finishes', liveRows.length === 3, liveRows.join())
+  check('a failed assertion is not an error', liveRows.join() === 'passed,failed,passed', liveRows.join())
   const liveRun = await runSummary()
-  check('names the environment the run used', /1\/2 passed, 1 failed/.test(liveRun ?? '') && /Dev/.test(liveRun ?? ''), liveRun)
+  check('names the environment the run used', /2\/3 passed, 1 failed/.test(liveRun ?? '') && /Dev/.test(liveRun ?? ''), liveRun)
   const failedRow = await evaluate(
     `document.querySelector('[data-role="run-request"][data-outcome="failed"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? ''`
   )
   check('says which assertion failed', /Two red/.test(failedRow) && /status equals 500/.test(failedRow), failedRow)
+
+  // Every row carries its tally, so a passing request is not mistaken for an unchecked one, and
+  // the unchecked one says so rather than passing quietly on any response.
+  const counts = await evaluate(
+    `[...document.querySelectorAll('[data-role="run-request"]')].map(r => r.querySelector('[data-role="run-assert-count"]')?.textContent.trim() ?? '')`
+  )
+  check('counts the assertions on every row', counts.join('|') === '1/1|0/1|no assertions', counts.join('|'))
+
+  // A passing request folds its assertions away; a failed one opens by itself.
+  const rowState = () =>
+    evaluate(`[...document.querySelectorAll('[data-role="run-request"]')].map(r => ({
+      expanded: r.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded') ?? null,
+      assertions: [...r.querySelectorAll('[data-role="assertion"]')].map(a => a.dataset.passed).join()
+    }))`)
+  const folded = await rowState()
+  check(
+    'a passing request folds its assertions away',
+    folded[0].expanded === 'false' && folded[0].assertions === '',
+    JSON.stringify(folded[0])
+  )
+  check(
+    'a failed request opens itself',
+    folded[1].expanded === 'true' && folded[1].assertions === 'false',
+    JSON.stringify(folded[1])
+  )
+  check('a request with no assertions offers nothing to open', folded[2].expanded === null, JSON.stringify(folded[2]))
+
+  await evaluate(
+    `document.querySelectorAll('[data-role="run-request"]')[0].querySelector('button[aria-expanded]').click()`
+  )
+  await waitFor(async () => (await rowState())[0].assertions === 'true', 5000, 'the assertions that passed')
+  const opened = await rowState()
+  check('opening a row shows the assertions that passed', opened[0].expanded === 'true', JSON.stringify(opened[0]))
+
+  // One control for the lot. Both rows that assert anything are open by now — the failed one by
+  // itself, the passing one by the click above — so it offers to close them first.
+  const toggleAll = `document.querySelector('[data-role="run-toggle-all"]')`
+  const toggleAllLabel = () => evaluate(`${toggleAll}?.getAttribute('aria-label') ?? null`)
+  check('offers to collapse every row at once', (await toggleAllLabel()) === 'Collapse all assertions', await toggleAllLabel())
+  await evaluate(`${toggleAll}.click()`)
+  await waitFor(async () => (await rowState())[1].expanded === 'false', 5000, 'the rows to collapse')
+  const collapsed = await rowState()
+  check(
+    'collapsing all closes a row that opened itself',
+    collapsed[0].expanded === 'false' && collapsed[1].expanded === 'false',
+    JSON.stringify(collapsed)
+  )
+  check('a failure stays visible in a collapsed row', collapsed[1].assertions === 'false', JSON.stringify(collapsed[1]))
+  check('and the control now offers the other direction', (await toggleAllLabel()) === 'Expand all assertions', await toggleAllLabel())
+
+  await evaluate(`${toggleAll}.click()`)
+  await waitFor(async () => (await rowState())[0].assertions === 'true', 5000, 'the rows to expand')
+  const expanded = await rowState()
+  check(
+    'expanding all opens every row that has assertions',
+    expanded[0].expanded === 'true' && expanded[1].expanded === 'true',
+    JSON.stringify(expanded)
+  )
+  check('a request with no assertions is left alone', expanded[2].expanded === null, JSON.stringify(expanded[2]))
 
   await evaluate(`document.querySelector('[data-role="run-close"]').click()`)
   await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`)), 5000, 'the run dialog to close')
