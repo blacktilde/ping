@@ -44,6 +44,11 @@ tasks.test {
     // The JDK reads this once, when its first HttpClient loads, and any earlier test may have made
     // one; the core sets the same value itself at startup (see HttpEngine).
     systemProperty("jdk.http.auth.tunneling.disabledSchemes", "")
+    // A file name crosses to the OS as sun.jnu.encoding, which JEP 400 left tied to the locale
+    // rather than moving it to UTF-8 with file.encoding. The worker inherits that locale from
+    // whichever environment started the Gradle daemon, so a suite that writes a non-ASCII file
+    // name passes or fails by which daemon it lands on. C.UTF-8 needs no generated locale.
+    environment("LC_ALL", "C.UTF-8")
 }
 
 if (project.hasProperty("agent")) {
