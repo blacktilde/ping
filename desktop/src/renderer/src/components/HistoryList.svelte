@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { HistoryEntry } from '../../../shared/history'
-  import { formatDuration } from '../lib/format'
+  import { formatDuration, methodTone } from '../lib/format'
 
   interface Props {
     entries: HistoryEntry[]
@@ -74,7 +74,7 @@
           class="group flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm
                  transition hover:bg-line/50"
         >
-          <span class="w-9 shrink-0 font-mono text-[10px] uppercase text-fg-faint">
+          <span class="w-12 shrink-0 font-mono text-[10px] uppercase {methodTone(entry.method)}">
             {entry.method}
           </span>
           <span class="min-w-0 flex-1">

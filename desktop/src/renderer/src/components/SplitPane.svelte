@@ -9,6 +9,18 @@
     // Slides the anchored pane (the second for `end`, else the first) shut and unmounts it once
     // it is out of sight. The other pane stays mounted throughout. Pixel splits only.
     collapsed?: boolean
+    /**
+     * The first pane takes only the height its content needs, between `min` and the stored
+     * split, instead of always claiming its share. Resizing pins it to an explicit size;
+     * double-clicking the handle lets it fit again. Fraction splits only.
+     */
+    fit?: boolean
+    /**
+     * A floor in pixels for a fitting pane, for content that has no useful height of its own —
+     * an empty code editor is one line tall, and one line is not somewhere to type. Ignored
+     * once the pane is sized by hand, so a deliberate drag can still go below it.
+     */
+    fitMin?: number
     initial?: number
     min?: number
     max?: number
@@ -23,6 +35,8 @@
     unit = 'fraction',
     anchor = 'start',
     collapsed = false,
+    fit = false,
+    fitMin = 0,
     initial = unit === 'fraction' ? 0.5 : 256,
     min = unit === 'fraction' ? 0.15 : 180,
     max = unit === 'fraction' ? 0.85 : 520,
@@ -53,9 +67,52 @@
     }
   }
 
+  /**
+   * A fitting split has no explicit first size: the pane is as tall as its content, and the
+   * stored value is only the ceiling. The choice persists, so a pane someone sized by hand
+   * stays that way across launches.
+   */
+  function storedFixed(): boolean {
+    if (!storageKey) {
+      return false
+    }
+    try {
+      return localStorage.getItem(`${storageKey}.fixed`) === '1'
+    } catch {
+      return false
+    }
+  }
+
   let size = $state(stored())
+  let fixed = $state(untrack(() => !fit || unit !== 'fraction' || storedFixed()))
   let dragging = $state(false)
   let container = $state<HTMLDivElement>()
+  let firstPane = $state<HTMLDivElement>()
+
+  function setFixed(value: boolean): void {
+    fixed = value
+    if (!storageKey) {
+      return
+    }
+    try {
+      localStorage.setItem(`${storageKey}.fixed`, value ? '1' : '0')
+    } catch {
+      // A locked-down profile just means the choice is not remembered.
+    }
+  }
+
+  /**
+   * Pins a fitting pane at the height it is showing right now, so the first drag continues
+   * from where the handle sits rather than jumping to the stored ceiling.
+   */
+  function fixAtCurrent(): void {
+    const bounds = container?.getBoundingClientRect()
+    const pane = firstPane?.getBoundingClientRect()
+    if (bounds && pane && bounds.height > 0) {
+      apply(pane.height / bounds.height)
+    }
+    setFixed(true)
+  }
 
   function apply(next: number): void {
     size = clamp(next)
@@ -74,6 +131,9 @@
     const rect = container?.getBoundingClientRect()
     if (!rect) {
       return
+    }
+    if (!fixed) {
+      fixAtCurrent()
     }
     dragging = true
     // Keep receiving moves even if the pointer leaves the window. Synthetic events in tests
@@ -109,8 +169,20 @@
     window.addEventListener('pointerup', stop)
   }
 
+  /** Forgets a hand-set height: the pane fits its content again, under the default ceiling. */
+  function refit(): void {
+    if (!fit || unit !== 'fraction') {
+      return
+    }
+    apply(initial)
+    setFixed(false)
+  }
+
   function onKeydown(event: KeyboardEvent): void {
     const step = unit === 'fraction' ? (event.shiftKey ? 0.1 : 0.02) : event.shiftKey ? 48 : 16
+    if (!fixed && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      fixAtCurrent()
+    }
     const decrease = vertical ? 'ArrowUp' : sign < 0 ? 'ArrowRight' : 'ArrowLeft'
     const increase = vertical ? 'ArrowDown' : sign < 0 ? 'ArrowLeft' : 'ArrowRight'
     if (event.key === decrease) {
@@ -170,11 +242,24 @@
 
   const fill = 'flex: 1 1 0%'
   const shown = $derived(open ? size : 0)
+  // Fitting: no flex share at all, just a floor and the stored split as the ceiling, so the
+  // pane ends where its content does and the second pane takes everything below it.
+  const fractionFirst = $derived(
+    fixed
+      ? `flex: ${size} 1 0%`
+      : `flex: 0 1 auto; min-height: max(${min * 100}%, ${fitMin}px); max-height: ${size * 100}%`
+  )
   const firstStyle = $derived(
-    anchoredSecond ? fill : unit === 'fraction' ? `flex: ${size} 1 0%` : `flex: 0 0 ${shown}px`
+    anchoredSecond ? fill : unit === 'fraction' ? fractionFirst : `flex: 0 0 ${shown}px`
   )
   const secondStyle = $derived(
-    anchoredSecond ? `flex: 0 0 ${shown}px` : unit === 'fraction' ? `flex: ${1 - size} 1 0%` : fill
+    anchoredSecond
+      ? `flex: 0 0 ${shown}px`
+      : unit === 'fraction'
+        ? fixed
+          ? `flex: ${1 - size} 1 0%`
+          : fill
+        : fill
   )
   const slide = $derived(
     dragging ? '' : 'transition-[flex-basis] duration-200 ease-out motion-reduce:transition-none'
@@ -197,6 +282,7 @@
 >
   {#if anchoredSecond || rendered}
     <div
+      bind:this={firstPane}
       class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden {anchoredSecond ? '' : slide}"
       style={firstStyle}
     >
@@ -220,7 +306,13 @@
       aria-valuemin={valueMin}
       aria-valuemax={valueMax}
       tabindex="0"
+      title={fit && unit === 'fraction'
+        ? fixed
+          ? 'Drag to resize. Double-click to fit the editor to its content.'
+          : 'The editor fits its content. Drag to give it a fixed height.'
+        : undefined}
       onpointerdown={onPointerDown}
+      ondblclick={refit}
       onkeydown={onKeydown}
       style:width={vertical ? undefined : open ? '0.75rem' : '0'}
       class="group flex shrink-0 items-center justify-center overflow-hidden outline-none

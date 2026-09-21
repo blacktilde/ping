@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { HistoryEntry } from '../../../shared/history'
+  import { methodTone } from '../lib/format'
   import type { StoreNode } from '../lib/store'
   import HistoryList from './HistoryList.svelte'
 
@@ -499,7 +500,7 @@
                 ? 'bg-line text-fg'
                 : 'text-fg-muted hover:bg-line/50 hover:text-fg'}"
             >
-              <span class="w-9 shrink-0 font-mono text-[10px] uppercase text-fg-faint">
+              <span class="w-12 shrink-0 font-mono text-[10px] uppercase {methodTone(node.method ?? '')}">
                 {node.method ?? ''}
               </span>
               <span class="truncate">{node.name}</span>

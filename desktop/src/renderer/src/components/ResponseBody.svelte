@@ -117,8 +117,13 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <div class="flex items-center gap-1 border-b border-line px-3 py-1.5">
-    <div role="radiogroup" aria-label="Response body view" class="flex items-center gap-1">
+  <div class="flex items-center gap-3 px-5 py-4">
+    <!-- One bordered group with hairline separators; the chosen view is the brighter label. -->
+    <div
+      role="radiogroup"
+      aria-label="Response body view"
+      class="flex items-center divide-x divide-line overflow-hidden rounded-lg border border-line"
+    >
       {#each views as option (option)}
         <button
           type="button"
@@ -131,11 +136,9 @@
           tabindex={view === option ? 0 : -1}
           onclick={() => (view = option)}
           onkeydown={onKeydown}
-          class="rounded-md px-2.5 py-1 text-xs capitalize transition disabled:cursor-not-allowed
+          class="px-3.5 py-1.5 text-sm capitalize transition disabled:cursor-not-allowed
                  disabled:opacity-30
-                 {view === option
-            ? 'bg-line text-fg'
-            : 'text-fg-muted hover:text-fg'}"
+                 {view === option ? 'font-medium text-fg' : 'text-fg-muted hover:text-fg'}"
         >
           {option}
         </button>
@@ -160,8 +163,7 @@
           onclick={() => void copyBody()}
           aria-label="Copy response body"
           title="Copy response body"
-          class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:bg-line/60
-                 hover:text-fg"
+          class="text-sm font-medium text-accent transition hover:brightness-125"
         >
           {copied === 'done' ? 'Copied' : copied === 'failed' ? 'Copy failed' : 'Copy'}
         </button>
@@ -170,7 +172,7 @@
   </div>
 
   {#if response.body.truncated}
-    <p class="border-b border-warning-soft bg-warning-soft px-4 py-2 text-xs text-warning">
+    <p class="border-y border-warning-soft bg-warning-soft px-5 py-2 text-xs text-warning">
       {live
         ? 'The display cap has been reached: newer data is still arriving but is not shown.'
         : 'Response is larger than the display cap; only the beginning is shown.'}
@@ -211,9 +213,9 @@
     {:else if view === 'events' && eventStream}
       <ResponseEvents {events} content={raw} {live} />
     {:else if view === 'pretty'}
-      <CodeEditor value={pretty} language="json" label="Response body, pretty" readonly />
+      <CodeEditor value={pretty} language="json" label="Response body, pretty" readonly pad="px-5" />
     {:else}
-      <CodeEditor value={raw} language="plain" label="Response body, raw" readonly />
+      <CodeEditor value={raw} language="plain" label="Response body, raw" readonly pad="px-5" />
     {/if}
   </div>
 </div>

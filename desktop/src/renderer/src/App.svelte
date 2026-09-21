@@ -10,6 +10,7 @@
   } from './lib/http'
   import { isEventStream, SseParser } from './lib/sse'
   import { copyText } from './lib/clipboard'
+  import { methodTone } from './lib/format'
   import { toCurl } from './lib/curl'
   import {
     importCollectionFile,
@@ -141,6 +142,17 @@
   // The exported command tracks the editor; a secret resolved only in the shell stays a
   // `{{name}}` placeholder because secret values never reach the renderer.
   const curlCommand = $derived(toCurl(active.draft, { variables: variables.resolved }))
+
+  /**
+   * How much room the open editor needs before fitting to its content makes sense. A list of
+   * rows is honest at its natural height; a text surface that happens to be empty is not.
+   */
+  const editorFloor = $derived(
+    active.editorTab === 'docs' ||
+      (active.editorTab === 'body' && (active.draft.body.type === 'json' || active.draft.body.type === 'raw'))
+      ? 260
+      : 0
+  )
 
   const requestTabs = $derived([
     { id: 'params', label: 'Params', badge: queryCount > 0 ? String(queryCount) : null },
@@ -1109,13 +1121,16 @@
 
       <UpdateBanner hasUnsaved={anyDirty} />
 
-    <RequestTabs
-      tabs={tabs.list}
-      activeId={tabs.activeId}
-      onActivate={activateTab}
-      onClose={closeRequestTab}
-      onNew={newTab}
-    />
+    <!-- Edge to edge: the strip's rule separates it from the page, so it ignores the gutter. -->
+    <div class="-mx-5">
+      <RequestTabs
+        tabs={tabs.list}
+        activeId={tabs.activeId}
+        onActivate={activateTab}
+        onClose={closeRequestTab}
+        onNew={newTab}
+      />
+    </div>
 
     <div
       id="request-tabpanel"
@@ -1124,24 +1139,57 @@
       class="flex min-h-0 flex-1 flex-col gap-3"
     >
       <form
-        class="flex gap-2"
+        class="flex gap-2.5"
         onsubmit={(event) => {
           event.preventDefault()
           void send()
         }}
       >
-        <select
-          bind:value={active.draft.method}
-          aria-label="HTTP method"
-          class="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm font-medium outline-none
-                 transition focus:border-accent"
+        <!--
+          Verb, URL and the two things you do with a URL are one control: a single field that
+          lights up as a whole on focus, with hairlines rather than gaps between its parts.
+        -->
+        <div
+          class="relative flex min-w-0 flex-1 items-center rounded-lg border bg-panel transition
+                 {urlRequired ? 'border-warning' : 'border-line focus-within:border-accent'}"
         >
-          {#each METHODS as verb (verb)}
-            <option value={verb}>{verb}</option>
-          {/each}
-        </select>
+          <div class="relative shrink-0">
+            <!--
+              A ghost of the chosen verb sets the width: a select is as wide as its longest
+              option, so GET would otherwise reserve the room OPTIONS needs and leave a hole
+              in front of the chevron.
+            -->
+            <span aria-hidden="true" class="invisible block py-2.5 pl-4 pr-7 text-sm font-semibold">
+              {active.draft.method}
+            </span>
+            <select
+              bind:value={active.draft.method}
+              aria-label="HTTP method"
+              class="absolute inset-0 w-full appearance-none bg-transparent pl-4 pr-7 text-sm
+                     font-semibold outline-none {methodTone(active.draft.method)}"
+            >
+              {#each METHODS as verb (verb)}
+                <!-- The closed select wears the verb's colour; the open list stays readable. -->
+                <option value={verb} class="bg-panel font-medium text-fg">{verb}</option>
+              {/each}
+            </select>
+            <svg
+              viewBox="0 0 24 24"
+              class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2
+                     text-fg-faint"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
 
-        <div class="relative flex-1">
+          <span class="h-5 w-px shrink-0 bg-line"></span>
+
           <input
             bind:this={urlInput}
             bind:value={active.draft.url}
@@ -1152,9 +1200,7 @@
             placeholder="https://api.example.com/resource"
             oninput={() => (urlRequired = false)}
             onpaste={(event) => void pasteIntoUrl(event)}
-            class="w-full rounded-lg border bg-panel py-2.5 pl-4 pr-16 font-mono
-                   text-sm outline-none transition
-                   {urlRequired ? 'border-warning' : 'border-line focus:border-accent'}"
+            class="min-w-0 flex-1 bg-transparent py-2.5 pl-3.5 pr-2 font-mono text-sm outline-none"
           />
           {#if urlRequired}
             <span
@@ -1166,7 +1212,7 @@
               Enter a URL to send
             </span>
           {/if}
-          <div class="absolute inset-y-0 right-1.5 flex items-center gap-1">
+          <div class="flex shrink-0 items-center gap-1 pr-1.5">
             <div class="relative">
               <button
                 data-role="copy-curl"
@@ -1242,10 +1288,24 @@
         <button
           type="submit"
           disabled={active.inFlight}
-          class="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white
-                 transition hover:brightness-110 disabled:opacity-40"
+          class="flex shrink-0 items-center gap-2 rounded-lg border border-accent px-7 py-2.5
+                 text-sm font-medium text-accent transition hover:bg-accent/10
+                 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           {active.inFlight ? (streaming ? 'Streaming…' : 'Sending…') : 'Send'}
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="4" y1="12" x2="19" y2="12" />
+            <polyline points="13 6 19 12 13 18" />
+          </svg>
         </button>
 
         {#if active.inFlight}
@@ -1378,19 +1438,29 @@
         </p>
       {/if}
 
-      <SplitPane storageKey="ping.split.request" label="Resize request and response">
+      <SplitPane
+        storageKey="ping.split.request"
+        label="Resize request and response"
+        fit
+        fitMin={editorFloor}
+      >
         {#snippet first()}
           <section
             data-role="request"
-            class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
+            class="flex min-h-0 flex-col overflow-hidden bg-base"
           >
-            <Tabs tabs={requestTabs} bind:active={active.editorTab} idPrefix="request" />
+            <Tabs
+              tabs={requestTabs}
+              bind:active={active.editorTab}
+              idPrefix="request"
+              pad="px-0"
+            />
 
             <div
               id="request-panel"
               role="tabpanel"
               aria-labelledby={`request-tab-${active.editorTab}`}
-              class="min-h-0 flex-1"
+              class="min-h-0 flex-auto"
             >
               {#if active.editorTab === 'params'}
                 <KeyValueEditor

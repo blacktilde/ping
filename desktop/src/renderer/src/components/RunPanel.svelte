@@ -7,7 +7,7 @@
    * collection being run is often not the one the open tab belongs to.
    */
   import { closeRun, run, startRun } from '../lib/run.svelte'
-  import { formatDuration, statusTone } from '../lib/format'
+  import { formatDuration, methodTone, statusTone } from '../lib/format'
   import { varsCatalog, type EnvironmentRef } from '../lib/vars'
   import AssertionList from './AssertionList.svelte'
   import type { AssertionResult } from '../lib/http'
@@ -212,7 +212,7 @@
           aria-hidden="true">{verdict === 'passed' ? '✓' : '✗'}</span
         >
         <span class="sr-only">{verdict}:</span>
-        <span class="w-9 shrink-0 font-mono text-[10px] uppercase text-fg-faint">
+        <span class="w-12 shrink-0 font-mono text-[10px] uppercase {methodTone(request.method ?? '')}">
           {request.method ?? ''}
         </span>
         <span class="min-w-0 flex-1 truncate text-fg">{request.name}</span>

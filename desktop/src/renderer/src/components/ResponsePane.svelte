@@ -115,13 +115,13 @@
   class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
 >
   {#if response}
-    <header class="flex items-center gap-4 border-b border-line px-4 py-2.5 text-xs">
-      <span class="font-mono text-sm font-semibold {statusTone(response.status)}">
+    <header class="flex items-center gap-4 border-b border-line px-5 py-4 text-sm">
+      <span class="font-mono text-base font-semibold {statusTone(response.status)}">
         {response.status}
       </span>
       <!-- A sibling, not a child: the first header span is the bare status code. -->
       {#if reasonPhrase(response.status)}
-        <span class="-ml-2.5 {statusTone(response.status)}">{reasonPhrase(response.status)}</span>
+        <span class="-ml-2.5 text-fg">{reasonPhrase(response.status)}</span>
       {/if}
       <span class="text-fg-muted">{versionLabel(response.httpVersion)}</span>
       <span class="text-fg-muted">{formatBytes(response.body.bytes)}</span>
@@ -140,7 +140,7 @@
           <span
             role="status"
             data-role="save-status"
-            class="pointer-events-none absolute right-0 -top-7 max-w-72 truncate whitespace-nowrap
+            class="pointer-events-none absolute right-0 -top-8 max-w-72 truncate whitespace-nowrap
                    rounded-md border border-line bg-panel px-2 py-1 text-xs text-fg-muted shadow-lg"
           >
             {saveStatus}

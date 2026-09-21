@@ -13,6 +13,17 @@
   --color-fg: #e6e9ef;
   --color-fg-muted: #9aa4b2;
   --color-fg-faint: #6b7280;
+  /*
+   * One colour per verb in the URL bar (text-verb-get and friends). Their own scale rather
+   * than the status colours: a DELETE is not an error, it just needs to look like one thing
+   * you cannot mistake for a GET. A light theme redefines them, because these shades are
+   * chosen against a dark panel and do not survive a white one.
+   */
+  --color-verb-get: #34d399;
+  --color-verb-post: #38bdf8;
+  --color-verb-put: #fbbf24;
+  --color-verb-patch: #a78bfa;
+  --color-verb-delete: #fb7185;
   /* Semantic status colors: text-danger, border-danger, bg-danger-soft, etc. */
   --color-danger: #f87171;
   --color-danger-soft: rgb(127 29 29 / 0.4);
@@ -80,6 +91,11 @@
   --color-warning: #b45309;
   --color-warning-soft: rgb(254 243 199 / 0.8);
   --color-success: #059669;
+  --color-verb-get: #047857;
+  --color-verb-post: #0369a1;
+  --color-verb-put: #b45309;
+  --color-verb-patch: #6d28d9;
+  --color-verb-delete: #be123c;
 }
 
 :root[data-theme='rocket-daylight'] body {
@@ -132,6 +148,11 @@
   --color-warning: #b45309;
   --color-warning-soft: rgb(254 243 199 / 0.8);
   --color-success: #059669;
+  --color-verb-get: #047857;
+  --color-verb-post: #0369a1;
+  --color-verb-put: #b45309;
+  --color-verb-patch: #6d28d9;
+  --color-verb-delete: #be123c;
 }
 
 html,
