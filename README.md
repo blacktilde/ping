@@ -27,13 +27,21 @@ no cloud sync and no telemetry — just a native engine, a YAML folder you own, 
 - **Secrets stay out of your files.** Values live in the OS keychain via Electron
   `safeStorage`; collections hold only the reference. A credential typed into a request is
   moved out of the file for you.
-- **Everything a request needs.** Methods, query params, headers, form and JSON bodies with
-  syntax highlighting, redirects, timeouts, cancellation, and Bearer, Basic, API-key and
-  OAuth2 auth.
+- **Everything a request needs.** Methods, query params, headers, form, multipart and JSON
+  bodies with syntax highlighting, files from disk, redirects, timeouts, cancellation, and
+  Bearer, Basic, API-key and OAuth2 auth. Copy any request as a `curl` command.
+- **Assertions and capture.** Check status, headers and body values on every send, and
+  capture response values into runtime variables for the next request.
+- **Real network conditions.** HTTP proxies, client certificates for mutual TLS, a
+  session-only cookie jar per collection and environment, and streaming for SSE and NDJSON.
 - **A response viewer that gets out of the way.** Pretty, raw and HTML preview, headers,
-  cookies, and a per-phase timing breakdown.
+  cookies, a per-phase timing breakdown, and saving the body to disk.
+- **Bring your collections along.** Import curl commands, Postman and Insomnia collections,
+  and OpenAPI 3 documents; keep Markdown notes on any request or collection.
 - **Run a whole collection.** Every request in order, with its assertions, from the sidebar
   or from the command line — the same engine either way, so CI and the app agree.
+- **Updates you approve.** The packaged app checks for a new release and never downloads or
+  installs without your yes.
 - **Built for the keyboard.** A `⌘K` command palette, `⌘↵` to send, `⌘S` to save, and tabs
   that keep several requests in flight at once.
 
@@ -43,10 +51,10 @@ Compose and send with a full editor:
 
 <img src="docs/screenshots/request-builder.png" alt="The request builder with a JSON body and a 201 response" width="100%">
 
-| History | Variables and secrets |
+| History | Variables, cookies and secrets |
 |:---:|:---:|
 | <img src="docs/screenshots/history.png" alt="Request history in the sidebar" width="100%"> | <img src="docs/screenshots/variables.png" alt="The variables and secrets panel" width="100%"> |
-| Every exchange, newest first, with credentials blanked. | Collection and environment variables, plus secrets kept in the OS keychain. |
+| Every exchange, newest first and searchable, with credentials blanked. | Collection and environment variables, captured runtime values, cookies, and secrets kept in the OS keychain. |
 
 ## Quick start
 
@@ -84,12 +92,13 @@ Three layers, talking over newline-delimited JSON-RPC 2.0 on stdio:
 | `make core` | Rebuild the core after changing Java sources         |
 | `make test` | Run the core test suite on the JVM                   |
 | `make build`| Production build                                     |
-| `make check`| Type-check the desktop shell with svelte-check       |
+| `make check`| Type-check the desktop shell and run its unit tests  |
 | `make smoke`| Build the desktop and drive the UI over CDP          |
 | `make package`| Build the native core and package for this OS      |
 | `make native`| Compile the core to a native image (minutes)        |
 | `make native-test`| Run the suite compiled as a native image       |
 | `make agent`| Regenerate native-image reachability metadata        |
+| `make ci-run`| Drive the runner CLI against a loopback server (`BIN=` for native) |
 
 ## Layout
 
