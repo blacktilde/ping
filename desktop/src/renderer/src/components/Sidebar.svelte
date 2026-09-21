@@ -13,6 +13,7 @@
     panel?: Panel
     onSelect: (node: StoreNode) => void
     onCreate: (collectionPath: string) => void
+    onRun: (node: StoreNode) => void
     onDelete: (node: StoreNode) => void
     onOpenLocation: (node: StoreNode) => void
     onRename: (node: StoreNode, name: string) => void
@@ -34,6 +35,7 @@
     panel = $bindable<Panel>('collections'),
     onSelect,
     onCreate,
+    onRun,
     onDelete,
     onOpenLocation,
     onRename,
@@ -521,7 +523,7 @@
           {/if}
 
           {#if renaming !== node.path}
-            <!-- Overlaid rather than in flow: eight hidden buttons would otherwise take the
+            <!-- Overlaid rather than in flow: the hidden buttons would otherwise take the
                  room the name needs, clipping it and shortening the selected highlight. -->
             <div
               class="absolute inset-y-0 right-1 flex items-center rounded bg-line pl-1
@@ -549,6 +551,11 @@
                 Cancel
               </button>
             {:else}
+              {#if node.type === 'collection'}
+                <!-- A run is a whole collection: the core runs the folder that has the
+                     collection file, so a sub-folder is not one of them. -->
+                {@render action(`Run ${node.name}`, () => onRun(node), 'M6 4l13 8-13 8z')}
+              {/if}
               {#if node.type !== 'request'}
                 {@render action(`Open ${node.name} in the file manager`, () => onOpenLocation(node), 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z')}
                 {@render action(`New request in ${node.name}`, () => onCreate(node.path), 'M12 5v14M5 12h14')}

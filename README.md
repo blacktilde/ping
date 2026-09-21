@@ -32,6 +32,8 @@ no cloud sync and no telemetry — just a native engine, a YAML folder you own, 
   OAuth2 auth.
 - **A response viewer that gets out of the way.** Pretty, raw and HTML preview, headers,
   cookies, and a per-phase timing breakdown.
+- **Run a whole collection.** Every request in order, with its assertions, from the sidebar
+  or from the command line — the same engine either way, so CI and the app agree.
 - **Built for the keyboard.** A `⌘K` command palette, `⌘↵` to send, `⌘S` to save, and tabs
   that keep several requests in flight at once.
 

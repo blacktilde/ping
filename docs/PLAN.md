@@ -141,6 +141,11 @@ assertions plus the runner change what the project is for.
   **no arguments means the stdio RPC loop**, because that is how the shell spawns it.
   *Gate: CI runs a sample collection against a loopback server, once on the JVM and once as
   the native image, and a deliberately failing assertion fails the job.*
+  *The app got its half later: a Run button on a collection in the sidebar opens a panel that picks
+  the collection's own environment, fills in as each `run.progress` notification arrives, and ends on
+  the summary. The run lives outside the panel, so closing it does not abandon one in flight. The
+  shell supplies the secrets as `variables` and keeps its session runtime out of them — a run
+  carries only its own captures. No cancel yet: a started run goes to the end.*
 
 - [x] **18. Bodies that come from disk.** Multipart file parts and a binary file body. Today
   `multipart()` builds a `StringBuilder` and sends it with `ofString`, so a file part would be

@@ -20,7 +20,7 @@
         "variables": {
           "type": "object",
           "additionalProperties": { "type": "string" },
-          "description": "Values that outrank collection, environment and runtime scopes. Values of 4 or more characters are masked as *** wherever they resurface in results."
+          "description": "Values that outrank collection, environment and runtime scopes. Values of 4 or more characters are masked as *** wherever they resurface in results. The desktop shell sets this to the user's secrets and discards whatever the renderer sent, the way it does with `network`."
         },
         "network": {
           "$ref": "https://ping.dev/contract/http.schema.json#/$defs/network",

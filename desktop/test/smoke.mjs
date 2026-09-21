@@ -193,6 +193,46 @@ writeFileSync(
   ].join('\n')
 )
 
+// A second collection, for the run panel. Its own variable points nowhere, so a run with no
+// environment errors on every request; the Dev environment points at the loopback server, where
+// one assertion holds and one deliberately does not. The names avoid the words the sidebar
+// filter step matches on.
+mkdirSync(join(workspaceDir, 'run-demo', 'environments'), { recursive: true })
+writeFileSync(
+  join(workspaceDir, 'run-demo', 'collection.yaml'),
+  ['name: run demo', 'variables:', '  - name: host', '    value: http://127.0.0.1:1', ''].join('\n')
+)
+writeFileSync(
+  join(workspaceDir, 'run-demo', 'environments', 'dev.yaml'),
+  ['name: Dev', 'variables:', '  - name: host', `    value: ${base}`, ''].join('\n')
+)
+writeFileSync(
+  join(workspaceDir, 'run-demo', 'one-green.yaml'),
+  [
+    'name: One green',
+    'method: GET',
+    "url: '{{host}}/data'",
+    'asserts:',
+    '  - type: status',
+    '    op: equals',
+    "    expected: '200'",
+    ''
+  ].join('\n')
+)
+writeFileSync(
+  join(workspaceDir, 'run-demo', 'two-red.yaml'),
+  [
+    'name: Two red',
+    'method: GET',
+    "url: '{{host}}/data'",
+    'asserts:',
+    '  - type: status',
+    '    op: equals',
+    "    expected: '500'",
+    ''
+  ].join('\n')
+)
+
 // A Postman export the import flow reads. The shell normally asks a file dialog; the smoke
 // test cannot drive a native dialog, so PING_IMPORT_FILE stands in for it.
 const importFile = join(workspaceDir, '..', `ping-smoke-import-${process.pid}.json`)
@@ -1634,8 +1674,21 @@ try {
   check('the collection notes are folded behind an icon', await evaluate(`!document.querySelector('textarea[aria-label="Collection notes"]')`))
   await evaluate(`document.querySelector('[data-role="toggle-notes"]').click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('textarea[aria-label="Collection notes"]')`), 5000, 'the collection notes editor')
+  const saveLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
+  // The file appears long before the panel has finished saving: the save ends by reloading the
+  // collection, and that reload writes the stored notes back over whatever is in the field. So
+  // an edit typed between the two is reverted under it, and the next save writes the old text —
+  // which is what "timed out waiting for the notes to clear" looked like. The button says
+  // "Saved!" only once the reload has landed, so that is the wait; the fade back to the label
+  // is waited on too, or the confirmation from one save is still on screen for the next check.
+  const saveVariables = async () => {
+    await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+    await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 5000, 'the variables to be saved')
+    await waitFor(async () => (await evaluate(saveLabel)) === 'Save variables', 5000, 'the confirmation to fade')
+  }
+
   await evaluate(setTextarea('Collection notes', '## Demo API\n\nUse the **dev** environment.'))
-  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await saveVariables()
   await waitFor(async () => readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the collection notes on disk')
   const collectionYaml = readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8')
   check('saves collection notes beside the variables', collectionYaml.includes('Use the **dev** environment') && collectionYaml.includes('collection-token'), collectionYaml.replace(/\n/g, ' | ').slice(0, 140))
@@ -1643,11 +1696,10 @@ try {
   check('reads them back', reloaded.ok && reloaded.value.docs?.startsWith('## Demo API'), JSON.stringify(reloaded).slice(0, 100))
 
   await evaluate(setTextarea('Collection notes', ''))
-  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await saveVariables()
   await waitFor(async () => !readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the notes to clear')
   check('clearing the notes removes them from the file', true)
 
-  const saveLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
   await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
   await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 3000, 'the save confirmation')
   check('a save says so on the button', true)
@@ -1998,6 +2050,57 @@ try {
   check('a stop is not reported as an error', !streamError)
   await waitFor(async () => feedClosed, 5000, 'the server to see the disconnect')
   check('the server sees the connection released', feedClosed)
+
+  console.log('--- 15m. run a whole collection')
+  // The run happens in the core; what is proved here is the shell's half of it: the button on a
+  // collection, progress arriving as notifications, the environment picked for the run rather
+  // than taken from the header, and a failed assertion shown for the request it belongs to.
+  const runRows = () =>
+    evaluate(`[...document.querySelectorAll('[data-role="run-request"]')].map(r => r.dataset.outcome)`)
+  const runSummary = () =>
+    evaluate(`document.querySelector('[data-role="run-summary"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? null`)
+
+  // By the row, not by name: the tree labels a collection with its folder, and the tree
+  // re-renders on every rescan, so the button may not be there the instant this step starts.
+  const runButton = `document.querySelector('[data-path="run-demo"] button[aria-label^="Run "]')`
+  await waitFor(async () => await evaluate(`!!${runButton}`), 5000, 'the run button on the collection')
+  await evaluate(`${runButton}.click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`), 5000, 'the run dialog')
+  check('a collection offers a run', true)
+  const runEnvs = await evaluate(
+    `[...document.querySelectorAll('select[aria-label="Environment for the run"] option')].map(o => o.textContent.trim())`
+  )
+  check("offers the run collection's own environments", runEnvs.join() === 'No environment,Dev', runEnvs.join())
+  check(
+    'does not take the environment from the header',
+    (await evaluate(`document.querySelector('select[aria-label="Environment for the run"]').value`)) === ''
+  )
+
+  // With no environment the collection's own host points nowhere: every request errors, and the
+  // run reports that rather than stopping at the first one.
+  await evaluate(`document.querySelector('[data-role="run-start"]').click()`)
+  await waitFor(async () => (await runSummary()) !== null, 20_000, 'the run to finish')
+  check('a request with no response is errored, and the run carries on', (await runRows()).join() === 'errored,errored', (await runRows()).join())
+  const deadRun = await runSummary()
+  check('summarises the run', /0\/2 passed, 2 errored/.test(deadRun ?? ''), deadRun)
+
+  // The same collection against the loopback server: one assertion holds, one does not.
+  await evaluate(setSelect('Environment for the run', 'run-demo/environments/dev.yaml'))
+  await evaluate(`document.querySelector('[data-role="run-start"]').click()`)
+  await waitFor(async () => /1\/2 passed/.test((await runSummary()) ?? ''), 20_000, 'the second run')
+  const liveRows = await runRows()
+  check('shows each request as it finishes', liveRows.length === 2, liveRows.join())
+  check('a failed assertion is not an error', liveRows.join() === 'passed,failed', liveRows.join())
+  const liveRun = await runSummary()
+  check('names the environment the run used', /1\/2 passed, 1 failed/.test(liveRun ?? '') && /Dev/.test(liveRun ?? ''), liveRun)
+  const failedRow = await evaluate(
+    `document.querySelector('[data-role="run-request"][data-outcome="failed"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? ''`
+  )
+  check('says which assertion failed', /Two red/.test(failedRow) && /status equals 500/.test(failedRow), failedRow)
+
+  await evaluate(`document.querySelector('[data-role="run-close"]').click()`)
+  await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`)), 5000, 'the run dialog to close')
+  check('the run panel closes', true)
 
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)
