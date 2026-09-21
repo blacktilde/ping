@@ -1445,12 +1445,6 @@
         fitMin={editorFloor}
       >
         {#snippet first()}
-          <!--
-            No fill of its own. A themed fill covers only this section, and under the rocket
-            themes the photo around it does not move, so what shows is a rectangle ending at
-            the page gutter. The editor sits straight on the page instead; every theme paints
-            the body with the same colour, so only the photographs can tell the difference.
-          -->
           <section
             data-role="request"
             class="flex min-h-0 flex-col overflow-hidden"
