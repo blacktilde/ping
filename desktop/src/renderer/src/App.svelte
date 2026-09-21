@@ -86,7 +86,7 @@
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import NetworkSettings from './components/NetworkSettings.svelte'
   import RunPanel from './components/RunPanel.svelte'
-  import UpdateBanner from './components/UpdateBanner.svelte'
+  import UpdateBadge from './components/UpdateBadge.svelte'
   import appIcon from '../../../build/icon.png'
   import type { HistoryEntry } from '../../shared/history'
 
@@ -1047,6 +1047,8 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <UpdateBadge hasUnsaved={anyDirty} />
+
           <select
             value={variables.environment}
             onchange={(event) => void onEnvironmentChange(event.currentTarget.value)}
@@ -1118,8 +1120,6 @@
           {/if}
         </div>
       </header>
-
-      <UpdateBanner hasUnsaved={anyDirty} />
 
     <!-- Edge to edge: the strip's rule separates it from the page, so it ignores the gutter. -->
     <div class="-mx-5">
