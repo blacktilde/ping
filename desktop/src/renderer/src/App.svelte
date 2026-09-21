@@ -1447,14 +1447,9 @@
         {#snippet first()}
           <section
             data-role="request"
-            class="flex min-h-0 flex-col overflow-hidden"
+            class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
           >
-            <Tabs
-              tabs={requestTabs}
-              bind:active={active.editorTab}
-              idPrefix="request"
-              pad="px-0"
-            />
+            <Tabs tabs={requestTabs} bind:active={active.editorTab} idPrefix="request" />
 
             <div
               id="request-panel"

@@ -57,7 +57,7 @@
   const bodyCap = $derived(draft.maxBodyBytes == null ? 10 * 1024 * 1024 : draft.maxBodyBytes)
 </script>
 
-<div class="h-full overflow-auto py-4">
+<div class="h-full overflow-auto px-5 py-4">
   <p class="max-w-prose text-xs leading-relaxed text-fg-faint">
     Empty fields use the core's defaults. Settings ride on the request, so they are saved
     with it.

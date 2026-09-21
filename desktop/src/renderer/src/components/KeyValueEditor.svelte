@@ -25,11 +25,11 @@
 
 <div class="h-full overflow-auto">
   {#if items.length === 0}
-    <p class="pt-6 text-sm text-fg-faint">{emptyText}</p>
+    <p class="px-5 pt-6 text-sm text-fg-faint">{emptyText}</p>
   {/if}
 
   {#each items as item, index (item)}
-    <div class="flex items-center gap-2 border-b border-line/60 py-2">
+    <div class="flex items-center gap-2 border-b border-line/60 px-5 py-2">
       <input
         type="checkbox"
         bind:checked={item.enabled}
@@ -61,7 +61,7 @@
   {/each}
 
   <!-- Straight after the last row, not pinned to the bottom of a mostly empty pane. -->
-  <div class="py-3">
+  <div class="px-5 py-3">
     <button
       type="button"
       onclick={() => items.push(emptyParam())}
