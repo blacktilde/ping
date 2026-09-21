@@ -9,16 +9,10 @@
     tabs: Tab[]
     active?: string
     idPrefix: string
-    /**
-     * The strip's own horizontal inset. A tab is flush with its label so the underline is
-     * exactly the width of the word, which leaves the inset to the surface underneath: the
-     * request editor sits on the page gutter, the response strip inside its card.
-     */
-    pad?: string
     onSelect?: (id: string) => void
   }
 
-  let { tabs, active = $bindable(''), idPrefix, pad = 'px-5', onSelect }: Props = $props()
+  let { tabs, active = $bindable(''), idPrefix, onSelect }: Props = $props()
 
   function select(id: string): void {
     active = id
@@ -48,7 +42,12 @@
   }
 </script>
 
-<div role="tablist" class="flex items-center gap-7 border-b border-line {pad}">
+<!--
+  px-5 is the card inset both the request and the response editor use: a tab is flush with
+  its label so the underline is exactly the width of the word, and the strip's rule still
+  runs the full width of the card.
+-->
+<div role="tablist" class="flex items-center gap-7 border-b border-line px-5">
   {#each tabs as tab, index (tab.id)}
     <button
       id={`${idPrefix}-tab-${tab.id}`}
