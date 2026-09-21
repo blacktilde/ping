@@ -39,6 +39,7 @@ mac:
     - zip
 
 win:
+  artifactName: ${productName}-Setup-${version}.${ext}
   target:
     - nsis
 

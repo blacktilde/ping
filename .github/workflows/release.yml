@@ -118,6 +118,18 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      - name: Check no installer name carries a space
+        shell: bash
+        working-directory: desktop/dist
+        run: |
+          status=0
+          for path in *" "*; do
+            [ -e "$path" ] || continue
+            echo "$path has a space in its name, which the update feed cannot resolve." >&2
+            status=1
+          done
+          exit $status
+
       # The macOS update feed. These builds carry no Apple Developer ID, so Squirrel.Mac
       # cannot install them and the app updates itself instead — against this signature
       # rather than Apple's. Without the secret the step fails the release, which is the

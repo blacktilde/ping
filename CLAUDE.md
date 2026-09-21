@@ -40,6 +40,12 @@ release assets over public HTTPS with no credentials, so `publish` must name a p
 choosing what every install downloads at worst. The app checks once when packaged and never
 downloads or installs without an explicit yes (`autoDownload` is false); keep it that way.
 
+**An installer's name never contains a space.** GitHub stores an uploaded release asset with
+its spaces turned into dots, and electron-updater turns the same spaces into hyphens when it
+resolves a url from the feed, so a spaced name is a 404 that only appears once a user clicks
+update. electron-builder's NSIS default has two, which is why `win.artifactName` is pinned;
+the release workflow fails on any other artifact that grows one.
+
 **macOS updates are verified by this project's own signature, not Apple's.** Squirrel.Mac —
 what electron-updater drives on darwin — refuses to install into a build that carries no
 Apple Developer ID, so macOS goes through `desktop/src/main/mac-update.ts` instead: a signed
