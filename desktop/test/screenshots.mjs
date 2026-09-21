@@ -306,7 +306,15 @@ try {
   await evaluate(setInput('Secret name', 'apiToken'))
   await evaluate(setInput('Secret value', 'sk_live_8f2c1a'))
   await evaluate(clickText('Save variables'))
-  await wait(500)
+  // The button says "Saved!" for a moment after a save; wait it out so the shot shows the label.
+  await waitFor(
+    async () =>
+      (await evaluate(`document.querySelector('[data-role="save-variables"]')?.textContent.trim()`)) ===
+      'Save variables',
+    5000,
+    'the save confirmation to fade'
+  )
+  await wait(300)
   await capture('variables.png')
 } catch (cause) {
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)

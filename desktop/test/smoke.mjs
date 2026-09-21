@@ -1583,6 +1583,9 @@ try {
   check('the Docs tab is badged', await evaluate(`[...document.querySelectorAll('[role=tab]')].some(t => t.textContent.trim().startsWith('Docs') && t.textContent.includes('•'))`))
 
   await evaluate(clickText('Variables'))
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="toggle-notes"]')`), 5000, 'the notes toggle')
+  check('the collection notes are folded behind an icon', await evaluate(`!document.querySelector('textarea[aria-label="Collection notes"]')`))
+  await evaluate(`document.querySelector('[data-role="toggle-notes"]').click()`)
   await waitFor(async () => await evaluate(`!!document.querySelector('textarea[aria-label="Collection notes"]')`), 5000, 'the collection notes editor')
   await evaluate(setTextarea('Collection notes', '## Demo API\n\nUse the **dev** environment.'))
   await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
@@ -1596,6 +1599,22 @@ try {
   await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
   await waitFor(async () => !readFileSync(join(workspaceDir, 'demo', 'collection.yaml'), 'utf8').includes('docs:'), 5000, 'the notes to clear')
   check('clearing the notes removes them from the file', true)
+
+  const saveLabel = `document.querySelector('[data-role="save-variables"]')?.textContent.trim()`
+  await evaluate(`document.querySelector('[data-role="variables"] footer button').click()`)
+  await waitFor(async () => (await evaluate(saveLabel)) === 'Saved!', 3000, 'the save confirmation')
+  check('a save says so on the button', true)
+  await waitFor(async () => (await evaluate(saveLabel)) === 'Save variables', 5000, 'the confirmation to fade')
+  check('the confirmation fades back to the label', true)
+
+  const icons = await evaluate(`document.querySelectorAll('[data-role="variables"] [data-role="info-hint"]').length`)
+  check('every section explains itself behind an icon', icons >= 4, String(icons))
+  check('no section spells its description out', await evaluate(`!document.querySelector('[data-role="variables"] [data-role="hint"]')`))
+  await evaluate(`document.querySelector('[data-role="variables"] [data-role="info-hint"]').click()`)
+  await waitFor(async () => await evaluate(`(document.querySelector('[data-role="variables"] [data-role="hint"]')?.textContent.trim().length ?? 0) > 0`), 3000, 'the description')
+  check('the icon opens the description', true)
+  await evaluate(`document.querySelector('[data-role="variables"] [data-role="info-hint"]').click()`)
+  await waitFor(async () => await evaluate(`!document.querySelector('[data-role="variables"] [data-role="hint"]')`), 3000, 'the description to close')
   await evaluate(clickText('Variables'))
 
   console.log('--- 15g. upload files: multipart parts and a binary body')

@@ -3,12 +3,14 @@
   import { clearCookies, cookies } from '../lib/cookies.svelte'
   import { clearRuntime, runtime } from '../lib/runtime.svelte'
   import DocsEditor from './DocsEditor.svelte'
+  import InfoHint from './InfoHint.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
   import SecretsEditor from './SecretsEditor.svelte'
 
   interface Props {
     onClose: () => void
-    onSave: () => void
+    /** Saves, and reports whether it worked: only a real save earns the confirmation. */
+    onSave: () => Promise<boolean>
     onAddEnvironment: (name: string) => void
   }
 
@@ -19,6 +21,15 @@
   let naming = $state(false)
   let name = $state('')
   let nameInput = $state<HTMLInputElement>()
+
+  // The notes are a paragraph of prose in a panel of fields, so they stay folded away until
+  // asked for. A collection that has notes shows a dot, or folding them would hide them.
+  let showNotes = $state(false)
+  const hasNotes = $derived(Boolean(variables.docs?.trim()))
+
+  // Saving is silent otherwise: the file is written somewhere the panel does not show.
+  let saved = $state(false)
+  let savedTimer: number | undefined
 
   function startNaming(): void {
     naming = true
@@ -35,11 +46,22 @@
     onAddEnvironment(trimmed)
   }
 
+  async function save(): Promise<void> {
+    if (!(await onSave())) {
+      return
+    }
+    saved = true
+    window.clearTimeout(savedTimer)
+    savedTimer = window.setTimeout(() => (saved = false), 1800)
+  }
+
   $effect(() => {
     if (naming) {
       queueMicrotask(() => nameInput?.focus())
     }
   })
+
+  $effect(() => () => window.clearTimeout(savedTimer))
 </script>
 
 <!-- Docked on the right in a SplitPane, the mirror of the sidebar: same chrome, other edge. -->
@@ -83,16 +105,50 @@
     <section class="border-b border-line">
       <div class="flex items-center gap-2 px-3 py-2">
         <h3 class="text-xs uppercase tracking-wide text-fg-muted">Collection</h3>
+        <InfoHint label="About collection variables">
+          Saved with the collection, so everyone who opens the folder gets them. An
+          environment of the same name overrides one. Reference one as
+          <code class="font-mono">&#123;&#123;name&#125;&#125;</code>.
+        </InfoHint>
         <input
           bind:value={variables.name}
           aria-label="Collection name"
           class="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1 text-sm
                  outline-none transition focus:border-accent"
         />
+        <button
+          type="button"
+          data-role="toggle-notes"
+          onclick={() => (showNotes = !showNotes)}
+          aria-expanded={showNotes}
+          aria-label="Notes about this collection"
+          title="Notes about this collection"
+          class="relative shrink-0 rounded-md p-1.5 transition hover:bg-line/60 hover:text-fg
+                 {showNotes ? 'bg-line/60 text-fg' : 'text-fg-muted'}"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 4h11l3 3v13H5z" />
+            <path d="M8 9h8M8 13h8M8 17h5" />
+          </svg>
+          {#if hasNotes && !showNotes}
+            <span
+              data-role="notes-dot"
+              class="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-accent"
+            ></span>
+          {/if}
+        </button>
       </div>
-      <div class="flex h-48 flex-col border-t border-line/60">
-        <p class="shrink-0 px-3 pt-2 text-xs text-fg-faint">Notes about this collection</p>
-        <div class="min-h-0 flex-1">
+      {#if showNotes}
+        <div class="h-48 border-t border-line/60">
           {#key variables.collection}
             <DocsEditor
               value={variables.docs}
@@ -102,7 +158,7 @@
             />
           {/key}
         </div>
-      </div>
+      {/if}
       <div class="border-t border-line/60">
         <KeyValueEditor
           items={variables.collectionVariables}
@@ -116,7 +172,13 @@
 
     <section>
       <div class="flex items-center justify-between px-3 py-2">
-        <h3 class="text-xs uppercase tracking-wide text-fg-muted">Environment</h3>
+        <div class="flex items-center gap-2">
+          <h3 class="text-xs uppercase tracking-wide text-fg-muted">Environment</h3>
+          <InfoHint label="About environments">
+            An environment overrides collection variables while it is selected. Each one is a
+            file under <code class="font-mono">environments/</code> in the collection.
+          </InfoHint>
+        </div>
         {#if naming}
           <form class="flex items-center gap-1" onsubmit={submitName}>
             <input
@@ -151,16 +213,16 @@
           />
         </div>
       {:else}
-        <p class="px-3 pb-6 text-sm text-fg-faint">
-          No environment selected. Choose one, or create a new one, to override collection
-          variables.
-        </p>
+        <p class="px-3 pb-6 text-sm text-fg-faint">No environment selected.</p>
       {/if}
     </section>
 
     <section data-role="runtime" class="border-t border-line">
       <div class="flex items-center gap-2 px-3 py-2">
         <h3 class="text-xs uppercase tracking-wide text-fg-muted">Runtime</h3>
+        <InfoHint label="About runtime variables">
+          Captured from responses, kept for this session and never saved. Values are not shown.
+        </InfoHint>
         {#if runtime.names.length > 0}
           <button
             type="button"
@@ -173,9 +235,6 @@
           </button>
         {/if}
       </div>
-      <p class="px-3 pb-2 text-xs text-fg-faint">
-        Captured from responses, kept for this session and never saved. Values are not shown.
-      </p>
       {#if runtime.names.length === 0}
         <p class="px-3 pb-3 text-sm text-fg-faint">Nothing captured yet.</p>
       {:else}
@@ -192,6 +251,10 @@
     <section data-role="cookies" class="border-t border-line">
       <div class="flex items-center gap-2 px-3 py-2">
         <h3 class="text-xs uppercase tracking-wide text-fg-muted">Cookies</h3>
+        <InfoHint label="About cookies">
+          Set by responses in this collection and environment, kept for this session and never
+          saved. Values are not shown.
+        </InfoHint>
         {#if cookies.items.length > 0}
           <button
             type="button"
@@ -204,10 +267,6 @@
           </button>
         {/if}
       </div>
-      <p class="px-3 pb-2 text-xs text-fg-faint">
-        Set by responses in this collection and environment, kept for this session and never
-        saved. Values are not shown.
-      </p>
       {#if cookies.items.length === 0}
         <p class="px-3 pb-3 text-sm text-fg-faint">No cookies yet.</p>
       {:else}
@@ -239,12 +298,12 @@
     </section>
 
     <section class="border-t border-line">
-      <div class="px-3 py-2">
+      <div class="flex items-center gap-2 px-3 py-2">
         <h3 class="text-xs uppercase tracking-wide text-fg-muted">Secrets</h3>
-        <p class="mt-1 text-xs text-fg-faint">
+        <InfoHint label="About secrets">
           Encrypted by the shell, never written to the collection. Reference one as
           <code class="font-mono">&#123;&#123;name&#125;&#125;</code>.
-        </p>
+        </InfoHint>
       </div>
       <SecretsEditor />
     </section>
@@ -253,12 +312,30 @@
   <footer class="border-t border-line p-3">
     <button
       type="button"
-      onclick={onSave}
+      onclick={() => void save()}
       disabled={!variables.collection}
       class="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition
              hover:brightness-110 disabled:opacity-40"
     >
-      Save variables
+      <span data-role="save-variables" aria-live="polite" class="flex items-center justify-center gap-1.5">
+        {#if saved}
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 12.5l4.5 4.5L19 7" />
+          </svg>
+          Saved!
+        {:else}
+          Save variables
+        {/if}
+      </span>
     </button>
   </footer>
 </aside>
