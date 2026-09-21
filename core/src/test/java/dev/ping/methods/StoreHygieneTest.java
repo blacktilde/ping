@@ -347,6 +347,18 @@ class StoreHygieneTest {
     }
 
     @Test
+    void createsAFolderForANameThisLocaleCannotSpell() throws Exception {
+        file("demo/collection.yaml", "name: Demo\n");
+
+        // A file name reaches the OS encoded as sun.jnu.encoding, which follows the locale
+        // rather than moving to UTF-8 with file.encoding, so under a non-UTF-8 one "日本語"
+        // cannot be a path at all. Which name it settles on is the locale's business; landing
+        // a real folder instead of throwing is not.
+        String path = ok("store.create", Map.of("type", "folder", "collection", "demo", "name", "日本語"));
+        assertTrue(Files.isDirectory(workspace.resolve(path)), path);
+    }
+
+    @Test
     void creatingARequestStillWorksWithoutAType() throws Exception {
         file("demo/collection.yaml", "name: Demo\n");
         assertEquals("demo/new-request.yaml", ok("store.create", Map.of("collection", "demo", "name", "New request")));

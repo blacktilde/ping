@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -416,7 +417,7 @@ public final class YamlStore {
      * and never {@code environments}, which the tree treats as reserved at every level.
      */
     public static String folderName(String name, String fallback) {
-        String clean = (name == null ? "" : name)
+        String clean = representable(name == null ? "" : name)
                 .replaceAll("[\\p{Cntrl}/\\\\:*?\"<>|]+", " ")
                 .replaceAll("\\s+", " ")
                 .replaceAll("^[. ]+|[. ]+$", "");
@@ -433,6 +434,35 @@ public final class YamlStore {
             return clean + "_";
         }
         return clean;
+    }
+
+    /**
+     * Replaces whatever this JVM cannot put in a path with a space, the same as a reserved
+     * character.
+     *
+     * <p>A file name reaches the OS encoded as {@code sun.jnu.encoding}, which follows the
+     * locale rather than moving to UTF-8 with {@code file.encoding}. Under a non-UTF-8 locale
+     * a name like {@code 日本語} is not a folder name at all: {@code Path.of} throws
+     * {@link InvalidPathException} rather than resolving. Asking it is the only honest test,
+     * since the encoding it uses is not something this can read.
+     */
+    private static String representable(String name) {
+        try {
+            Path.of(name);
+            return name;
+        } catch (InvalidPathException unusable) {
+            StringBuilder usable = new StringBuilder(name.length());
+            name.codePoints().forEach(codePoint -> {
+                String character = new String(Character.toChars(codePoint));
+                try {
+                    Path.of(character);
+                    usable.append(character);
+                } catch (InvalidPathException unusableCharacter) {
+                    usable.append(' ');
+                }
+            });
+            return usable.toString();
+        }
     }
 
     /**
