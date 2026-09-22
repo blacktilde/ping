@@ -1097,14 +1097,7 @@
   >
     {text}
     {#if phase === 'sending'}
-      <!--
-        A spinner, and nothing conditional about it. The pointer is on this button the
-        instant the request starts — it just clicked Send — so anything that hides under a
-        hover is hidden exactly when the wait begins. The word beside it says what a press
-        does; the spinner only has to say the app is waiting rather than stuck. It turns
-        only in this phase: the face stays in the layout to hold the button's width, and an
-        invisible animation still costs a compositor frame every frame, forever.
-      -->
+      <!-- Never hidden on hover: the pointer is on this button the moment a request starts. -->
       {@render sendIcon('spinner')}
     {:else if phase === 'streaming'}
       {@render sendIcon('stop')}
@@ -1131,7 +1124,6 @@
       <line x1="4" y1="12" x2="19" y2="12" />
       <polyline points="13 6 19 12 13 18" />
     {:else if shape === 'spinner'}
-      <!-- A faint ring with a bright third on it: the third is what you see turning. -->
       <circle cx="12" cy="12" r="9" class="opacity-30" />
       <path d="M21 12a9 9 0 0 0-9-9" />
     {:else}
@@ -1449,10 +1441,8 @@
           {@render sendFace('streaming', 'Stop')}
           {#if active.inFlight}
             <!--
-              A light crossing the foot of the button for as long as the exchange is out.
-              It is absolutely positioned, so it animates without touching the button's size,
-              and indeterminate on purpose: a response with no Content-Length has no percentage
-              to show, and a bar that invents one lies.
+              Indeterminate on purpose: a response with no Content-Length has no percentage
+              to show. Absolutely positioned, so it never touches the button's size.
             -->
             <span
               data-role="send-progress"
