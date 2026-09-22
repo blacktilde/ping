@@ -30,6 +30,37 @@ const base = `http://127.0.0.1:${PORT}`
 let slowStarted = false
 let lastTokenForm = ''
 
+/**
+ * A one-page PDF, built here rather than committed as a fixture so the byte offsets in its
+ * cross-reference table are always right: a viewer that rebuilds a broken table would let a
+ * malformed file pass for a working preview.
+ */
+function minimalPdf(text) {
+  const stream = `BT /F1 18 Tf 20 40 Td (${text}) Tj ET`
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R'
+      + ' /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+  ]
+
+  let body = '%PDF-1.4\n'
+  const offsets = []
+  objects.forEach((object, index) => {
+    offsets.push(body.length)
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`
+  })
+
+  const startxref = body.length
+  // Every entry is exactly 20 bytes, offset included; the reader indexes into them.
+  const entries = offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${entries.join('')}`
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`
+  return Buffer.from(body, 'latin1')
+}
+
 // Echoes what reached the server so the test can prove the editors are wired to the wire.
 let lastUpload = null
 // A feed: one event at once, the second only after /events/release is hit, then keep-alives until the
@@ -82,6 +113,12 @@ const server = http.createServer(async (req, res) => {
       'Set-Cookie': 'smoke=yes; Path=/; HttpOnly'
     })
     res.end('<!doctype html><h1>preview me</h1>')
+    return
+  }
+
+  if (req.url.startsWith('/pdf')) {
+    res.writeHead(200, { 'Content-Type': 'application/pdf' })
+    res.end(minimalPdf('preview me'))
     return
   }
 
@@ -809,6 +846,54 @@ try {
     'preview embeds the HTML in a locked-down frame',
     !!frame && frame.sandbox === '' && frame.srcdoc.includes('preview me'),
     JSON.stringify(frame)
+  )
+
+  console.log('--- 5b. PDF preview')
+  await evaluate(setUrl(`${base}/pdf`))
+  await clickSend()
+  await waitFor(
+    async () => (await snap()).paneText.includes('application/pdf'),
+    5000,
+    'the PDF response'
+  )
+  await evaluate(clickResponseTab('Body'))
+  const readEmbed = () =>
+    evaluate(`(() => {
+      const element = document.querySelector('[data-role="response"] embed');
+      return element ? { type: element.type, src: element.getAttribute('src') ?? '' } : null;
+    })()`)
+  await waitFor(async () => (await readEmbed()) !== null, 5000, 'the PDF embed')
+  const embed = await readEmbed()
+  check(
+    'a PDF body is handed to the viewer as a blob, never as a file on disk',
+    embed.type === 'application/pdf' && embed.src.startsWith('blob:'),
+    JSON.stringify(embed)
+  )
+  // The embed element existing proves only that the markup rendered. Chromium loads the
+  // document into a frame of its own, so that frame is what says the bytes reached the
+  // viewer: a CSP that forgets blob: leaves a chrome-error frame in its place instead.
+  await cdp('Page.enable')
+  const frameUrls = async () => {
+    const tree = await cdp('Page.getFrameTree')
+    const urls = []
+    const walk = (node) => {
+      urls.push(node.frame.url)
+      ;(node.childFrames ?? []).forEach(walk)
+    }
+    walk(tree.result.frameTree)
+    return urls
+  }
+  await waitFor(
+    async () => (await frameUrls()).some((url) => url.startsWith('blob:')),
+    5000,
+    "the document to reach Chromium's viewer",
+    async () => (await frameUrls()).join(', ')
+  )
+  const frames = await frameUrls()
+  check(
+    'the built-in viewer renders it in place',
+    !frames.some((url) => url.startsWith('chrome-error://')),
+    frames.join(', ')
   )
 
   console.log('--- 6. exchange over real HTTPS')

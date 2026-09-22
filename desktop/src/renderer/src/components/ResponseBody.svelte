@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
-  import { isHtml, prettyJson } from '../lib/response'
+  import { bytesFromBase64, isHtml, isPdf, prettyJson } from '../lib/response'
   import { copyText } from '../lib/clipboard'
   import { formatBytes } from '../lib/format'
   import { isEventStream, type SseEvent } from '../lib/sse'
@@ -43,13 +43,22 @@
   const raw = $derived(response.body.content ?? '')
   const parsed = $derived(response.body.textual ? prettyJson(raw) : null)
   const pretty = $derived(parsed ?? raw)
-  const hasPreview = $derived(isHtml(response.body.contentType) || hasImageType(response.body.contentType))
+  const hasPreview = $derived(
+    isHtml(response.body.contentType)
+      || hasImageType(response.body.contentType)
+      || isPdf(response.body.contentType)
+  )
   const image = $derived(
     hasImageType(response.body.contentType) && response.body.base64 != null
   )
   const imageSrc = $derived(
     image ? `data:${response.body.contentType};base64,${response.body.base64}` : null
   )
+  // A truncated PDF has no cross-reference table, so the viewer would only show an error.
+  const pdf = $derived(
+    isPdf(response.body.contentType) && response.body.base64 != null && !response.body.truncated
+  )
+  let pdfSrc = $state<string | null>(null)
   const looksJson = $derived((response.body.contentType ?? '').toLowerCase().includes('json'))
   // Pretty falls back to raw; say so rather than silently showing unformatted text.
   const invalidJson = $derived(
@@ -98,6 +107,24 @@
     return (contentType ?? '').toLowerCase().startsWith('image/')
   }
 
+  // The object URL is the viewer's handle on the bytes; it has to be released when the
+  // response changes or every send would leak a copy of the document.
+  $effect(() => {
+    const base64 = pdf ? response.body.base64 : null
+    if (base64 == null) {
+      pdfSrc = null
+      return
+    }
+    const url = URL.createObjectURL(
+      new Blob([bytesFromBase64(base64)], { type: 'application/pdf' })
+    )
+    pdfSrc = url
+    return () => {
+      URL.revokeObjectURL(url)
+      pdfSrc = null
+    }
+  })
+
   // Pretty and raw persist across sends; a view that no longer applies (preview on a
   // non-HTML body) falls back rather than showing the previous response's mode.
   $effect(() => {
@@ -131,7 +158,7 @@
           aria-checked={view === option}
           disabled={!enabled(option)}
           title={option === 'preview' && !hasPreview
-            ? 'Preview is available for HTML and image responses'
+            ? 'Preview is available for HTML, image and PDF responses'
             : undefined}
           tabindex={view === option ? 0 : -1}
           onclick={() => (view = option)}
@@ -188,6 +215,19 @@
           class="max-h-full max-w-full rounded-md border border-line"
         />
       </div>
+    {:else if !response.body.textual && pdfSrc}
+      <!--
+        Chromium's own viewer, in a process of its own, given the bytes as a blob so the
+        document never reaches disk. Chromium loads it as plugin data and then frames the
+        viewer, so the CSP in index.html has to allow blob: to both `object-src` and
+        `frame-src`; allowing one leaves a blank pane and a console violation.
+      -->
+      <embed
+        title="Response preview"
+        src={pdfSrc}
+        type="application/pdf"
+        class="h-full w-full border-0 bg-white"
+      />
     {:else if !response.body.textual}
       <div class="flex h-full flex-col items-center justify-center gap-3 text-sm text-fg-faint">
         <p>
@@ -195,7 +235,14 @@
             ? ` (${response.body.contentType})`
             : ''} — not displayed.
         </p>
-        <p class="text-xs">Use Save in the response header to keep it.</p>
+        <p class="text-xs">
+          {#if isPdf(response.body.contentType) && response.body.truncated}
+            An incomplete document cannot be previewed. Use Save in the response header to keep
+            what was read.
+          {:else}
+            Use Save in the response header to keep it.
+          {/if}
+        </p>
       </div>
     {:else if view === 'preview'}
       {#if hasPreview}
@@ -207,7 +254,7 @@
         ></iframe>
       {:else}
         <div class="flex h-full items-center justify-center text-sm text-fg-faint">
-          Preview is available for HTML and image responses.
+          Preview is available for HTML, image and PDF responses.
         </div>
       {/if}
     {:else if view === 'events' && eventStream}

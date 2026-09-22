@@ -34,8 +34,9 @@ no cloud sync and no telemetry — just a native engine, a YAML folder you own, 
   capture response values into runtime variables for the next request.
 - **Real network conditions.** HTTP proxies, client certificates for mutual TLS, a
   session-only cookie jar per collection and environment, and streaming for SSE and NDJSON.
-- **A response viewer that gets out of the way.** Pretty, raw and HTML preview, headers,
-  cookies, a per-phase timing breakdown, and saving the body to disk.
+- **A response viewer that gets out of the way.** Pretty, raw, HTML preview, images and
+  PDFs rendered in place, headers, cookies, a per-phase timing breakdown, and saving the
+  body to disk.
 - **Bring your collections along.** Import curl commands, Postman and Insomnia collections,
   and OpenAPI 3 documents; keep Markdown notes on any request or collection.
 - **Run a whole collection.** Every request in order, with its assertions, from the sidebar

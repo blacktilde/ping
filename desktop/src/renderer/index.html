@@ -3,9 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      blob: is the PDF response preview: Chromium reads the document as plugin data
+      (object-src) and frames its viewer over it (frame-src). No other blob: is loaded here.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src blob:; frame-src blob:"
     />
     <title>Ping</title>
   </head>
