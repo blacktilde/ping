@@ -182,6 +182,16 @@ export function retargetTabs(oldPath: string, newPath: string, newName?: string)
   persist()
 }
 
+/**
+ * Binds a scratch tab to the file a save just created for it. The draft is what was written,
+ * so its fingerprint becomes the saved one and the tab stops reading as dirty.
+ */
+export function bindTab(tab: RequestTab, path: string): void {
+  tab.path = path
+  tab.savedKey = draftKey(tab.draft)
+  persist()
+}
+
 export function closeTabsUnder(path: string): RequestTab[] {
   const doomed = tabs.list.filter(
     (tab) => tab.path === path || (tab.path?.startsWith(`${path}/`) ?? false)

@@ -21,6 +21,12 @@
      * once the pane is sized by hand, so a deliberate drag can still go below it.
      */
     fitMin?: number
+    /**
+     * The first pane is showing only a header: it takes exactly its content's height and the
+     * second takes the rest. Nothing is left to resize, so the handle stands down to a spacer.
+     * Fraction splits only; the stored split is untouched, so expanding restores it.
+     */
+    firstCollapsed?: boolean
     initial?: number
     min?: number
     max?: number
@@ -37,6 +43,7 @@
     collapsed = false,
     fit = false,
     fitMin = 0,
+    firstCollapsed = false,
     initial = unit === 'fraction' ? 0.5 : 256,
     min = unit === 'fraction' ? 0.15 : 180,
     max = unit === 'fraction' ? 0.85 : 520,
@@ -240,6 +247,9 @@
     return () => clearTimeout(timer)
   })
 
+  // Only a fraction split stacks a header above a pane that can give up its share.
+  const headerOnly = $derived(firstCollapsed && unit === 'fraction')
+
   const fill = 'flex: 1 1 0%'
   const shown = $derived(open ? size : 0)
   // Fitting: no flex share at all, just a floor and the stored split as the ceiling, so the
@@ -250,16 +260,24 @@
       : `flex: 0 1 auto; min-height: max(${min * 100}%, ${fitMin}px); max-height: ${size * 100}%`
   )
   const firstStyle = $derived(
-    anchoredSecond ? fill : unit === 'fraction' ? fractionFirst : `flex: 0 0 ${shown}px`
+    headerOnly
+      ? 'flex: 0 0 auto'
+      : anchoredSecond
+        ? fill
+        : unit === 'fraction'
+          ? fractionFirst
+          : `flex: 0 0 ${shown}px`
   )
   const secondStyle = $derived(
-    anchoredSecond
-      ? `flex: 0 0 ${shown}px`
-      : unit === 'fraction'
-        ? fixed
-          ? `flex: ${1 - size} 1 0%`
+    headerOnly
+      ? fill
+      : anchoredSecond
+        ? `flex: 0 0 ${shown}px`
+        : unit === 'fraction'
+          ? fixed
+            ? `flex: ${1 - size} 1 0%`
+            : fill
           : fill
-        : fill
   )
   const slide = $derived(
     dragging ? '' : 'transition-[flex-basis] duration-200 ease-out motion-reduce:transition-none'
@@ -294,7 +312,10 @@
     </div>
   {/if}
 
-  {#if rendered}
+  {#if headerOnly}
+    <!-- The gap the handle used to hold, so the two cards keep their spacing while collapsed. -->
+    <div class="h-3 shrink-0"></div>
+  {:else if rendered}
     <!-- A focusable separator is a widget: the ARIA splitter pattern, which the linter misses. -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
