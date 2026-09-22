@@ -1,11 +1,21 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('./assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}
+
 /*
  * Names here become utilities: --color-panel gives bg-panel, border-panel, text-panel.
  * The foreground scale is semantic so a light theme only has to redefine variables, not
  * every component: text-fg is primary, text-fg-muted secondary, text-fg-faint a hint.
  */
 @theme {
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --color-base: #0b0d10;
   --color-panel: #14171c;
   --color-line: #232830;
@@ -165,7 +175,13 @@ body {
   margin: 0;
   background-color: var(--color-base);
   color: var(--color-fg);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
+}
+
+.font-mono,
+.cm-editor,
+.markdown code {
+  font-variant-ligatures: none;
 }
 
 /* A subtle panel entrance, and a hard stop for anyone who asked for less motion. */
@@ -252,7 +268,7 @@ body {
   border-radius: 0.25rem;
   background: color-mix(in srgb, var(--color-line) 60%, transparent);
   padding: 0.1em 0.35em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 .markdown pre {
