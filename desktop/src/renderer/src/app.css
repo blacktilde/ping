@@ -1,15 +1,5 @@
 @import 'tailwindcss';
 
-/*
- * JetBrains Mono, bundled rather than fetched: index.html sets `default-src 'self'`, so a font
- * CDN is blocked outright, and a desktop app should not reach the network to draw its own UI.
- * One variable file covers every weight the interface asks for (100-800). Latin only; anything
- * outside it falls back per glyph to the stack in --font-mono below, which is all JetBrains Mono
- * could do anyway since it ships no CJK.
- *
- * Vite leaves this a file URL because it is far past `assetsInlineLimit` (4 KB). Raising that
- * limit past 40 KB would inline it as a `data:` URL and the CSP would then refuse to load it.
- */
 @font-face {
   font-family: 'JetBrains Mono';
   font-style: normal;
@@ -24,13 +14,6 @@
  * every component: text-fg is primary, text-fg-muted secondary, text-fg-faint a hint.
  */
 @theme {
-  /*
-   * Both font stacks are tokens so `font-mono` and `font-sans` resolve here rather than to
-   * Tailwind's built-in defaults. Mono carries every piece of data the app shows back -- verbs,
-   * status codes, header names, tokens, JSON -- so it is picked for reading a string character
-   * by character: tall x-height at the 10px verb labels, slashed zero, and l/I/1 that cannot be
-   * confused. Sans stays on the system face and is for prose only: notes, settings copy, labels.
-   */
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --color-base: #0b0d10;
@@ -195,13 +178,6 @@ body {
   font-family: var(--font-sans);
 }
 
-/*
- * Ligatures off wherever the mono face is used. JetBrains Mono joins ->, !=, // and friends into
- * single glyphs, which helps when the text is source code and hurts here: everything set in mono
- * is data you compare character by character -- a URL, a bearer token, a hash. One glyph per
- * character is the whole point. Tailwind's font-mono sets only the family, so this rides
- * alongside it; the properties do not overlap, so neither rule has to win.
- */
 .font-mono,
 .cm-editor,
 .markdown code {

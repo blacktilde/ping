@@ -21,6 +21,8 @@ extraResources:
     filter:
       - ping-core
       - ping-core.exe
+  - from: src/renderer/src/assets/fonts/LICENSE-JetBrainsMono.txt
+    to: LICENSE-JetBrainsMono.txt
 
 asar: true
 # No native node modules to rebuild; electron-builder's default would only slow the build.
