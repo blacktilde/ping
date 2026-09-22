@@ -87,11 +87,12 @@
 </script>
 
 <!--
-  The app's own controls share this strip rather than taking a row above it. Only the tabs
-  scroll: the wrapper carries the rule and the edges, so a long list of tabs never pushes
-  the environment picker out of reach.
+  A header, not a bare strip: the app's own controls share this row rather than taking one
+  above it, so this is where anything that must not shift the page belongs — an update offer
+  arrives here and the layout below it never moves. Only the tabs scroll; the wrapper carries
+  the rule and the edges, so a long list of tabs never pushes the environment picker out of reach.
 -->
-<div class="flex items-stretch border-b border-line">
+<header class="flex items-stretch border-b border-line">
   {#if leading}
     <div class="flex shrink-0 items-center pl-2">{@render leading()}</div>
   {/if}
@@ -174,4 +175,4 @@
   {#if trailing}
     <div class="flex shrink-0 items-center gap-2 pr-4">{@render trailing()}</div>
   {/if}
-</div>
+</header>
