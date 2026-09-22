@@ -32,7 +32,7 @@
   const appearance = EditorView.theme({
     '&': { height: '100%', fontSize: '13px', backgroundColor: 'transparent' },
     '.cm-scroller': {
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      fontFamily: 'var(--font-mono)',
       overflow: 'auto'
     },
     '.cm-content': { padding: '12px 0' },
