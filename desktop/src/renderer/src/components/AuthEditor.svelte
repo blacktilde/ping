@@ -18,20 +18,11 @@
     { value: 'oauth2-authorization-code', label: 'OAuth2 authorization code' }
   ]
 
-  /**
-   * A field, its label worn inside the box so the scheme and its credentials share one row
-   * instead of stacking a label column under the picker.
-   *
-   * `label` is short because the picker beside it already names the scheme — "Token" under
-   * "Bearer token". `aria` is the long name, which is what a screen reader and the smoke
-   * test address the input by, and it defaults to the label where the two agree.
-   */
   interface Field {
     label: string
     value: string
     set: (next: string) => void
     aria?: string
-    /** A credential that should not sit on screen in plain text. */
     secret?: boolean
   }
 
@@ -39,20 +30,11 @@
     'shrink-0 rounded-md border border-line bg-base px-2.5 py-1.5 text-sm outline-none ' +
     'transition focus:border-accent'
 
-  /**
-   * `min-w-44` is what decides where the row breaks: a flex item never shrinks past it, so
-   * the fields that do not fit wrap to the next line at a readable width instead of
-   * collapsing into slivers. Only OAuth2 has enough fields to reach a second line.
-   */
   const group =
     'flex min-w-44 flex-1 items-center gap-2 rounded-md border border-line bg-base px-2.5 ' +
     'transition focus-within:border-accent'
 </script>
 
-<!--
-  Two-way binding does not cross a snippet boundary, so a field reports its edits through a
-  setter. `auth` is the caller's draft state, mutated in place the way `bind:value` did.
--->
 {#snippet field({ label, value, set, aria, secret }: Field)}
   <label class={group}>
     <span class="shrink-0 text-xs text-fg-faint">{label}</span>
