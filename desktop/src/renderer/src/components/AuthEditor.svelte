@@ -18,107 +18,120 @@
     { value: 'oauth2-authorization-code', label: 'OAuth2 authorization code' }
   ]
 
-  const field =
-    'min-w-0 flex-1 rounded-md border border-line bg-base px-3 py-1.5 text-sm outline-none ' +
+  interface Field {
+    label: string
+    value: string
+    set: (next: string) => void
+    aria?: string
+    secret?: boolean
+  }
+
+  const control =
+    'shrink-0 rounded-md border border-line bg-base px-2.5 py-1.5 text-sm outline-none ' +
     'transition focus:border-accent'
+
+  const group =
+    'flex min-w-44 flex-1 items-center gap-2 rounded-md border border-line bg-base px-2.5 ' +
+    'transition focus-within:border-accent'
 </script>
 
+{#snippet field({ label, value, set, aria, secret }: Field)}
+  <label class={group}>
+    <span class="shrink-0 text-xs text-fg-faint">{label}</span>
+    <input
+      {value}
+      oninput={(event) => set(event.currentTarget.value)}
+      aria-label={aria ?? label}
+      type={secret ? 'password' : 'text'}
+      class="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-fg outline-none"
+    />
+  </label>
+{/snippet}
+
 <div class="flex h-full flex-col overflow-auto">
-  <div class="flex items-center gap-3 border-b border-line px-5 py-2">
-    <select
-      bind:value={auth.type}
-      aria-label="Auth type"
-      class="rounded-md border border-line bg-base px-3 py-1.5 text-sm outline-none
-             transition focus:border-accent"
-    >
+  <div class="flex flex-wrap items-center gap-2 px-5 py-3">
+    <select bind:value={auth.type} aria-label="Auth type" class={control}>
       {#each types as option (option.value)}
         <option value={option.value}>{option.label}</option>
       {/each}
     </select>
-    <span class="text-xs text-fg-faint">
-      Use <code class="font-mono">&#123;&#123;name&#125;&#125;</code> for a secret. A credential
-      typed here is moved to the shell's encrypted store on save, leaving only the reference in
-      the file.
-    </span>
-  </div>
 
-  <div class="flex flex-col gap-3 px-5 py-4">
     {#if auth.type === 'basic'}
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Username</span>
-        <input bind:value={auth.username} aria-label="Username" class={field} />
-      </label>
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Password</span>
-        <input bind:value={auth.password} aria-label="Password" type="password" class={field} />
-      </label>
+      {@render field({
+        label: 'Username',
+        value: auth.username,
+        set: (next) => (auth.username = next)
+      })}
+      {@render field({
+        label: 'Password',
+        value: auth.password,
+        set: (next) => (auth.password = next),
+        secret: true
+      })}
     {:else if auth.type === 'bearer'}
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Token</span>
-        <input bind:value={auth.token} aria-label="Bearer token" class={field} />
-      </label>
+      {@render field({
+        label: 'Token',
+        aria: 'Bearer token',
+        value: auth.token,
+        set: (next) => (auth.token = next)
+      })}
     {:else if auth.type === 'api-key'}
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Key</span>
-        <input bind:value={auth.key} aria-label="API key name" class={field} />
-      </label>
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Value</span>
-        <input bind:value={auth.value} aria-label="API key value" class={field} />
-      </label>
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Add to</span>
-        <select
-          bind:value={auth.in}
-          aria-label="API key location"
-          class="rounded-md border border-line bg-base px-3 py-1.5 text-sm outline-none
-                 transition focus:border-accent"
-        >
-          <option value="header">Header</option>
-          <option value="query">Query parameter</option>
-        </select>
-      </label>
+      {@render field({
+        label: 'Key',
+        aria: 'API key name',
+        value: auth.key,
+        set: (next) => (auth.key = next)
+      })}
+      {@render field({
+        label: 'Value',
+        aria: 'API key value',
+        value: auth.value,
+        set: (next) => (auth.value = next)
+      })}
+      <select bind:value={auth.in} aria-label="API key location" class={control}>
+        <option value="header">Header</option>
+        <option value="query">Query parameter</option>
+      </select>
     {:else if auth.type === 'oauth2-client-credentials' || auth.type === 'oauth2-authorization-code'}
       {#if auth.type === 'oauth2-authorization-code'}
-        <label class="flex items-center gap-3">
-          <span class="w-28 shrink-0 text-sm text-fg-muted">Authorize URL</span>
-          <input bind:value={auth.authUrl} aria-label="Authorization URL" class={field} />
-        </label>
+        {@render field({
+          label: 'Authorize URL',
+          aria: 'Authorization URL',
+          value: auth.authUrl,
+          set: (next) => (auth.authUrl = next)
+        })}
       {/if}
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Token URL</span>
-        <input bind:value={auth.tokenUrl} aria-label="Token URL" class={field} />
-      </label>
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Client ID</span>
-        <input bind:value={auth.clientId} aria-label="Client ID" class={field} />
-      </label>
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Client secret</span>
-        <input bind:value={auth.clientSecret} aria-label="Client secret" class={field} />
-      </label>
-      <label class="flex items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-fg-muted">Scopes</span>
-        <input bind:value={auth.scopes} aria-label="Scopes" class={field} />
-      </label>
+      {@render field({
+        label: 'Token URL',
+        value: auth.tokenUrl,
+        set: (next) => (auth.tokenUrl = next)
+      })}
+      {@render field({
+        label: 'Client ID',
+        value: auth.clientId,
+        set: (next) => (auth.clientId = next)
+      })}
+      {@render field({
+        label: 'Client secret',
+        value: auth.clientSecret,
+        set: (next) => (auth.clientSecret = next)
+      })}
+      {@render field({ label: 'Scopes', value: auth.scopes, set: (next) => (auth.scopes = next) })}
       {#if auth.type === 'oauth2-authorization-code'}
-        <div class="flex items-center gap-3">
-          <span class="w-28 shrink-0"></span>
-          <button
-            type="button"
-            onclick={() => onAuthorize?.()}
-            class="rounded-lg border border-line px-4 py-2 text-sm text-fg transition
-                   hover:border-accent"
-          >
-            Authorize
-          </button>
-          {#if status}
-            <span class="text-xs text-fg-muted" data-role="auth-status">{status}</span>
-          {/if}
-        </div>
+        <button
+          type="button"
+          onclick={() => onAuthorize?.()}
+          class="shrink-0 rounded-md border border-line px-4 py-1.5 text-sm text-fg transition
+                 hover:border-accent"
+        >
+          Authorize
+        </button>
+        {#if status}
+          <span class="text-xs text-fg-muted" data-role="auth-status">{status}</span>
+        {/if}
       {/if}
     {:else}
-      <p class="text-sm text-fg-faint">This request is not authenticated.</p>
+      <span class="text-sm text-fg-faint">This request is not authenticated.</span>
     {/if}
   </div>
 </div>
