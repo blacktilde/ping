@@ -20,6 +20,19 @@ const SCALE = 2
 const outDir = process.argv[2] ?? join(new URL('..', import.meta.url).pathname, '..', 'docs', 'screenshots')
 const root = new URL('..', import.meta.url)
 
+// The screenshot driver can be told which theme to paint and which shots to take, so callers
+// (like the website's update-screenshots.sh) can regenerate a single shot per theme.
+const THEMES = ['light', 'dark', 'rocket-night', 'rocket-daylight', 'violet']
+const THEME = THEMES.includes(process.env.PING_SHOT_THEME) ? process.env.PING_SHOT_THEME : 'dark'
+if (process.env.PING_SHOT_THEME && process.env.PING_SHOT_THEME !== THEME) {
+  console.error(`[shots] unknown PING_SHOT_THEME ${process.env.PING_SHOT_THEME}; using ${THEME}`)
+}
+const ONLY = (process.env.PING_SHOT_ONLY ?? 'hero,request-builder,history,variables')
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean)
+const want = (name) => ONLY.includes(name)
+
 // --- throwaway workspace ------------------------------------------------------------------
 
 const workspaceDir = mkdtempSync(join(tmpdir(), 'ping-shots-'))
@@ -162,7 +175,7 @@ try {
   // regardless of the host's color-scheme and stored layout.
   await cdp('Page.addScriptToEvaluateOnNewDocument', {
     source: [
-      "localStorage.setItem('ping.theme','dark')",
+      `localStorage.setItem('ping.theme',${JSON.stringify(THEME)})`,
       "localStorage.setItem('ping.split.sidebar','280')",
       "localStorage.setItem('ping.split.request','0.38')"
     ].join(';')
@@ -264,58 +277,66 @@ try {
   await evaluate(setSelect('Environment', 'JSONPlaceholder/environments/production.yaml'))
   await wait(600)
 
-  console.log('--- hero: a real request and response')
-  await openRequest('List users', '{{baseUrl}}/users')
-  await evaluate(clickRequestTab('Params'))
-  await send()
-  await waitFor(async () => (await evaluate(status())) === '200', 20000, 'a 200')
-  await evaluate(clickResponseTab('Body'))
-  await capture('hero.png')
+  if (want('hero')) {
+    console.log('--- hero: a real request and response')
+    await openRequest('List users', '{{baseUrl}}/users')
+    await evaluate(clickRequestTab('Params'))
+    await send()
+    await waitFor(async () => (await evaluate(status())) === '200', 20000, 'a 200')
+    await evaluate(clickResponseTab('Body'))
+    await capture('hero.png')
+  }
 
-  console.log('--- request builder: JSON body')
-  await openRequest('Create post', '{{baseUrl}}/posts')
-  await evaluate(clickRequestTab('Body'))
-  await waitFor(
-    async () => await evaluate(`!!document.querySelector('[data-role="request"] .cm-content')`),
-    4000,
-    'the body editor'
-  )
-  await send()
-  await waitFor(async () => (await evaluate(status())) === '201', 20000, 'a 201')
-  await evaluate(clickResponseTab('Body'))
-  await capture('request-builder.png')
+  if (want('request-builder')) {
+    console.log('--- request builder: JSON body')
+    await openRequest('Create post', '{{baseUrl}}/posts')
+    await evaluate(clickRequestTab('Body'))
+    await waitFor(
+      async () => await evaluate(`!!document.querySelector('[data-role="request"] .cm-content')`),
+      4000,
+      'the body editor'
+    )
+    await send()
+    await waitFor(async () => (await evaluate(status())) === '201', 20000, 'a 201')
+    await evaluate(clickResponseTab('Body'))
+    await capture('request-builder.png')
+  }
 
-  console.log('--- history')
-  await openRequest('Get user', '{{baseUrl}}/users/1')
-  await send()
-  await openRequest('List posts', '{{baseUrl}}/posts')
-  await send()
-  await evaluate(clickText('History'))
-  await waitFor(
-    async () => (await evaluate(`document.querySelectorAll('[data-role="history-entry"]').length`)) >= 4,
-    4000,
-    'history entries'
-  )
-  await capture('history.png')
-  await evaluate(clickText('Collections'))
+  if (want('history')) {
+    console.log('--- history')
+    await openRequest('Get user', '{{baseUrl}}/users/1')
+    await send()
+    await openRequest('List posts', '{{baseUrl}}/posts')
+    await send()
+    await evaluate(clickText('History'))
+    await waitFor(
+      async () => (await evaluate(`document.querySelectorAll('[data-role="history-entry"]').length`)) >= 4,
+      4000,
+      'history entries'
+    )
+    await capture('history.png')
+    await evaluate(clickText('Collections'))
+  }
 
-  console.log('--- variables and secrets')
-  await evaluate(clickText('Variables'))
-  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="variables"]')`), 3000, 'the panel')
-  await evaluate(clickText('+ Add secret'))
-  await evaluate(setInput('Secret name', 'apiToken'))
-  await evaluate(setInput('Secret value', 'sk_live_8f2c1a'))
-  await evaluate(clickText('Save variables'))
-  // The button says "Saved!" for a moment after a save; wait it out so the shot shows the label.
-  await waitFor(
-    async () =>
-      (await evaluate(`document.querySelector('[data-role="save-variables"]')?.textContent.trim()`)) ===
-      'Save variables',
-    5000,
-    'the save confirmation to fade'
-  )
-  await wait(300)
-  await capture('variables.png')
+  if (want('variables')) {
+    console.log('--- variables and secrets')
+    await evaluate(clickText('Variables'))
+    await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="variables"]')`), 3000, 'the panel')
+    await evaluate(clickText('+ Add secret'))
+    await evaluate(setInput('Secret name', 'apiToken'))
+    await evaluate(setInput('Secret value', 'sk_live_8f2c1a'))
+    await evaluate(clickText('Save variables'))
+    // The button says "Saved!" for a moment after a save; wait it out so the shot shows the label.
+    await waitFor(
+      async () =>
+        (await evaluate(`document.querySelector('[data-role="save-variables"]')?.textContent.trim()`)) ===
+        'Save variables',
+      5000,
+      'the save confirmation to fade'
+    )
+    await wait(300)
+    await capture('variables.png')
+  }
 } catch (cause) {
   console.error(`FAIL: ${cause instanceof Error ? cause.message : String(cause)}`)
   process.exitCode = 1
