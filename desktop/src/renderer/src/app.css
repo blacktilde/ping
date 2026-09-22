@@ -41,18 +41,20 @@
   --color-warning-soft: rgb(120 53 15 / 0.3);
   --color-success: #34d399;
   /*
-   * An exchange in flight, drawn as a light crossing the foot of the send button:
+   * An exchange in flight, drawn as a runner crossing the foot of the send button:
    * animate-sweep. It says work is happening without claiming to know how much is left,
-   * which a request whose body has no length cannot know. The reduced-motion rule below
-   * stops it like every other animation here.
+   * which a request whose body has no length cannot know. The end offset is written in
+   * the runner's own widths, so it is the runner's width that sets it: 250% carries a
+   * two-fifths runner exactly one track across. The reduced-motion rule below stops it
+   * like every other animation here.
    */
-  --animate-sweep: ping-sweep 1.4s ease-in-out infinite;
+  --animate-sweep: ping-sweep 1.2s ease-in-out infinite;
   @keyframes ping-sweep {
     from {
-      transform: translateX(-110%);
+      transform: translateX(-100%);
     }
     to {
-      transform: translateX(210%);
+      transform: translateX(250%);
     }
   }
 }

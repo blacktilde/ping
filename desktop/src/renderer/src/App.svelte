@@ -1098,21 +1098,14 @@
     {text}
     {#if phase === 'sending'}
       <!--
-        Two icons in one cell: a spinner turning for as long as the core is working, and
-        the cross for what a press does, which takes over under the pointer. The spinner is
-        the only thing on screen that moves by itself while a request is out, so it is what
-        says the app is waiting rather than stuck.
+        A spinner, and nothing conditional about it. The pointer is on this button the
+        instant the request starts — it just clicked Send — so anything that hides under a
+        hover is hidden exactly when the wait begins. The word beside it says what a press
+        does; the spinner only has to say the app is waiting rather than stuck. It turns
+        only in this phase: the face stays in the layout to hold the button's width, and an
+        invisible animation still costs a compositor frame every frame, forever.
       -->
-      <span class="grid h-4 w-4">
-        <span class="col-start-1 row-start-1 transition-opacity duration-150
-                     motion-reduce:transition-none group-hover:opacity-0">
-          {@render sendIcon('spinner')}
-        </span>
-        <span class="col-start-1 row-start-1 opacity-0 transition-opacity duration-150
-                     motion-reduce:transition-none group-hover:opacity-100">
-          {@render sendIcon('cross')}
-        </span>
-      </span>
+      {@render sendIcon('spinner')}
     {:else if phase === 'streaming'}
       {@render sendIcon('stop')}
     {:else}
@@ -1121,12 +1114,12 @@
   </span>
 {/snippet}
 
-{#snippet sendIcon(shape: 'arrow' | 'spinner' | 'cross' | 'stop')}
+{#snippet sendIcon(shape: 'arrow' | 'spinner' | 'stop')}
   <svg
     viewBox="0 0 24 24"
     class="h-4 w-4 {shape === 'arrow'
       ? 'transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none'
-      : ''} {shape === 'spinner' ? 'animate-spin' : ''}"
+      : ''} {shape === 'spinner' && sendPhase === 'sending' ? 'animate-spin' : ''}"
     fill="none"
     stroke="currentColor"
     stroke-width="2"
@@ -1138,12 +1131,9 @@
       <line x1="4" y1="12" x2="19" y2="12" />
       <polyline points="13 6 19 12 13 18" />
     {:else if shape === 'spinner'}
-      <!-- A faint ring with a bright quarter on it: the quarter is what you see turning. -->
-      <circle cx="12" cy="12" r="9" class="opacity-25" />
+      <!-- A faint ring with a bright third on it: the third is what you see turning. -->
+      <circle cx="12" cy="12" r="9" class="opacity-30" />
       <path d="M21 12a9 9 0 0 0-9-9" />
-    {:else if shape === 'cross'}
-      <line x1="6" y1="6" x2="18" y2="18" />
-      <line x1="18" y1="6" x2="6" y2="18" />
     {:else}
       <rect x="6" y="6" width="12" height="12" rx="1.5" />
     {/if}
@@ -1467,12 +1457,10 @@
             <span
               data-role="send-progress"
               aria-hidden="true"
-              class="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden"
+              class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] overflow-hidden
+                     bg-danger/25"
             >
-              <span
-                class="block h-full w-1/3 animate-sweep bg-gradient-to-r from-transparent
-                       via-danger to-transparent"
-              ></span>
+              <span class="block h-full w-2/5 animate-sweep bg-danger"></span>
             </span>
           {/if}
         </button>
