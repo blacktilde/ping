@@ -145,6 +145,11 @@
   const streaming = $derived(
     active.inFlight && active.response?.streamed === true && active.response.ended === undefined
   )
+  // Send and cancel are one button, so one value decides both what it says and what a press
+  // does. A feed stops rather than cancels: what already arrived is kept.
+  const sendPhase = $derived<'idle' | 'sending' | 'streaming'>(
+    !active.inFlight ? 'idle' : streaming ? 'streaming' : 'sending'
+  )
   // A collection is always the first path segment; requests can nest below it.
   const activeCollection = $derived(active.path ? active.path.split('/')[0] : '')
 
@@ -1073,6 +1078,48 @@
 
 <svelte:window onkeydown={onKeydown} />
 
+<!--
+  One face of the send button. The inactive faces stay in the layout — faded, unclickable
+  and slid out of the way — rather than being removed, so the button's width is the width
+  of the widest label in every phase. Send leaves upwards and the in-flight faces arrive
+  from below, which reads as one strip rolling past instead of two labels crossfading.
+-->
+{#snippet sendFace(phase: 'idle' | 'sending' | 'streaming', text: string)}
+  <span
+    data-face={phase}
+    data-active={sendPhase === phase}
+    aria-hidden={sendPhase !== phase}
+    class="col-start-1 row-start-1 flex items-center justify-center gap-2 transition
+           duration-200 ease-out motion-reduce:transition-none
+           {sendPhase === phase
+      ? 'translate-y-0 scale-100 opacity-100'
+      : `pointer-events-none scale-95 opacity-0 ${phase === 'idle' ? '-translate-y-2' : 'translate-y-2'}`}"
+  >
+    {text}
+    <svg
+      viewBox="0 0 24 24"
+      class="h-4 w-4 transition-transform duration-200 motion-reduce:transition-none
+             {phase === 'idle' ? 'group-hover:translate-x-0.5' : ''}"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      {#if phase === 'idle'}
+        <line x1="4" y1="12" x2="19" y2="12" />
+        <polyline points="13 6 19 12 13 18" />
+      {:else if phase === 'sending'}
+        <line x1="6" y1="6" x2="18" y2="18" />
+        <line x1="18" y1="6" x2="6" y2="18" />
+      {:else}
+        <rect x="6" y="6" width="12" height="12" rx="1.5" />
+      {/if}
+    </svg>
+  </span>
+{/snippet}
+
 <div class="relative flex h-full">
   {#snippet mainContent()}
     <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
@@ -1205,7 +1252,13 @@
         class="flex gap-2.5"
         onsubmit={(event) => {
           event.preventDefault()
-          void send()
+          // The submit button is the cancel button while an exchange is in flight, so the
+          // form dispatches on the phase: Enter in the URL field does what the button says.
+          if (active.inFlight) {
+            void cancel()
+          } else {
+            void send()
+          }
         }}
       >
         <!--
@@ -1350,39 +1403,31 @@
           </div>
         </div>
 
+        <!--
+          One button does both jobs, so it is never disabled: while an exchange is in flight
+          the same press cancels it. It keeps its size across that change because every
+          phase is rendered into the same grid cell, which is therefore always as wide as
+          the widest label — nothing resizes under a pointer that is on its way to click.
+        -->
         <button
           type="submit"
-          disabled={active.inFlight}
-          class="flex shrink-0 items-center gap-2 rounded-lg border border-accent px-7 py-2.5
-                 text-sm font-medium text-accent transition hover:bg-accent/10
-                 disabled:opacity-40 disabled:hover:bg-transparent"
+          data-role="send"
+          data-state={sendPhase}
+          aria-label={sendPhase === 'idle'
+            ? 'Send request'
+            : sendPhase === 'streaming'
+              ? 'Stop the stream'
+              : 'Cancel the request'}
+          class="group grid shrink-0 rounded-lg border px-7 py-2.5 text-sm font-medium
+                 transition-colors duration-200 motion-reduce:transition-none
+                 {active.inFlight
+            ? 'border-danger text-danger hover:bg-danger/10'
+            : 'border-accent text-accent hover:bg-accent/10'}"
         >
-          {active.inFlight ? (streaming ? 'Streaming…' : 'Sending…') : 'Send'}
-          <svg
-            viewBox="0 0 24 24"
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="4" y1="12" x2="19" y2="12" />
-            <polyline points="13 6 19 12 13 18" />
-          </svg>
+          {@render sendFace('idle', 'Send')}
+          {@render sendFace('sending', 'Cancel')}
+          {@render sendFace('streaming', 'Stop')}
         </button>
-
-        {#if active.inFlight}
-          <button
-            type="button"
-            onclick={cancel}
-            class="rounded-lg border border-line px-4 py-2.5 text-sm text-fg
-                   transition hover:border-fg-muted"
-          >
-            {streaming ? 'Stop' : 'Cancel'}
-          </button>
-        {/if}
       </form>
 
       {#if importNotice && importNotice.tabId === tabs.activeId}

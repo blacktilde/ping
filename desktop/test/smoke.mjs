@@ -459,8 +459,9 @@ try {
       paneText: (pane?.textContent ?? '').slice(0, 8000),
       error: error ? error.textContent.trim() : null,
       cancelled: cancelled ? cancelled.textContent.trim() : null,
-      sendLabel: submit ? submit.textContent.trim() : null,
-      cancelVisible: [...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Cancel'),
+      sendPhase: submit ? submit.dataset.state : null,
+      sendLabel: submit ? submit.querySelector('[data-active="true"]')?.textContent.trim() ?? null : null,
+      cancelVisible: submit ? submit.dataset.state !== 'idle' : false,
     };
   })()`
 
@@ -483,19 +484,22 @@ try {
   const snap = () => evaluate(snapshot)
 
   /**
-   * Clicks Send once the button will take it. Send is disabled while an exchange is in
-   * flight and a click on a disabled button is dropped without a trace, so clicking a
-   * moment too early leaves the previous response on screen until the wait for the next one
-   * gives up — a failure that looks like a broken request rather than a missed click.
+   * Clicks Send once the button is offering Send. The same button cancels while an exchange
+   * is in flight, so a click a moment too early aborts the previous request instead of
+   * starting the next one — a failure that looks like a broken request rather than a
+   * mistimed click.
    */
   async function clickSend() {
     await waitFor(
-      async () => await evaluate(`document.querySelector('button[type=submit]')?.disabled === false`),
+      async () => await evaluate(`document.querySelector('button[type=submit]')?.dataset.state === 'idle'`),
       10_000,
-      'the Send button to accept a click'
+      'the Send button to offer Send'
     )
     await evaluate(`document.querySelector('button[type=submit]').click()`)
   }
+
+  /** Presses the same button in its cancelling phase. */
+  const clickCancel = () => evaluate(`document.querySelector('button[type=submit]').click()`)
 
   /**
    * A timeout throws, which abandons every check after it, so `describe` puts what was on
@@ -923,11 +927,9 @@ try {
   // registered. This is what a person does anyway: see it hanging, then click.
   await waitFor(() => slowStarted, 5000, 'the slow request to reach the server')
   const during = await snap()
-  check('reports the request in flight', during.sendLabel === 'Sending…', during.sendLabel ?? 'none')
-  check('offers cancellation', during.cancelVisible)
-  await evaluate(
-    `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Cancel').click()`
-  )
+  check('reports the request in flight', during.sendPhase === 'sending', during.sendPhase ?? 'none')
+  check('turns the send button into Cancel', during.sendLabel === 'Cancel', during.sendLabel ?? 'none')
+  await clickCancel()
   await waitFor(async () => (await snap()).cancelled !== null, 6000, 'the cancelled state')
   const after = await snap()
   check('renders a neutral cancelled state', after.cancelled === 'Request cancelled.', after.cancelled ?? 'none')
@@ -1340,7 +1342,7 @@ try {
   await evaluate(setUrl(`${base}/slow`))
   await clickSend()
   await waitFor(async () => (await snap()).cancelVisible, 4000, 'the scratch tab to send')
-  check('the sending tab reports in flight', (await snap()).sendLabel === 'Sending…')
+  check('the sending tab reports in flight', (await snap()).sendPhase === 'sending')
 
   await evaluate(`document.querySelectorAll('[data-role="request-tab"]')[0].click()`)
   await wait(200)
@@ -1354,9 +1356,7 @@ try {
   await evaluate(`document.querySelectorAll('[data-role="request-tab"]')[1].click()`)
   await wait(200)
   check('the sending tab is still in flight when refocused', (await snap()).cancelVisible)
-  await evaluate(
-    `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Cancel').click()`
-  )
+  await clickCancel()
   await waitFor(async () => (await snap()).cancelled !== null, 6000, 'the cancel to land')
 
   // Closing the last tab leaves an empty one rather than a blank window.
@@ -2149,9 +2149,11 @@ try {
   await evaluate(setUrl(`${base}/events`))
   await clickSend()
   await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="sse-event"]').length`)) >= 1, 8000, 'the first event')
-  const submitText = await evaluate(`document.querySelector('button[type=submit]').textContent.trim()`)
-  check('the first event shows while the request is still in flight', submitText === 'Streaming…', submitText)
-  const stopShown = await evaluate(`[...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Stop')`)
+  const submitPhase = await evaluate(`document.querySelector('button[type=submit]').dataset.state`)
+  check('the first event shows while the request is still in flight', submitPhase === 'streaming', submitPhase)
+  const stopShown = await evaluate(
+    `document.querySelector('button[type=submit] [data-active="true"]').textContent.trim() === 'Stop'`
+  )
   check('offers Stop rather than Cancel', stopShown)
   const liveNote = await evaluate(`document.querySelector('[data-role="stream-note"]')?.textContent.trim()`)
   check('says it is streaming', /^Streaming · 1 event/.test(liveNote ?? ''), liveNote)
@@ -2163,8 +2165,8 @@ try {
   await waitFor(async () => (await evaluate(`document.querySelectorAll('[data-role="sse-event"]').length`)) === 2, 8000, 'the second event')
   check('the next event appears as it arrives', true)
 
-  await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Stop').click()`)
-  await waitFor(async () => (await evaluate(`document.querySelector('button[type=submit]').textContent.trim()`)) === 'Send', 8000, 'the stop to finish')
+  await clickCancel()
+  await waitFor(async () => (await snap()).sendPhase === 'idle', 8000, 'the stop to finish')
   check('Stop ends the exchange', true)
   check('the events stay on screen', (await evaluate(`document.querySelectorAll('[data-role="sse-event"]').length`)) === 2)
   const stoppedNote = await evaluate(`document.querySelector('[data-role="stream-note"]')?.textContent.trim()`)
