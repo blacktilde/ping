@@ -144,7 +144,8 @@
 </script>
 
 <div class="flex h-full flex-col">
-  <div class="flex items-center gap-3 px-5 py-4">
+  <!-- py-2 to the tab strip above it: a row of controls, not a band of its own. -->
+  <div class="flex items-center gap-3 px-5 py-2">
     <!-- One bordered group with hairline separators; the chosen view is the brighter label. -->
     <div
       role="radiogroup"

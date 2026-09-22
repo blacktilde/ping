@@ -28,6 +28,7 @@
   import {
     activeTab,
     activateTab,
+    bindTab,
     closeTab,
     closeTabsUnder,
     ensureTab,
@@ -84,10 +85,10 @@
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
+  import SaveRequestDialog from './components/SaveRequestDialog.svelte'
   import NetworkSettings from './components/NetworkSettings.svelte'
   import RunPanel from './components/RunPanel.svelte'
   import UpdateBadge from './components/UpdateBadge.svelte'
-  import appIcon from '../../../build/icon.png'
   import type { HistoryEntry } from '../../shared/history'
 
   interface CoreInfo {
@@ -112,6 +113,11 @@
   let showNetwork = $state(false)
   let workspaceRoot = $state<string | null>(null)
   let sidebarCollapsed = $state(readSidebarCollapsed())
+  let editorCollapsed = $state(readEditorCollapsed())
+  /** Open while a scratch tab is being given a home; false the rest of the time. */
+  let choosingSaveTarget = $state(false)
+  /** The collection the last save-as picked, so a run of saves starts where the last one went. */
+  let lastSaveTarget = $state<string | null>(null)
   let sidebarPanel = $state<'collections' | 'history'>('collections')
   let curlStatus = $state('')
   let urlRequired = $state(false)
@@ -128,6 +134,9 @@
   const dirty = $derived(
     active.savedKey !== null && draftKey(active.draft) !== active.savedKey
   )
+  // A tab with no file behind it is saved by choosing one, so it needs somewhere to go.
+  const hasCollection = $derived(nodes.some((node) => node.type === 'collection'))
+  const saveable = $derived(active.path ? dirty : hasCollection)
   // Installing restarts the app, so any tab with unsaved changes is at risk.
   const anyDirty = $derived(
     tabs.list.some((tab) => tab.savedKey !== null && draftKey(tab.draft) !== tab.savedKey)
@@ -513,8 +522,15 @@
     }
   }
 
+  /**
+   * Saves the open tab. A tab already bound to a file writes straight through; a scratch tab
+   * has nowhere to write yet, so it asks which collection should hold it first.
+   */
   async function save(): Promise<void> {
     if (!active.path) {
+      if (hasCollection) {
+        choosingSaveTarget = true
+      }
       return
     }
     try {
@@ -524,6 +540,32 @@
       // Rescan here rather than waiting for the file watcher to report the write we just
       // made: a rename changes the tree's label, and depending on a filesystem event to
       // show our own save is a race the watcher does not always win.
+      nodes = await scanStore()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /**
+   * Gives a scratch tab a file under `target` and writes the draft into it. The tab follows
+   * the new path, so the next save goes straight through and the sidebar shows it selected.
+   */
+  async function saveInto(target: string, name: string): Promise<void> {
+    const tab = active
+    choosingSaveTarget = false
+    try {
+      // The core sanitises and de-duplicates the file name, so the path it returns is the
+      // one to bind to — not one built from the name here.
+      const path = await createRequest(target, name)
+      tab.draft.name = name
+      // Bound before the secrets are lifted, so an auth value is filed under the same name
+      // this request's later saves will use: those are seeded from the path, not the name.
+      tab.path = path
+      await protectAuthSecrets(tab)
+      await writeRequest(path, draftToStored(tab.draft))
+      bindTab(tab, path)
+      lastSaveTarget = target
       nodes = await scanStore()
       storeError = ''
     } catch (cause) {
@@ -809,6 +851,30 @@
     }
   }
 
+  function readEditorCollapsed(): boolean {
+    try {
+      return localStorage.getItem('ping.editor.collapsed') === 'true'
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Folds the request editor down to its tab strip, handing the rest of the split to the
+   * response. The split itself is untouched, so expanding returns to the same height.
+   */
+  function setEditorCollapsed(value: boolean): void {
+    if (editorCollapsed === value) {
+      return
+    }
+    editorCollapsed = value
+    try {
+      localStorage.setItem('ping.editor.collapsed', String(value))
+    } catch {
+      // A locked-down profile just means the choice is not remembered.
+    }
+  }
+
   function firstRequest(list: StoreNode[]): StoreNode | null {
     for (const node of list) {
       if (node.type === 'request') return node
@@ -1010,8 +1076,19 @@
 <div class="relative flex h-full">
   {#snippet mainContent()}
     <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
-      <header class="flex items-center justify-between gap-4 border-b border-line pb-3">
-        <div class="flex items-center gap-2.5">
+    <!--
+      Edge to edge and flush with the top: the strip's rule separates it from the page, so it
+      ignores the gutter, and it carries the app's own controls instead of a title row above it.
+    -->
+    <div class="-mx-5 -mt-5">
+      <RequestTabs
+        tabs={tabs.list}
+        activeId={tabs.activeId}
+        onActivate={activateTab}
+        onClose={closeRequestTab}
+        onNew={newTab}
+      >
+        {#snippet leading()}
           <button
             type="button"
             onclick={toggleSidebar}
@@ -1040,13 +1117,9 @@
               {/if}
             </svg>
           </button>
-          <img src={appIcon} alt="" class="h-8 w-8 shrink-0 rounded-lg" />
-          <div>
-            <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-          </div>
-        </div>
+        {/snippet}
 
-        <div class="flex items-center gap-2">
+        {#snippet trailing()}
           <UpdateBadge hasUnsaved={anyDirty} />
 
           <select
@@ -1118,18 +1191,8 @@
           {:else if !bootError}
             <span class="ml-2 text-xs text-fg-faint">connecting to core…</span>
           {/if}
-        </div>
-      </header>
-
-    <!-- Edge to edge: the strip's rule separates it from the page, so it ignores the gutter. -->
-    <div class="-mx-5">
-      <RequestTabs
-        tabs={tabs.list}
-        activeId={tabs.activeId}
-        onActivate={activateTab}
-        onClose={closeRequestTab}
-        onNew={newTab}
-      />
+        {/snippet}
+      </RequestTabs>
     </div>
 
     <div
@@ -1259,11 +1322,13 @@
               data-role="save"
               type="button"
               onclick={save}
-              disabled={!active.path || !dirty}
-              aria-label="Save request"
+              disabled={!saveable}
+              aria-label={active.path ? 'Save request' : 'Save request to a collection'}
               title={active.path
                 ? 'Save changes'
-                : 'Open a request from a collection, or create a collection first'}
+                : hasCollection
+                  ? 'Save to a collection'
+                  : 'Create a collection first'}
               class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg
                      disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-fg-faint"
             >
@@ -1443,19 +1508,55 @@
         label="Resize request and response"
         fit
         fitMin={editorFloor}
+        firstCollapsed={editorCollapsed}
       >
         {#snippet first()}
           <section
             data-role="request"
             class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
           >
-            <Tabs tabs={requestTabs} bind:active={active.editorTab} idPrefix="request" />
+            <!--
+              Picking a tab is asking to see it: a collapsed editor opens rather than
+              changing out of sight.
+            -->
+            <Tabs
+              tabs={requestTabs}
+              bind:active={active.editorTab}
+              idPrefix="request"
+              onSelect={() => setEditorCollapsed(false)}
+            >
+              {#snippet trailing()}
+                <button
+                  type="button"
+                  onclick={() => setEditorCollapsed(!editorCollapsed)}
+                  aria-expanded={!editorCollapsed}
+                  aria-controls="request-panel"
+                  aria-label={editorCollapsed ? 'Expand the request editor' : 'Collapse the request editor'}
+                  title={editorCollapsed ? 'Expand the request editor' : 'Collapse the request editor'}
+                  class="rounded-md p-1 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="h-4 w-4 transition-transform duration-200 motion-reduce:transition-none
+                           {editorCollapsed ? '' : 'rotate-180'}"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              {/snippet}
+            </Tabs>
 
             <div
               id="request-panel"
               role="tabpanel"
               aria-labelledby={`request-tab-${active.editorTab}`}
-              class="min-h-0 flex-auto"
+              class="min-h-0 flex-auto {editorCollapsed ? 'hidden' : ''}"
             >
               {#if active.editorTab === 'params'}
                 <KeyValueEditor
@@ -1585,6 +1686,16 @@
 
   {#if run.open}
     <RunPanel />
+  {/if}
+
+  {#if choosingSaveTarget}
+    <SaveRequestDialog
+      {nodes}
+      name={active.draft.name}
+      preferred={lastSaveTarget}
+      onSave={(target, name) => void saveInto(target, name)}
+      onCancel={() => (choosingSaveTarget = false)}
+    />
   {/if}
 
   <ConfirmDialog />
