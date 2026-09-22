@@ -462,6 +462,7 @@ try {
       sendPhase: submit ? submit.dataset.state : null,
       sendLabel: submit ? submit.querySelector('[data-active="true"]')?.textContent.trim() ?? null : null,
       cancelVisible: submit ? submit.dataset.state !== 'idle' : false,
+      progress: !!document.querySelector('[data-role="send-progress"]'),
     };
   })()`
 
@@ -929,12 +930,14 @@ try {
   const during = await snap()
   check('reports the request in flight', during.sendPhase === 'sending', during.sendPhase ?? 'none')
   check('turns the send button into Cancel', during.sendLabel === 'Cancel', during.sendLabel ?? 'none')
+  check('shows that the request is being processed', during.progress)
   await clickCancel()
   await waitFor(async () => (await snap()).cancelled !== null, 6000, 'the cancelled state')
   const after = await snap()
   check('renders a neutral cancelled state', after.cancelled === 'Request cancelled.', after.cancelled ?? 'none')
   check('does not render cancellation as an error', after.error === null, after.error ?? '')
   check('restores the send button', after.sendLabel === 'Send', after.sendLabel ?? 'none')
+  check('stops the progress animation with it', !after.progress)
 
   console.log('--- 8. unreachable host')
   await evaluate(setUrl('http://127.0.0.1:1/nope'))
@@ -2155,6 +2158,7 @@ try {
     `document.querySelector('button[type=submit] [data-active="true"]').textContent.trim() === 'Stop'`
   )
   check('offers Stop rather than Cancel', stopShown)
+  check('keeps the progress animation running on a feed', (await snap()).progress)
   const liveNote = await evaluate(`document.querySelector('[data-role="stream-note"]')?.textContent.trim()`)
   check('says it is streaming', /^Streaming · 1 event/.test(liveNote ?? ''), liveNote)
   const eventText = await evaluate(`document.querySelector('[data-role="sse-event"]').textContent.replace(/\\s+/g, ' ')`)

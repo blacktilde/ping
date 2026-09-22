@@ -1096,28 +1096,40 @@
       : `pointer-events-none scale-95 opacity-0 ${phase === 'idle' ? '-translate-y-2' : 'translate-y-2'}`}"
   >
     {text}
-    <svg
-      viewBox="0 0 24 24"
-      class="h-4 w-4 transition-transform duration-200 motion-reduce:transition-none
-             {phase === 'idle' ? 'group-hover:translate-x-0.5' : ''}"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      {#if phase === 'idle'}
-        <line x1="4" y1="12" x2="19" y2="12" />
-        <polyline points="13 6 19 12 13 18" />
-      {:else if phase === 'sending'}
-        <line x1="6" y1="6" x2="18" y2="18" />
-        <line x1="18" y1="6" x2="6" y2="18" />
-      {:else}
-        <rect x="6" y="6" width="12" height="12" rx="1.5" />
-      {/if}
-    </svg>
+    {#if phase === 'sending'}
+      <!-- Never hidden on hover: the pointer is on this button the moment a request starts. -->
+      {@render sendIcon('spinner')}
+    {:else if phase === 'streaming'}
+      {@render sendIcon('stop')}
+    {:else}
+      {@render sendIcon('arrow')}
+    {/if}
   </span>
+{/snippet}
+
+{#snippet sendIcon(shape: 'arrow' | 'spinner' | 'stop')}
+  <svg
+    viewBox="0 0 24 24"
+    class="h-4 w-4 {shape === 'arrow'
+      ? 'transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none'
+      : ''} {shape === 'spinner' && sendPhase === 'sending' ? 'animate-spin' : ''}"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    {#if shape === 'arrow'}
+      <line x1="4" y1="12" x2="19" y2="12" />
+      <polyline points="13 6 19 12 13 18" />
+    {:else if shape === 'spinner'}
+      <circle cx="12" cy="12" r="9" class="opacity-30" />
+      <path d="M21 12a9 9 0 0 0-9-9" />
+    {:else}
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+    {/if}
+  </svg>
 {/snippet}
 
 <div class="relative flex h-full">
@@ -1418,8 +1430,8 @@
             : sendPhase === 'streaming'
               ? 'Stop the stream'
               : 'Cancel the request'}
-          class="group grid shrink-0 rounded-lg border px-7 py-2.5 text-sm font-medium
-                 transition-colors duration-200 motion-reduce:transition-none
+          class="group relative grid shrink-0 overflow-hidden rounded-lg border px-7 py-2.5
+                 text-sm font-medium transition-colors duration-200 motion-reduce:transition-none
                  {active.inFlight
             ? 'border-danger text-danger hover:bg-danger/10'
             : 'border-accent text-accent hover:bg-accent/10'}"
@@ -1427,6 +1439,20 @@
           {@render sendFace('idle', 'Send')}
           {@render sendFace('sending', 'Cancel')}
           {@render sendFace('streaming', 'Stop')}
+          {#if active.inFlight}
+            <!--
+              Indeterminate on purpose: a response with no Content-Length has no percentage
+              to show. Absolutely positioned, so it never touches the button's size.
+            -->
+            <span
+              data-role="send-progress"
+              aria-hidden="true"
+              class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] overflow-hidden
+                     bg-danger/25"
+            >
+              <span class="block h-full w-2/5 animate-sweep bg-danger"></span>
+            </span>
+          {/if}
         </button>
       </form>
 
