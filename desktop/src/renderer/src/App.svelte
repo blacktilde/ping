@@ -89,7 +89,6 @@
   import NetworkSettings from './components/NetworkSettings.svelte'
   import RunPanel from './components/RunPanel.svelte'
   import UpdateBadge from './components/UpdateBadge.svelte'
-  import appIcon from '../../../build/icon.png'
   import type { HistoryEntry } from '../../shared/history'
 
   interface CoreInfo {
@@ -1077,8 +1076,19 @@
 <div class="relative flex h-full">
   {#snippet mainContent()}
     <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
-      <header class="flex items-center justify-between gap-4 border-b border-line pb-3">
-        <div class="flex items-center gap-2.5">
+    <!--
+      Edge to edge and flush with the top: the strip's rule separates it from the page, so it
+      ignores the gutter, and it carries the app's own controls instead of a title row above it.
+    -->
+    <div class="-mx-5 -mt-5">
+      <RequestTabs
+        tabs={tabs.list}
+        activeId={tabs.activeId}
+        onActivate={activateTab}
+        onClose={closeRequestTab}
+        onNew={newTab}
+      >
+        {#snippet leading()}
           <button
             type="button"
             onclick={toggleSidebar}
@@ -1107,13 +1117,9 @@
               {/if}
             </svg>
           </button>
-          <img src={appIcon} alt="" class="h-8 w-8 shrink-0 rounded-lg" />
-          <div>
-            <h1 class="text-xl font-semibold tracking-tight">Ping</h1>
-          </div>
-        </div>
+        {/snippet}
 
-        <div class="flex items-center gap-2">
+        {#snippet trailing()}
           <UpdateBadge hasUnsaved={anyDirty} />
 
           <select
@@ -1185,18 +1191,8 @@
           {:else if !bootError}
             <span class="ml-2 text-xs text-fg-faint">connecting to core…</span>
           {/if}
-        </div>
-      </header>
-
-    <!-- Edge to edge: the strip's rule separates it from the page, so it ignores the gutter. -->
-    <div class="-mx-5">
-      <RequestTabs
-        tabs={tabs.list}
-        activeId={tabs.activeId}
-        onActivate={activateTab}
-        onClose={closeRequestTab}
-        onNew={newTab}
-      />
+        {/snippet}
+      </RequestTabs>
     </div>
 
     <div

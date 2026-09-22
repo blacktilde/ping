@@ -279,7 +279,8 @@
   data-role="sidebar"
   class="flex h-full w-full flex-col border-r border-line bg-panel"
 >
-  <div class="flex flex-col gap-1 border-b border-line px-3 py-2">
+  <!-- py-2.5 lands this rule level with the request strip's across the divider. -->
+  <div class="flex flex-col gap-1 border-b border-line px-3 py-2.5">
     <div class="flex items-center justify-between">
       <div role="tablist" aria-label="Sidebar panel" class="flex items-center gap-1">
         <button
