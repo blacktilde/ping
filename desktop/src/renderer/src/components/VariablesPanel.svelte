@@ -114,7 +114,7 @@
           bind:value={variables.name}
           aria-label="Collection name"
           class="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1 text-sm
-                 outline-none transition focus:border-accent"
+                 outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
         />
         <button
           type="button"
@@ -187,7 +187,7 @@
               aria-label="Environment name"
               placeholder="Environment name"
               class="min-w-0 w-36 rounded-md border border-line bg-base px-2 py-1 text-xs
-                     outline-none transition focus:border-accent"
+                     outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
             />
             <button type="submit" class="rounded-md px-2 py-1 text-xs text-accent">Create</button>
           </form>
@@ -287,9 +287,19 @@
                 onclick={() =>
                   void clearCookies(variables.collection, variables.environment, cookie.domain, cookie.name)}
                 aria-label="Delete cookie {cookie.name}"
-                class="shrink-0 rounded px-1 text-fg-faint transition hover:text-danger"
+                class="shrink-0 rounded p-1 text-fg-faint transition hover:text-danger"
               >
-                ×
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             </li>
           {/each}

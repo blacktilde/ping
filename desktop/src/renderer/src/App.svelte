@@ -1186,7 +1186,7 @@
             onchange={(event) => void onEnvironmentChange(event.currentTarget.value)}
             aria-label="Environment"
             class="rounded-md border border-line bg-panel px-2 py-1 text-xs text-fg-muted
-                   outline-none transition hover:text-fg focus:border-accent"
+                   outline-none transition hover:text-fg focus:border-accent focus:ring-3 focus:ring-accent/15"
           >
             <option value="">No environment</option>
             {#each variables.environments as environment (environment.path)}
@@ -1235,7 +1235,7 @@
               {#if showAbout}
                 <dl
                   data-role="about"
-                  class="absolute right-0 top-full z-30 mt-1 w-52 space-y-1 rounded-lg border
+                  class="motion-rise absolute right-0 top-full z-30 mt-1 w-52 space-y-1 rounded-lg border
                          border-line bg-panel p-3 text-xs text-fg-muted shadow-lg"
                 >
                   <div class="flex justify-between"><dt class="text-fg-faint">core</dt><dd>{info.coreVersion}</dd></div>
@@ -1279,7 +1279,7 @@
         -->
         <div
           class="relative flex min-w-0 flex-1 items-center rounded-lg border bg-panel transition
-                 {urlRequired ? 'border-warning' : 'border-line focus-within:border-accent'}"
+                 {urlRequired ? 'border-warning' : 'border-line focus-within:border-accent focus-within:ring-3 focus-within:ring-accent/15'}"
         >
           <div class="relative shrink-0">
             <!--
@@ -1334,7 +1334,7 @@
             <span
               data-role="url-required"
               role="status"
-              class="pointer-events-none absolute -top-7 left-0 whitespace-nowrap rounded-md
+              class="motion-rise pointer-events-none absolute -top-7 left-0 whitespace-nowrap rounded-md
                      border border-warning-soft bg-panel px-2 py-1 text-xs text-warning"
             >
               Enter a URL to send
@@ -1369,7 +1369,7 @@
                 <span
                   role="status"
                   data-role="curl-status"
-                  class="pointer-events-none absolute -top-8 right-0 whitespace-nowrap rounded-md
+                  class="motion-rise pointer-events-none absolute -top-8 right-0 whitespace-nowrap rounded-md
                          border border-line bg-panel px-2 py-1 text-xs text-fg-muted shadow-lg"
                 >
                   {curlStatus}
@@ -1431,10 +1431,11 @@
               ? 'Stop the stream'
               : 'Cancel the request'}
           class="group relative grid shrink-0 overflow-hidden rounded-lg border px-7 py-2.5
-                 text-sm font-medium transition-colors duration-200 motion-reduce:transition-none
+                 text-sm font-medium shadow-sm transition duration-200 active:scale-[0.98]
+                 motion-reduce:transition-none
                  {active.inFlight
-            ? 'border-danger text-danger hover:bg-danger/10'
-            : 'border-accent text-accent hover:bg-accent/10'}"
+            ? 'border-danger/60 bg-danger/10 text-danger hover:bg-danger/15'
+            : 'border-accent bg-accent text-white hover:brightness-110'}"
         >
           {@render sendFace('idle', 'Send')}
           {@render sendFace('sending', 'Cancel')}
@@ -1480,9 +1481,19 @@
             type="button"
             onclick={() => (importNotice = null)}
             aria-label="Dismiss import notice"
-            class="rounded-md px-1.5 text-lg leading-none text-fg-faint transition hover:text-fg"
+            class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
           >
-            ×
+            <svg
+              viewBox="0 0 24 24"
+              class="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
       {/if}
@@ -1550,9 +1561,19 @@
             type="button"
             onclick={() => (importReport = null)}
             aria-label="Dismiss import report"
-            class="rounded-md px-1.5 text-lg leading-none text-fg-faint transition hover:text-fg"
+            class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
           >
-            ×
+            <svg
+              viewBox="0 0 24 24"
+              class="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
       {/if}

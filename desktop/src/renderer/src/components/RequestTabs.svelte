@@ -99,13 +99,13 @@
   <div
     role="tablist"
     aria-label="Open requests"
-    class="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto px-2"
+    class="scroll-quiet flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto px-2"
   >
     {#each tabs as tab, index (tab.id)}
       {@const active = tab.id === activeId}
       <div
-        class="group flex shrink-0 items-center border-b-2 transition
-               {active ? 'border-accent' : 'border-transparent'}"
+        class="group flex shrink-0 items-center border-b-2 transition-colors
+               {active ? 'border-accent' : 'border-transparent hover:border-line'}"
       >
         {#if renaming === tab.id}
           <span class="flex items-center gap-1.5 py-3 pl-3 text-sm">
@@ -152,11 +152,20 @@
           type="button"
           onclick={() => onClose(tab.id)}
           aria-label="Close {tab.draft.name || 'request'}"
-          class="mr-1 rounded px-1 text-base leading-none text-fg-faint transition
-                 hover:bg-line/60 hover:text-fg focus:opacity-100
-                 {active ? '' : 'opacity-0 group-hover:opacity-100'}"
+          class="mr-1 rounded p-0.5 text-fg-faint transition hover:bg-line/60 hover:text-fg
+                 focus:opacity-100 {active ? '' : 'opacity-0 group-hover:opacity-100'}"
         >
-          ×
+          <svg
+            viewBox="0 0 24 24"
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
       </div>
     {/each}
@@ -166,10 +175,20 @@
       onclick={onNew}
       aria-label="New request tab"
       title={`New request tab (${mod}T)`}
-      class="my-2 shrink-0 rounded-md px-2 text-lg leading-none text-fg-faint transition
-             hover:bg-line/60 hover:text-fg"
+      class="my-auto shrink-0 rounded-md p-1.5 text-fg-faint transition hover:bg-line/60
+             hover:text-fg"
     >
-      +
+      <svg
+        viewBox="0 0 24 24"
+        class="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M12 5v14M5 12h14" />
+      </svg>
     </button>
   </div>
   {#if trailing}

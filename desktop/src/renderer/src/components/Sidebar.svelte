@@ -394,7 +394,7 @@
           bind:value={name}
           aria-label="Collection name"
           class="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1 text-sm
-                 outline-none transition focus:border-accent"
+                 outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
         />
         <button type="submit" class="rounded-md px-2 py-1 text-xs text-accent">Create</button>
       </form>
@@ -412,7 +412,7 @@
           aria-label="Filter requests"
           placeholder="Filter requests"
           class="w-full rounded-md border border-line bg-base px-2 py-1 text-xs outline-none
-                 transition focus:border-accent"
+                 transition focus:border-accent focus:ring-3 focus:ring-accent/15"
         />
       </div>
     {/if}
@@ -517,9 +517,19 @@
               class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left text-sm
                      text-fg transition hover:bg-line/50"
             >
-              <span class="w-3 shrink-0 text-fg-faint">
-                {filtering || expanded.includes(node.path) ? '▾' : '▸'}
-              </span>
+              <svg
+                viewBox="0 0 24 24"
+                class="h-3 w-3 shrink-0 text-fg-faint transition-transform duration-150
+                       {filtering || expanded.includes(node.path) ? 'rotate-90' : ''}"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="9 6 15 12 9 18" />
+              </svg>
               <span class="truncate">{node.name}</span>
             </button>
           {/if}
@@ -569,9 +579,19 @@
                 type="button"
                 onclick={() => (confirming = node.path)}
                 aria-label="Delete {node.name}"
-                class="mr-1 rounded px-1.5 text-fg-faint transition hover:text-danger"
+                class="mr-1 rounded p-1 text-fg-faint transition hover:text-danger"
               >
-                ×
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             {/if}
             </div>

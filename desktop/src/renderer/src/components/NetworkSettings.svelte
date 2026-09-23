@@ -111,7 +111,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+<div class="fixed inset-0 z-50 flex items-center justify-center motion-backdrop">
   <button
     type="button"
     aria-label="Dismiss"
@@ -144,7 +144,7 @@
           bind:value={mode}
           disabled={!loaded}
           class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
-                 transition focus:border-accent"
+                 transition focus:border-accent focus:ring-3 focus:ring-accent/15"
         >
           {#each MODES as option (option.value)}
             <option value={option.value}>{option.label}</option>
@@ -170,7 +170,7 @@
             autocomplete="off"
             spellcheck="false"
             class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 font-mono
-                   outline-none transition focus:border-accent"
+                   outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           />
           <p class="mt-1 text-xs text-fg-faint">
             An HTTP proxy. HTTPS requests are tunnelled through it. SOCKS is not supported.
@@ -187,7 +187,7 @@
               autocomplete="off"
               spellcheck="false"
               class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
-                     transition focus:border-accent"
+                     transition focus:border-accent focus:ring-3 focus:ring-accent/15"
             />
           </div>
           <div>
@@ -201,7 +201,7 @@
               placeholder={hasPassword ? '•••••••• (saved)' : ''}
               autocomplete="off"
               class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
-                     transition focus:border-accent"
+                     transition focus:border-accent focus:ring-3 focus:ring-accent/15"
             />
             {#if hasPassword}
               <label class="mt-1 flex items-center gap-2 text-xs text-fg-muted">
@@ -226,7 +226,7 @@
             autocomplete="off"
             spellcheck="false"
             class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 font-mono
-                   outline-none transition focus:border-accent"
+                   outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           />
           <p class="mt-1 text-xs text-fg-faint">
             Hosts that go direct. Loopback is proxied unless it is listed here. The password is
@@ -276,14 +276,14 @@
             autocomplete="off"
             spellcheck="false"
             class="rounded-md border border-line bg-base px-2 py-1.5 font-mono text-xs outline-none
-                   transition focus:border-accent"
+                   transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           />
           <select
             data-role="network-cert-type"
             bind:value={certType}
             aria-label="Certificate format"
             class="rounded-md border border-line bg-base px-2 py-1.5 text-xs outline-none
-                   transition focus:border-accent"
+                   transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           >
             <option value="pkcs12">PKCS#12 (.p12, .pfx)</option>
             <option value="pem">PEM certificate + key (PKCS#8)</option>
@@ -296,7 +296,7 @@
             placeholder="Passphrase (if any)"
             autocomplete="off"
             class="rounded-md border border-line bg-base px-2 py-1.5 text-xs outline-none
-                   transition focus:border-accent"
+                   transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           />
           <button
             type="button"

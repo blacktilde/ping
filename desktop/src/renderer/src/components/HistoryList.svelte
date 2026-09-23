@@ -51,11 +51,11 @@
       bind:value={query}
       type="search"
       aria-label="Search history"
-      placeholder="Search history…"
+      placeholder="Search history"
       spellcheck="false"
       autocomplete="off"
-      class="w-full rounded-md border border-line bg-base px-2 py-1 text-sm text-fg outline-none
-             transition placeholder:text-fg-faint focus:border-accent"
+      class="w-full rounded-md border border-line bg-base px-2 py-1 text-xs text-fg outline-none
+             transition placeholder:text-fg-faint focus:border-accent focus:ring-3 focus:ring-accent/15"
     />
   </div>
   <div class="flex-1 overflow-auto py-1">

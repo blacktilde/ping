@@ -106,7 +106,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+<div class="fixed inset-0 z-50 flex items-center justify-center motion-backdrop">
   <button
     type="button"
     aria-label="Dismiss"
@@ -136,7 +136,7 @@
           disabled={run.running}
           aria-label="Environment for the run"
           class="rounded-md border border-line bg-panel px-2 py-1 text-xs text-fg-muted
-                 outline-none transition hover:text-fg focus:border-accent disabled:opacity-50"
+                 outline-none transition hover:text-fg focus:border-accent focus:ring-3 focus:ring-accent/15 disabled:opacity-50"
         >
           <option value="">No environment</option>
           {#each environments as environment (environment.path)}

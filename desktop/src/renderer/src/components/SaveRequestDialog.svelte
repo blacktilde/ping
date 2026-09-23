@@ -80,7 +80,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+<div class="fixed inset-0 z-50 flex items-center justify-center motion-backdrop">
   <button
     type="button"
     aria-label="Dismiss"
@@ -111,7 +111,7 @@
             data-role="save-request-target"
             bind:value={target}
             class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
-                   transition focus:border-accent"
+                   transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           >
             {#each targets as entry (entry.path)}
               <option value={entry.path}>{INDENT.repeat(entry.depth)}{entry.label}</option>
@@ -128,7 +128,7 @@
             bind:value={requestName}
             spellcheck="false"
             class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
-                   transition focus:border-accent"
+                   transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           />
         </div>
       </div>
