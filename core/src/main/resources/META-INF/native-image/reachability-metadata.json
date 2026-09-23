@@ -427,7 +427,33 @@
       ]
     },
     {
-      "type": "dev.ping.http.ProbeResult$Certificate"
+      "type": "dev.ping.http.ProbeResult$Certificate",
+      "methods": [
+        {
+          "name": "altNames",
+          "parameterTypes": []
+        },
+        {
+          "name": "chainLength",
+          "parameterTypes": []
+        },
+        {
+          "name": "issuer",
+          "parameterTypes": []
+        },
+        {
+          "name": "notAfter",
+          "parameterTypes": []
+        },
+        {
+          "name": "notBefore",
+          "parameterTypes": []
+        },
+        {
+          "name": "subject",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "dev.ping.http.ProxyConfig",
