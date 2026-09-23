@@ -27,6 +27,10 @@
 
   let host: HTMLDivElement
   let view: EditorView | undefined
+  // The text the editor holds, as last read into or out of it. Comparing an incoming value
+  // with this is free; comparing it with the document means serialising the whole document,
+  // which on a large body costs tens of milliseconds on every keystroke.
+  let current = value
 
   // oneDark supplies the token colours; this trims it to the app's panel surface.
   const appearance = EditorView.theme({
@@ -66,12 +70,18 @@
       EditorView.contentAttributes.of({ 'aria-label': label }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
-          value = update.state.doc.toString()
+          current = update.state.doc.toString()
+          value = current
         }
       })
     ]
     if (language === 'json') {
-      list.push(json(), linter(jsonParseLinter()))
+      list.push(json())
+      // A read-only view has nothing to lint: a response that does not parse is shown raw
+      // with its own warning, so the linter would only re-parse a large body to find nothing.
+      if (!readonly) {
+        list.push(linter(jsonParseLinter()))
+      }
     }
     if (readonly) {
       // A response has no cursor, so oneDark's active-line band would mark a line for no reason.
@@ -81,9 +91,10 @@
   }
 
   onMount(() => {
+    current = value
     view = new EditorView({
       parent: host,
-      state: EditorState.create({ doc: value, extensions: extensions() })
+      state: EditorState.create({ doc: current, extensions: extensions() })
     })
     return () => view?.destroy()
   })
@@ -98,8 +109,15 @@
   // guard stops the update listener and this effect from ping-ponging.
   $effect(() => {
     const next = value
-    if (view && next !== view.state.doc.toString()) {
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } })
+    if (view && next !== current) {
+      // A streamed body only grows: append the new tail rather than rebuilding the document
+      // from scratch on every chunk.
+      const changes =
+        current.length > 0 && next.startsWith(current)
+          ? { from: view.state.doc.length, insert: next.slice(current.length) }
+          : { from: 0, to: view.state.doc.length, insert: next }
+      current = next
+      view.dispatch({ changes })
     }
   })
 </script>

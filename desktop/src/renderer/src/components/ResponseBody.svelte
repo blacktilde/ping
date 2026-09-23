@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
+  import { FORMAT_OFF_THREAD_FROM, formatJson } from '../lib/pretty'
   import { bytesFromBase64, isHtml, isPdf, prettyJson } from '../lib/response'
   import { copyText } from '../lib/clipboard'
   import { formatBytes } from '../lib/format'
@@ -41,7 +42,29 @@
   let view = $state<View>('pretty')
 
   const raw = $derived(response.body.content ?? '')
-  const parsed = $derived(response.body.textual ? prettyJson(raw) : null)
+  // A body still arriving is rarely valid JSON yet, and formatting it on every chunk would
+  // re-parse the whole body each time; it is formatted once the stream ends.
+  const formattable = $derived(response.body.textual && !live)
+  const offThread = $derived(raw.length >= FORMAT_OFF_THREAD_FROM)
+  const parsedInPlace = $derived(formattable && !offThread ? prettyJson(raw) : null)
+  // A large body is formatted in a worker; the result is kept with the text it came from, so
+  // an answer that arrives after the body changed is never shown against the new one.
+  let formatted = $state<{ source: string; text: string | null } | null>(null)
+  $effect(() => {
+    if (!formattable || !offThread) return
+    const source = raw
+    let current = true
+    void formatJson(source).then((text) => {
+      if (current) formatted = { source, text }
+    })
+    return () => {
+      current = false
+    }
+  })
+  const formatting = $derived(formattable && offThread && formatted?.source !== raw)
+  const parsed = $derived(
+    !formattable ? null : offThread ? (formatting ? null : formatted!.text) : parsedInPlace
+  )
   const pretty = $derived(parsed ?? raw)
   const hasPreview = $derived(
     isHtml(response.body.contentType)
@@ -62,7 +85,7 @@
   const looksJson = $derived((response.body.contentType ?? '').toLowerCase().includes('json'))
   // Pretty falls back to raw; say so rather than silently showing unformatted text.
   const invalidJson = $derived(
-    looksJson && response.body.textual && raw.trim().length > 0 && parsed === null
+    looksJson && formattable && !formatting && raw.trim().length > 0 && parsed === null
   )
 
   const views = $derived<View[]>(
@@ -260,6 +283,15 @@
       {/if}
     {:else if view === 'events' && eventStream}
       <ResponseEvents {events} content={raw} {live} />
+    {:else if view === 'pretty' && formatting}
+      <!-- Not the raw text in the meantime: building a large document only to replace it
+           a moment later would cost as much as the formatting saved. -->
+      <div
+        data-role="formatting"
+        class="flex h-full items-center justify-center text-sm text-fg-faint"
+      >
+        Formatting {formatBytes(response.body.bytes)}…
+      </div>
     {:else if view === 'pretty'}
       <CodeEditor value={pretty} language="json" label="Response body, pretty" readonly pad="px-5" />
     {:else}
