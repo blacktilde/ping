@@ -3,6 +3,8 @@ package dev.ping.methods;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsServer;
+import dev.ping.http.TlsFixtures;
 import dev.ping.rpc.RpcServer;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -69,6 +72,31 @@ class NetMethodsTest {
 
             assertEquals(-32602, byId[2].path("error").path("code").asInt());
             assertEquals(-32602, byId[3].path("error").path("code").asInt());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void aTlsProbeCarriesItsCertificateAsJson() throws Exception {
+        HttpsServer server = HttpsServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.setHttpsConfigurator(TlsFixtures.serverConfigurator(false));
+        server.setExecutor(Executors.newCachedThreadPool());
+        server.start();
+        try {
+            List<JsonNode> responses = exchange("""
+                    {"jsonrpc":"2.0","id":1,"method":"net.probe","params":{"url":"https://127.0.0.1:%d/","verifyTls":false,"timeoutMs":3000}}"""
+                    .formatted(server.getAddress().getPort()));
+
+            JsonNode result = responses.get(0).path("result");
+            assertTrue(result.path("tlsMs").isNumber(), result.toString());
+            JsonNode certificate = result.path("certificate");
+            assertEquals("CN=localhost", certificate.path("subject").asText(), result.toString());
+            assertEquals("CN=Ping Test CA", certificate.path("issuer").asText());
+            assertTrue(certificate.path("notBefore").isTextual());
+            assertTrue(certificate.path("notAfter").isTextual());
+            assertTrue(certificate.path("altNames").isArray());
+            assertEquals(2, certificate.path("chainLength").asInt());
         } finally {
             server.stop(0);
         }
