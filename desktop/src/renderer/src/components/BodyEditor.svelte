@@ -21,7 +21,7 @@
       bind:value={body.type}
       aria-label="Body mode"
       class="rounded-md border border-line bg-base px-3 py-1.5 text-sm outline-none
-             transition focus:border-accent"
+             transition focus:border-accent focus:ring-3 focus:ring-accent/15"
     >
       {#each BODY_MODES as mode (mode.value)}
         <option value={mode.value}>{mode.label}</option>
@@ -34,7 +34,7 @@
         aria-label="Content type"
         placeholder={body.type === 'file' ? 'application/octet-stream' : 'text/plain'}
         class="min-w-0 flex-1 rounded-md border border-line bg-base px-3 py-1.5 font-mono
-               text-sm outline-none transition focus:border-accent"
+               text-sm outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       />
     {/if}
   </div>

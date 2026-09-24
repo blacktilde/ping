@@ -55,9 +55,19 @@
       type="button"
       onclick={() => onChange(undefined)}
       aria-label="Clear {label}"
-      class="shrink-0 rounded-md px-1.5 text-fg-faint transition hover:text-fg"
+      class="shrink-0 rounded-md p-1 text-fg-faint transition hover:text-fg"
     >
-      ×
+      <svg
+        viewBox="0 0 24 24"
+        class="h-3.5 w-3.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
     </button>
   {:else}
     <span class="text-sm text-fg-faint">No file chosen</span>

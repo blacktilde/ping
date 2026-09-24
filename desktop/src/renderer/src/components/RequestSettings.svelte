@@ -75,7 +75,7 @@
         oninput={(event) => setNumber('timeoutMs', event.currentTarget.value)}
         placeholder="30000"
         class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 font-mono
-               outline-none transition focus:border-accent"
+               outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       />
     </div>
 
@@ -93,7 +93,7 @@
           }
         }}
         class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
-               transition focus:border-accent"
+               transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       >
         {#each REDIRECT_POLICIES as policy (policy.value)}
           <option value={policy.value}>{policy.label}</option>
@@ -115,7 +115,7 @@
           }
         }}
         class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 outline-none
-               transition focus:border-accent"
+               transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       >
         {#each HTTP_VERSIONS as version (version.value)}
           <option value={version.value}>{version.label}</option>
@@ -138,7 +138,7 @@
         oninput={(event) => setNumber('maxBodyBytes', event.currentTarget.value)}
         placeholder="10485760"
         class="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 font-mono
-               outline-none transition focus:border-accent"
+               outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       />
       <p class="mt-1 text-xs text-fg-faint">
         How much of a response body is kept for display. Default {formatBytes(10 * 1024 * 1024)};

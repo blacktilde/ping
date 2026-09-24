@@ -108,7 +108,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-24">
+  <div class="fixed inset-0 z-50 flex items-start justify-center motion-backdrop pt-24">
     <button
       type="button"
       aria-label="Close command palette"

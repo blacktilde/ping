@@ -8,6 +8,16 @@
   src: url('./assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
 }
 
+/* Bundled like the mono face, so the interface reads the same on every OS instead of
+   falling back to whatever sans the system happens to ship. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./assets/fonts/inter-latin-wght-normal.woff2') format('woff2');
+}
+
 /*
  * Names here become utilities: --color-panel gives bg-panel, border-panel, text-panel.
  * The foreground scale is semantic so a light theme only has to redefine variables, not
@@ -15,7 +25,7 @@
  */
 @theme {
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --color-base: #0b0d10;
   --color-panel: #14171c;
   --color-line: #232830;
@@ -46,6 +56,13 @@
    * exactly one track across.
    */
   --animate-sweep: ping-sweep 1.2s ease-in-out infinite;
+  /* Overlays and popovers: the backdrop fades while the surface rises (see .motion-rise). */
+  --animate-fade: ping-fade 150ms ease-out;
+  @keyframes ping-fade {
+    from {
+      opacity: 0;
+    }
+  }
   @keyframes ping-sweep {
     from {
       transform: translateX(-100%);
@@ -190,6 +207,37 @@ body {
   background-color: var(--color-base);
   color: var(--color-fg);
   font-family: var(--font-sans);
+  /* Inter's contextual alternates and a tighter default cut read cleaner at UI sizes. */
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-accent) 32%, transparent);
+}
+
+/*
+ * One keyboard focus treatment for every control that does not draw its own. Fields show focus
+ * with their border instead (they carry outline-none), and a pointer click never shows a ring.
+ */
+:where(button, [role='tab'], [role='option'], [role='treeitem'], a, summary, select, input[type='checkbox'], input[type='radio']):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  outline-offset: 1px;
+  border-radius: 0.375rem;
+}
+
+/* Numbers that sit side by side (sizes, durations, counts) keep their columns still. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A strip that scrolls sideways without drawing a scrollbar under its row. */
+.scroll-quiet {
+  scrollbar-width: none;
+}
+.scroll-quiet::-webkit-scrollbar {
+  display: none;
 }
 
 .font-mono,
@@ -211,7 +259,14 @@ body {
 }
 
 .motion-rise {
-  animation: ping-rise 120ms ease-out;
+  animation: ping-rise 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Modal backdrops: a dimmed, faintly softened page that fades in under the dialog. */
+.motion-backdrop {
+  background-color: rgb(0 0 0 / 0.45);
+  backdrop-filter: blur(2px);
+  animation: ping-fade 150ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -224,14 +279,29 @@ body {
   }
 }
 
+/*
+ * Thin, quiet scrollbars: a transparent border insets the thumb from the edge, and it only
+ * takes on weight while the pointer is on it.
+ */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
-  background-color: var(--color-line);
+  background-color: color-mix(in srgb, var(--color-fg-faint) 35%, transparent);
+  background-clip: padding-box;
+  border: 2px solid transparent;
   border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-fg-faint) 60%, transparent);
 }
 
 /* Rendered notes (see lib/markdown.ts). Tailwind's typography plugin is not installed, so the

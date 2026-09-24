@@ -28,7 +28,7 @@
 
   const control =
     'shrink-0 rounded-md border border-line bg-base px-2.5 py-1.5 text-sm outline-none ' +
-    'transition focus:border-accent'
+    'transition focus:border-accent focus:ring-3 focus:ring-accent/15'
 
   const group =
     'flex min-w-44 flex-1 items-center gap-2 rounded-md border border-line bg-base px-2.5 ' +

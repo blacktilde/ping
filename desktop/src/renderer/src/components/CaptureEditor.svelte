@@ -10,10 +10,10 @@
 
   const fieldClass =
     'min-w-0 flex-1 rounded-md border border-line bg-base px-3 py-1.5 text-sm outline-none ' +
-    'transition focus:border-accent disabled:opacity-40'
+    'transition focus:border-accent focus:ring-3 focus:ring-accent/15 disabled:opacity-40'
   const selectClass =
     'rounded-md border border-line bg-base px-2 py-1.5 text-sm outline-none transition ' +
-    'focus:border-accent'
+    'focus:border-accent focus:ring-3 focus:ring-accent/15'
 
   function targetPlaceholder(source: CaptureSource): string {
     return source === 'header' ? 'Header name' : '$.path.to.value'
@@ -68,10 +68,20 @@
           type="button"
           onclick={() => items.splice(index, 1)}
           aria-label="Remove capture"
-          class="rounded-md px-2 py-1 text-lg leading-none text-fg-faint transition
+          class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60
                  hover:text-fg"
         >
-          ×
+          <svg
+            viewBox="0 0 24 24"
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
       </div>
     {/each}

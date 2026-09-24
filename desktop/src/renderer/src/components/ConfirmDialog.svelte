@@ -31,7 +31,7 @@
 
 {#if confirmState.current}
   {@const shown = confirmState.current}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+  <div class="fixed inset-0 z-50 flex items-center justify-center motion-backdrop">
     <button
       type="button"
       aria-label="Dismiss"
