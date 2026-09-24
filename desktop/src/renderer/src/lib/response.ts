@@ -105,3 +105,32 @@ export function bytesFromBase64(base64: string): Uint8Array<ArrayBuffer> {
   }
   return bytes
 }
+
+/** What the core keeps when a request names no cap of its own (`RequestSpec.DEFAULT_MAX_BODY_BYTES`). */
+export const DEFAULT_DISPLAY_CAP = 10 * 1024 * 1024
+
+/**
+ * The highest cap the truncation banner offers. Past this a body stalls the stdio transport,
+ * the context bridge and the editor; phase 22's spill-to-file is the way beyond it.
+ */
+export const MAX_OFFERED_CAP = 100 * 1024 * 1024
+
+/**
+ * The cap to resend with so a body of `total` bytes fits whole: the next power-of-two number
+ * of megabytes, which leaves room for a body that grows a little between sends. Null when that
+ * is past `MAX_OFFERED_CAP`, or when `total` already fits under `current`.
+ */
+export function raisedCap(total: number, current: number): number | null {
+  if (!Number.isFinite(total) || total <= current) return null
+  const mb = 1024 * 1024
+  let cap = mb
+  while (cap < total) cap *= 2
+  // A power of two past the ceiling may still leave the ceiling itself big enough.
+  if (cap > MAX_OFFERED_CAP) cap = MAX_OFFERED_CAP
+  return cap >= total ? cap : null
+}
+
+/** Methods a resend cannot change anything with on the server, per RFC 9110. */
+export function isSafeMethod(method: string): boolean {
+  return ['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method.trim().toUpperCase())
+}

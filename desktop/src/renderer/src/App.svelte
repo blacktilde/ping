@@ -25,6 +25,7 @@
   import { refreshRuntime } from './lib/runtime.svelte'
   import { openRun, run, watchRunProgress } from './lib/run.svelte'
   import { refreshCookies } from './lib/cookies.svelte'
+  import { DEFAULT_DISPLAY_CAP, isSafeMethod } from './lib/response'
   import {
     activeTab,
     activateTab,
@@ -237,6 +238,7 @@
         }
         tab.events = []
         tab.sse = isEventStream(start.contentType) ? new SseParser() : null
+        tab.responseCap = capByRequest.get(start.requestId) ?? DEFAULT_DISPLAY_CAP
         tab.response = {
           status: start.status,
           httpVersion: start.httpVersion,
@@ -898,7 +900,14 @@
     return null
   }
 
-  async function send(): Promise<void> {
+  /** The display cap each in-flight request was sent with, keyed by request id. */
+  const capByRequest = new Map<string, number>()
+
+  /**
+   * `maxBodyBytes` overrides the draft's display cap for this one send, without editing the
+   * request: the truncation banner uses it to fetch a body that did not fit.
+   */
+  async function send(override: { maxBodyBytes?: number } = {}): Promise<void> {
     // Capture the tab: the user can switch tabs while this exchange is in flight, and the
     // response belongs to the tab that sent it, not whichever is on screen when it lands.
     const tab = active
@@ -931,6 +940,10 @@
       // `{{placeholders}}` intact.
       await variablesReady()
       const spec = toRequestSpec(tab.draft, requestId)
+      if (override.maxBodyBytes != null) spec.maxBodyBytes = override.maxBodyBytes
+      // Recorded now and applied when the response lands: the previous response stays on
+      // screen meanwhile, and its banner must keep describing the cap it was read under.
+      capByRequest.set(requestId, spec.maxBodyBytes && spec.maxBodyBytes > 0 ? spec.maxBodyBytes : DEFAULT_DISPLAY_CAP)
       if (Object.keys(variables.resolved).length > 0) {
         // A spread unwraps the reactive proxy, which cannot cross the context bridge.
         spec.variables = { ...variables.resolved }
@@ -946,6 +959,7 @@
         }
       }
       tab.response = await sendRequest(spec)
+      tab.responseCap = capByRequest.get(requestId) ?? DEFAULT_DISPLAY_CAP
       if (!tab.response.streamed) {
         // Events belong to a feed; a document that follows one must not keep showing them.
         tab.events = []
@@ -959,6 +973,7 @@
         tab.error = cause instanceof Error ? cause.message : String(cause)
       }
     } finally {
+      capByRequest.delete(requestId)
       tab.inFlight = false
       tab.requestId = ''
       // A capture may have added runtime variables; the panel lists their names.
@@ -968,6 +983,24 @@
       // History is a convenience; a write failure must not surface as a request failure.
       void recordHistory({ draft: sent, response: tab.response, outcome }).catch(() => {})
     }
+  }
+
+  /**
+   * The truncation banner's resend. Sending again repeats whatever the request does, so a
+   * method that can change server state asks first.
+   */
+  async function resendWithCap(maxBodyBytes: number): Promise<void> {
+    const method = active.draft.method
+    if (!isSafeMethod(method)) {
+      const proceed = await confirmDialog(
+        `Fetching the whole body sends this ${method} request again, which may repeat its effect on the server. Send it again?`,
+        { confirmLabel: 'Send again', destructive: true }
+      )
+      if (!proceed) {
+        return
+      }
+    }
+    await send({ maxBodyBytes })
   }
 
   async function cancel(): Promise<void> {
@@ -1700,6 +1733,8 @@
             suggestedName={active.draft.name || 'response'}
             verifyTls={active.draft.verifyTls !== false}
             events={active.events}
+            cap={active.responseCap}
+            onResend={(maxBodyBytes) => void resendWithCap(maxBodyBytes)}
           />
         {/snippet}
       </SplitPane>
