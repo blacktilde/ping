@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { LineSplitter } from './lines'
 
 /** A server-initiated message: no id, so nothing is waiting on it. */
 export interface CoreNotification {
@@ -95,12 +96,12 @@ function resolveCoreBinary(): string {
  * Owns the core child process and the JSON-RPC conversation with it.
  *
  * Framing is one JSON object per line. Chunks from the pipe do not respect line
- * boundaries, so partial lines are held in {@link buffer} until a newline arrives.
+ * boundaries, so {@link LineSplitter} holds a partial line until its newline arrives.
  */
 export class CoreClient {
   private child: ChildProcessWithoutNullStreams | null = null
   private readonly pending = new Map<number, PendingCall>()
-  private buffer = ''
+  private readonly lines = new LineSplitter()
   private nextId = 1
   private onNotification: ((notification: CoreNotification) => void) | null = null
   private onStateChange: ((state: 'down' | 'starting' | 'ready') => void) | null = null
@@ -209,16 +210,8 @@ export class CoreClient {
   }
 
   private consume(chunk: string): void {
-    this.buffer += chunk
-
-    let newline = this.buffer.indexOf('\n')
-    while (newline !== -1) {
-      const line = this.buffer.slice(0, newline).trim()
-      this.buffer = this.buffer.slice(newline + 1)
-      if (line) {
-        this.dispatch(line)
-      }
-      newline = this.buffer.indexOf('\n')
+    for (const line of this.lines.push(chunk)) {
+      this.dispatch(line)
     }
   }
 
