@@ -13,9 +13,30 @@ on:
         default: false
         type: boolean
 
+# Only the publishing job writes; the builds read.
+permissions:
+  contents: read
+
 jobs:
+  # The tag names files, a version and a git ref. Refuse anything that is not a plain
+  # vMAJOR.MINOR.PATCH (with an optional pre-release) before three runners spend time on it.
+  tag:
+    name: Check the tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag '$TAG' is not of the form v1.2.3 or v1.2.3-beta.1." >&2
+            exit 1
+          fi
+
   core:
     name: Native core (${{ matrix.os }})
+    needs: tag
     runs-on: ${{ fromJSON(matrix.runner) }}
     strategy:
       fail-fast: false
@@ -92,9 +113,9 @@ jobs:
       - name: Set version from the tag
         shell: bash
         working-directory: desktop
-        run: |
-          tag="${{ inputs.tag }}"
-          npm version "${tag#v}" --no-git-tag-version --allow-same-version
+        run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
+        env:
+          TAG: ${{ inputs.tag }}
 
       - run: npm run build
         working-directory: desktop
@@ -137,10 +158,9 @@ jobs:
       - name: Sign the macOS update manifest
         if: runner.os == 'macOS'
         shell: bash
-        run: |
-          tag="${{ inputs.tag }}"
-          node tools/mac-manifest.mjs desktop/dist "${tag#v}" "$tag"
+        run: node tools/mac-manifest.mjs desktop/dist "${TAG#v}" "$TAG"
         env:
+          TAG: ${{ inputs.tag }}
           MAC_UPDATE_SIGNING_KEY: ${{ secrets.MAC_UPDATE_SIGNING_KEY }}
 
       - uses: actions/upload-artifact@v7
@@ -152,10 +172,10 @@ jobs:
             desktop/dist/*.dmg
             desktop/dist/*.zip
             desktop/dist/*.exe
-            desktop/dist/*.yml
+            desktop/dist/latest*.yml
             desktop/dist/latest-mac.json
             desktop/dist/*.blockmap
-          if-no-files-found: warn
+          if-no-files-found: error
 
   release:
     name: Publish
@@ -174,6 +194,8 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.tag }}
+          # The commit these installers were built from, not whatever main points at by now.
+          target_commitish: ${{ github.sha }}
           files: installers/*
           draft: ${{ inputs.draft }}
           generate_release_notes: true

@@ -7,11 +7,15 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push to a pull request supersedes the run in flight. Main is never cancelled, so
-# every merged commit keeps its own verdict.
+# A newer push to a pull request supersedes the run in flight. Anything else is grouped by
+# its commit, so every commit on main keeps its own verdict: one shared group would let a
+# third push cancel the second while it waits behind the first.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
   wrapper:
@@ -22,11 +26,42 @@ jobs:
       - uses: actions/checkout@v7
 
       # Fails if gradle-wrapper.jar does not match a hash Gradle published, so a tampered
-      # wrapper cannot ride along in a dependency PR.
+      # wrapper cannot ride along in a dependency PR. Every job that runs ./gradlew waits on
+      # this one, so an unverified wrapper never executes on the runner.
       - uses: gradle/actions/wrapper-validation@v6
+
+  # A change that touches only documentation skips the build jobs. They are skipped rather
+  # than never triggered, because a skipped job still satisfies a required status check and
+  # a workflow filtered out by `paths-ignore` leaves the check waiting forever.
+  changes:
+    name: Changes
+    runs-on: [self-hosted, Linux, X64]
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        shell: bash
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # A manual run has no base and a new branch's is all zeros: build everything.
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo code=true >>"$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE...$GITHUB_SHA" | grep -qvE '\.md$|^docs/|^LICENSE$'; then
+            echo code=true >>"$GITHUB_OUTPUT"
+          else
+            echo code=false >>"$GITHUB_OUTPUT"
+          fi
 
   core:
     name: Core tests
+    needs: [wrapper, changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: [self-hosted, Linux, X64]
 
     steps:
@@ -51,7 +86,8 @@ jobs:
     # Platform paths and filesystem behaviour move slowly, and a macOS runner is one of the
     # expensive parts of CI, so this runs after merge rather than on every pull request. Windows
     # is deliberately not part of this job.
-    if: github.ref == 'refs/heads/main'
+    needs: [wrapper, changes]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -72,6 +108,8 @@ jobs:
 
   native:
     name: Native compatibility
+    needs: [wrapper, changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: [self-hosted, Linux, X64]
 
     steps:
@@ -95,6 +133,8 @@ jobs:
 
   desktop:
     name: Desktop
+    needs: [wrapper, changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: [self-hosted, Linux, X64]
 
     steps:
