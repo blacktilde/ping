@@ -760,7 +760,21 @@
       ]
     },
     {
-      "type": "dev.ping.http.ResponseData$Redirect"
+      "type": "dev.ping.http.ResponseData$Redirect",
+      "methods": [
+        {
+          "name": "location",
+          "parameterTypes": []
+        },
+        {
+          "name": "status",
+          "parameterTypes": []
+        },
+        {
+          "name": "url",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "dev.ping.http.ResponseData$Timing",
