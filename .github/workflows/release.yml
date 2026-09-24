@@ -13,13 +13,10 @@ on:
         default: false
         type: boolean
 
-# Only the publishing job writes; the builds read.
 permissions:
   contents: read
 
 jobs:
-  # The tag names files, a version and a git ref. Refuse anything that is not a plain
-  # vMAJOR.MINOR.PATCH (with an optional pre-release) before three runners spend time on it.
   tag:
     name: Check the tag
     runs-on: ubuntu-latest
@@ -138,10 +135,6 @@ jobs:
           done
           exit $status
 
-      # The macOS update feed. These builds carry no Apple Developer ID, so Squirrel.Mac
-      # cannot install them and the app updates itself instead — against this signature
-      # rather than Apple's. Without the secret the step fails the release, which is the
-      # point: a feed nobody signed is one the app will refuse.
       - name: Sign the macOS update manifest
         if: runner.os == 'macOS'
         shell: bash
@@ -181,7 +174,6 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.tag }}
-          # The commit these installers were built from, not whatever main points at by now.
           target_commitish: ${{ github.sha }}
           files: installers/*
           draft: ${{ inputs.draft }}
