@@ -3,7 +3,7 @@
   import { probeOrigin, type ProbeResult } from '../lib/probe'
   import type { SseEvent } from '../lib/sse'
   import { formatBytes, formatDuration, reasonPhrase, statusTone, versionLabel } from '../lib/format'
-  import { parseCookies } from '../lib/response'
+  import { DEFAULT_DISPLAY_CAP, parseCookies } from '../lib/response'
   import ResponseAssertions from './ResponseAssertions.svelte'
   import ResponseCaptures from './ResponseCaptures.svelte'
   import ResponseBody from './ResponseBody.svelte'
@@ -20,9 +20,21 @@
     verifyTls?: boolean
     /** Events parsed as a server-sent stream arrived. */
     events?: SseEvent[]
+    /** The display cap the response was read under. */
+    cap?: number
+    /** Sends the request again with a larger display cap. */
+    onResend?: (maxBodyBytes: number) => void
   }
 
-  let { response, inFlight, suggestedName = 'response', verifyTls = true, events = [] }: Props = $props()
+  let {
+    response,
+    inFlight,
+    suggestedName = 'response',
+    verifyTls = true,
+    events = [],
+    cap = DEFAULT_DISPLAY_CAP,
+    onResend
+  }: Props = $props()
 
   // The probe belongs to the response it was run for, and survives switching response tabs.
   let probe = $state<ProbeResult | null>(null)
@@ -60,6 +72,13 @@
   const cookies = $derived(response ? parseCookies(response.headers) : [])
   const extension = $derived(extensionFor(response?.body.contentType))
   const suggestedFile = $derived(`${suggestedName}${extension}`)
+  // Save writes what was kept, not what the server sent; a truncated body says so up front.
+  const partial = $derived(
+    response?.body.truncated
+      ? `the first ${formatBytes(Math.min(cap, response.body.bytes))} of ${formatBytes(response.body.bytes)}`
+      : ''
+  )
+  const saveLabel = $derived(partial ? `Save ${partial} (the rest was not kept)` : 'Save response body')
 
   const tabs: { id: string; label: string; badge: string | null }[] = $derived([
     { id: 'body', label: 'Body', badge: null },
@@ -82,7 +101,7 @@
         : { suggestedName: suggestedFile, base64: response.body.base64 ?? '' }
     try {
       const path = await window.ping.saveResponse(payload)
-      showSave(path ? `Saved to ${path}` : 'Save cancelled')
+      showSave(path ? (partial ? `Saved ${partial} to ${path}` : `Saved to ${path}`) : 'Save cancelled')
     } catch (cause) {
       showSave(cause instanceof Error ? cause.message : String(cause))
     }
@@ -172,9 +191,11 @@
             <button
               type="button"
               onclick={() => void save()}
-              aria-label="Save response body"
-              title="Save response body"
-              class="rounded-md p-1 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+              aria-label={saveLabel}
+              title={saveLabel}
+              data-partial={partial ? 'true' : undefined}
+              class="rounded-md p-1 transition hover:bg-line/60 hover:text-fg
+                     {partial ? 'text-warning' : 'text-fg-faint'}"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -203,7 +224,7 @@
       class="min-h-0 flex-1"
     >
       {#if tab === 'body'}
-        <ResponseBody {response} {events} />
+        <ResponseBody {response} {events} {cap} onResend={inFlight ? undefined : onResend} />
       {:else if tab === 'headers'}
         <ResponseHeaders headers={response.headers} />
       {:else if tab === 'cookies'}

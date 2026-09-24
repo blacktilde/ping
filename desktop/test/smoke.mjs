@@ -1228,6 +1228,52 @@ try {
   })()`)
   check('the response pane can still be grown', grown < layout.value, `${layout.value} -> ${grown}`)
 
+  console.log('--- 12b. a body past the display cap says how much it kept and offers the rest')
+  const setCap = (value) => `(() => {
+    const input = document.getElementById('setting-max-body');
+    if (!input) return null;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return input.value;
+  })()`
+  const capState = `(() => {
+    const banner = document.querySelector('[data-role="truncated"]');
+    const resend = document.querySelector('[data-role="resend-with-cap"]');
+    const save = document.querySelector('[data-role="response"] button[title^="Save"]');
+    return {
+      banner: banner ? banner.textContent.replace(/\\s+/g, ' ').trim() : null,
+      resend: resend ? resend.textContent.trim() : null,
+      save: save ? save.getAttribute('aria-label') : null,
+      partial: save?.dataset.partial === 'true',
+    };
+  })()`
+  await evaluate(clickTab('Settings'))
+  await evaluate(setCap('4096'))
+  await clickSend()
+  await waitFor(async () => (await evaluate(capState)).banner !== null, 8000, 'the truncation banner', paneState)
+  const capped = await evaluate(capState)
+  check('the banner names what was kept and the full size', /Showing the first 4\.0 KB of \d+\.\d KB/.test(capped.banner), capped.banner)
+  check('it offers a resend with a cap that fits', capped.resend === 'Resend with a 1.0 MB cap', String(capped.resend))
+  check('Save says it keeps only part of the body', capped.partial && capped.save.startsWith('Save the first 4.0 KB of'), String(capped.save))
+
+  // A method that can change server state asks before sending again; declining sends nothing.
+  await evaluate(setMethod('POST'))
+  await evaluate(`document.querySelector('[data-role="resend-with-cap"]').click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="confirm-cancel"]')`), 3000, 'the resend prompt')
+  await evaluate(`document.querySelector('[data-role="confirm-cancel"]').click()`)
+  await wait(300)
+  check('declining the prompt leaves the capped response', (await snap()).sendPhase === 'idle' && (await evaluate(capState)).banner !== null)
+  await evaluate(setMethod('GET'))
+
+  await evaluate(`document.querySelector('[data-role="resend-with-cap"]').click()`)
+  await waitFor(async () => (await evaluate(capState)).banner === null, 8000, 'the whole body', paneState)
+  check('the resend keeps the whole body', true)
+  const whole = await evaluate(capState)
+  check('Save is no longer partial', !whole.partial && whole.save === 'Save response body', String(whole.save))
+  check('the request keeps its own cap', (await evaluate(`document.getElementById('setting-max-body').value`)) === '4096')
+  await evaluate(setCap(''))
+  await evaluate(clickTab('Params'))
+
   console.log('--- 13. request tabs')
   const tabCount = async () =>
     await evaluate(`document.querySelectorAll('[data-role="request-tab"]').length`)

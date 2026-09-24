@@ -15,6 +15,7 @@ import type { HttpResponse, RequestDraft } from './http'
 import type { SseEvent, SseParser } from './sse'
 import { newDraft } from './request'
 import { draftKey } from './store'
+import { DEFAULT_DISPLAY_CAP } from './response'
 
 const STORAGE_KEY = 'ping.tabs'
 
@@ -35,6 +36,8 @@ export interface RequestTab {
   inFlight: boolean
   /** The in-flight request's id, so Cancel reaches the right exchange. */
   requestId: string
+  /** The display cap `response` was read under, so a truncated body can say how much it kept. */
+  responseCap: number
   /** Which request editor pane is showing: params, headers, body or auth. */
   editorTab: string
   authStatus: string
@@ -62,6 +65,7 @@ function makeTab(init: Partial<Pick<RequestTab, 'draft' | 'path' | 'savedKey'>> 
     cancelled: false,
     inFlight: false,
     requestId: '',
+    responseCap: DEFAULT_DISPLAY_CAP,
     editorTab: 'params',
     authStatus: ''
   }
@@ -273,6 +277,7 @@ function revive(item: unknown): RequestTab | undefined {
     cancelled: false,
     inFlight: false,
     requestId: '',
+    responseCap: DEFAULT_DISPLAY_CAP,
     editorTab: 'params',
     authStatus: ''
   }

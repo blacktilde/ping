@@ -1,7 +1,15 @@
 <script lang="ts">
   import type { HttpResponse } from '../lib/http'
   import { FORMAT_OFF_THREAD_FROM, formatJson } from '../lib/pretty'
-  import { bytesFromBase64, isHtml, isPdf, prettyJson } from '../lib/response'
+  import {
+    bytesFromBase64,
+    DEFAULT_DISPLAY_CAP,
+    isHtml,
+    isPdf,
+    MAX_OFFERED_CAP,
+    prettyJson,
+    raisedCap
+  } from '../lib/response'
   import { copyText } from '../lib/clipboard'
   import { formatBytes } from '../lib/format'
   import { isEventStream, type SseEvent } from '../lib/sse'
@@ -12,11 +20,15 @@
     response: HttpResponse
     /** Events parsed as a server-sent stream arrived. */
     events?: SseEvent[]
+    /** The display cap the response was read under. */
+    cap?: number
+    /** Sends the request again with a larger display cap; absent while a send is in flight. */
+    onResend?: (maxBodyBytes: number) => void
   }
 
   type View = 'events' | 'pretty' | 'raw' | 'preview'
 
-  let { response, events = [] }: Props = $props()
+  let { response, events = [], cap = DEFAULT_DISPLAY_CAP, onResend }: Props = $props()
 
   const eventStream = $derived(isEventStream(response.body.contentType))
   // Arriving now: the head is in, the stream has not ended.
@@ -40,6 +52,12 @@
   })
 
   let view = $state<View>('pretty')
+
+  // A feed is not re-fetched from here: it would start again rather than pick up where it was cut.
+  const kept = $derived(formatBytes(Math.min(cap, response.body.bytes)))
+  const nextCap = $derived(
+    response.body.truncated && !response.streamed ? raisedCap(response.body.bytes, cap) : null
+  )
 
   const raw = $derived(response.body.content ?? '')
   // A body still arriving is rarely valid JSON yet, and formatting it on every chunk would
@@ -223,11 +241,34 @@
   </div>
 
   {#if response.body.truncated}
-    <p class="border-y border-warning-soft bg-warning-soft px-5 py-2 text-xs text-warning">
-      {live
-        ? 'The display cap has been reached: newer data is still arriving but is not shown.'
-        : 'Response is larger than the display cap; only the beginning is shown.'}
-    </p>
+    <div
+      data-role="truncated"
+      class="flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-warning-soft bg-warning-soft
+             px-5 py-2 text-xs text-warning"
+    >
+      <p class="min-w-0 flex-1">
+        {#if live}
+          The display cap ({kept}) has been reached: newer data is still arriving but is not shown.
+        {:else}
+          Showing the first {kept} of {formatBytes(response.body.bytes)}; the rest was not kept.
+          {#if !response.streamed && nextCap === null}
+            That is more than {formatBytes(MAX_OFFERED_CAP)}, too large to display here.
+          {/if}
+        {/if}
+      </p>
+      {#if nextCap !== null && onResend}
+        <button
+          type="button"
+          data-role="resend-with-cap"
+          onclick={() => onResend(nextCap)}
+          title="Send the request again, keeping up to {formatBytes(nextCap)} of the body. The request's saved settings do not change."
+          class="shrink-0 rounded-md border border-warning/40 px-2 py-0.5 font-medium transition
+                 hover:bg-warning/10"
+        >
+          Resend with a {formatBytes(nextCap)} cap
+        </button>
+      {/if}
+    </div>
   {/if}
 
   <div class="min-h-0 flex-1">
