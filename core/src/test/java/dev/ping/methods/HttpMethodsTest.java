@@ -268,6 +268,30 @@ class HttpMethodsTest {
     }
 
     @Test
+    void reportsAFollowedRedirectChainAsJson() throws Exception {
+        server.createContext("/old", exchange -> {
+            try (exchange) {
+                exchange.getResponseHeaders().add("Location", "/new");
+                exchange.sendResponseHeaders(301, -1);
+            }
+        });
+        handle("/new", 200, "text/plain", "moved");
+
+        List<JsonNode> out = exchange("""
+                {"jsonrpc":"2.0","id":1,"method":"http.send","params":{"url":"%s/old","redirects":"normal"}}"""
+                .formatted(baseUrl));
+
+        // Without a JSON test that follows a redirect, the tracing agent never records the
+        // Redirect accessors and the native core fails every redirected request.
+        JsonNode result = out.get(0).path("result");
+        assertEquals(200, result.path("status").asInt(), result.toString());
+        JsonNode hop = result.path("redirects").path(0);
+        assertEquals(301, hop.path("status").asInt(), result.toString());
+        assertEquals(baseUrl + "/old", hop.path("url").asText());
+        assertEquals("/new", hop.path("location").asText());
+    }
+
+    @Test
     void reportsHttpErrorsAsResultsNotRpcErrors() throws Exception {
         handle("/missing", 404, "application/json", "{\"error\":\"nope\"}");
 
