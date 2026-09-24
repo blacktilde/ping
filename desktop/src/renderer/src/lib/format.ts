@@ -22,10 +22,10 @@ export function versionLabel(version: string): string {
 }
 
 export function statusTone(status: number): string {
-  if (status >= 200 && status < 300) return 'text-emerald-400'
-  if (status >= 300 && status < 400) return 'text-amber-400'
-  if (status >= 400) return 'text-red-400'
-  return 'text-neutral-300'
+  if (status >= 200 && status < 300) return 'text-success'
+  if (status >= 300 && status < 400) return 'text-warning'
+  if (status >= 400) return 'text-danger'
+  return 'text-fg-muted'
 }
 
 /**

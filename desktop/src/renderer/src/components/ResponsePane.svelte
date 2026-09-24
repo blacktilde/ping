@@ -50,6 +50,9 @@
     }
   }
 
+  /** The shortcut hint names this machine's modifier, as the command palette does. */
+  const sendKey = navigator.platform.toLowerCase().includes('mac') ? '⌘↵' : 'Ctrl+↵'
+
   let tab = $state('body')
   let saveStatus = $state('')
   let saveStatusTimer: number | undefined
@@ -112,7 +115,7 @@
 <section
   data-role="response"
   aria-busy={inFlight}
-  class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
+  class="@container flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-panel"
 >
   {#if response}
     {#if response.assertions && response.assertions.length > 0}
@@ -129,15 +132,20 @@
           The response's vitals share the tab strip's row rather than taking one of their own:
           the panel is short, and a second full-width band costs it a line of body.
         -->
-        <header class="flex min-w-0 items-center gap-4 text-sm">
-          <span class="font-mono text-base font-semibold {statusTone(response.status)}">
+        <header class="tabular flex min-w-0 items-center gap-4 text-sm">
+          <span
+            class="rounded-md bg-current/10 px-1.5 py-0.5 font-mono text-sm font-semibold
+                   {statusTone(response.status)}"
+          >
             {response.status}
           </span>
-          <!-- A sibling, not a child: the first header span is the bare status code. -->
+          <!-- A sibling, not a child: the first header span is the bare status code. The
+               protocol and content type step aside first when the pane is narrow, so the
+               tabs beside them keep their labels. -->
           {#if reasonPhrase(response.status)}
-            <span class="-ml-2.5 shrink-0 text-fg">{reasonPhrase(response.status)}</span>
+            <span class="-ml-2 shrink-0 font-medium text-fg">{reasonPhrase(response.status)}</span>
           {/if}
-          <span class="shrink-0 text-fg-muted">{versionLabel(response.httpVersion)}</span>
+          <span class="hidden shrink-0 text-fg-muted @2xl:inline">{versionLabel(response.httpVersion)}</span>
           <span class="shrink-0 text-fg-muted">{formatBytes(response.body.bytes)}</span>
           <span class="shrink-0 text-fg-muted">{formatDuration(response.timing.totalMs)}</span>
           {#if response.redirects.length > 0}
@@ -147,14 +155,14 @@
             </span>
           {/if}
           {#if response.body.contentType}
-            <span class="truncate text-fg-faint">{response.body.contentType}</span>
+            <span class="hidden truncate text-fg-faint @4xl:inline">{response.body.contentType}</span>
           {/if}
           <div class="relative flex shrink-0 items-center">
             {#if saveStatus}
               <span
                 role="status"
                 data-role="save-status"
-                class="pointer-events-none absolute right-0 top-full z-10 mt-1 max-w-72 truncate
+                class="motion-rise pointer-events-none absolute right-0 top-full z-10 mt-1 max-w-72 truncate
                        whitespace-nowrap rounded-md border border-line bg-panel px-2 py-1 text-xs
                        text-fg-muted shadow-lg"
               >
@@ -213,12 +221,36 @@
       {/if}
     </div>
   {:else}
-    <div class="flex flex-1 flex-col items-center justify-center gap-1 text-sm text-fg-faint">
+    <div class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-sm text-fg-faint">
+      <svg
+        viewBox="0 0 24 24"
+        class="h-8 w-8 text-fg-faint/60 {inFlight ? 'animate-spin' : ''}"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        {#if inFlight}
+          <circle cx="12" cy="12" r="9" class="opacity-30" />
+          <path d="M21 12a9 9 0 0 0-9-9" />
+        {:else}
+          <path d="M22 2 11 13" />
+          <path d="M22 2 15 22l-4-9-9-4z" />
+        {/if}
+      </svg>
       {#if inFlight}
         <p>Sending request…</p>
       {:else}
-        <p>No response yet.</p>
-        <p class="text-xs">Send a request to see it here.</p>
+        <div class="flex flex-col items-center gap-1">
+          <p class="text-fg-muted">No response yet.</p>
+          <p class="text-xs">
+            Send a request with
+            <kbd class="rounded border border-line bg-base px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">{sendKey}</kbd>
+            to see it here.
+          </p>
+        </div>
       {/if}
     </div>
   {/if}
