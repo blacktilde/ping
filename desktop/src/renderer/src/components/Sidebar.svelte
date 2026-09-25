@@ -579,6 +579,7 @@
                 type="button"
                 onclick={() => (confirming = node.path)}
                 aria-label="Delete {node.name}"
+                title="Delete {node.name}"
                 class="mr-1 rounded p-1 text-fg-faint transition hover:text-danger"
               >
                 <svg
@@ -588,9 +589,10 @@
                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
+                  stroke-linejoin="round"
                   aria-hidden="true"
                 >
-                  <path d="M18 6 6 18M6 6l12 12" />
+                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
                 </svg>
               </button>
             {/if}
