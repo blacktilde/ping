@@ -46,10 +46,14 @@ jobs:
         include:
           - os: linux
             runner: '["self-hosted", "Linux", "X64"]'
+          # Self-hosted runners share a warm ~/.gradle; restoring the Actions cache
+          # into it races other jobs on the same host, so only hosted runners cache.
           - os: macos-latest
             runner: '["macos-latest"]'
+            cache: gradle
           - os: windows-latest
             runner: '["windows-latest"]'
+            cache: gradle
 
     steps:
       - uses: actions/checkout@v7
@@ -58,7 +62,7 @@ jobs:
         with:
           java-version: '25'
           distribution: graalvm-community
-          cache: gradle
+          cache: ${{ matrix.cache }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build the native core
