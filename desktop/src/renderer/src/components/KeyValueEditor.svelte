@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { completeVariables } from '../lib/completion.svelte'
   import type { Param } from '../lib/http'
   import { emptyParam } from '../lib/request'
 
@@ -8,6 +9,8 @@
     valueLabel?: string
     addLabel?: string
     emptyText?: string
+    /** Offer `{{name}}` completion: the rows are part of a request, not variable definitions. */
+    variables?: boolean
   }
 
   let {
@@ -15,8 +18,15 @@
     nameLabel = 'Name',
     valueLabel = 'Value',
     addLabel = 'Add row',
-    emptyText = 'Nothing here yet.'
+    emptyText = 'Nothing here yet.',
+    variables = false
   }: Props = $props()
+
+  const noop = { destroy() {} }
+
+  function complete(input: HTMLInputElement) {
+    return variables ? completeVariables(input) : noop
+  }
 
   const fieldClass =
     'min-w-0 flex-1 rounded-md border border-line bg-base px-3 py-1.5 text-sm outline-none ' +
@@ -38,12 +48,14 @@
       />
       <input
         bind:value={item.name}
+        use:complete
         aria-label={nameLabel}
         placeholder="Name"
         class={fieldClass}
       />
       <input
         bind:value={item.value}
+        use:complete
         aria-label={valueLabel}
         placeholder="Value"
         class={fieldClass}

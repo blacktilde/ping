@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { completeVariables } from '../lib/completion.svelte'
   import type { RequestBody } from '../lib/http'
   import { BODY_MODES } from '../lib/request'
   import CodeEditor from './CodeEditor.svelte'
@@ -31,6 +32,7 @@
     {#if body.type === 'raw' || body.type === 'file'}
       <input
         bind:value={body.contentType}
+        use:completeVariables
         aria-label="Content type"
         placeholder={body.type === 'file' ? 'application/octet-stream' : 'text/plain'}
         class="min-w-0 flex-1 rounded-md border border-line bg-base px-3 py-1.5 font-mono
@@ -43,9 +45,9 @@
     {#if body.type === 'none'}
       <p class="px-5 py-6 text-sm text-fg-faint">This request sends no body.</p>
     {:else if body.type === 'json'}
-      <CodeEditor bind:value={body.content} language="json" label="JSON request body" pad="px-5" />
+      <CodeEditor bind:value={body.content} language="json" label="JSON request body" pad="px-5" variables />
     {:else if body.type === 'raw'}
-      <CodeEditor bind:value={body.content} language="plain" label="Raw request body" pad="px-5" />
+      <CodeEditor bind:value={body.content} language="plain" label="Raw request body" pad="px-5" variables />
     {:else if body.type === 'file'}
       <div class="flex items-center px-5 py-4">
         <FileField
@@ -67,6 +69,7 @@
         valueLabel="Field value"
         addLabel="Add field"
         emptyText="No fields yet."
+        variables
       />
     {/if}
   </div>

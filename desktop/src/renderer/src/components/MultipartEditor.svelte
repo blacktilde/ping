@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { completeVariables } from '../lib/completion.svelte'
   import { isFileParam, type Param } from '../lib/http'
   import { emptyParam } from '../lib/request'
   import FileField from './FileField.svelte'
@@ -50,7 +51,13 @@
           aria-label="Enable row"
           class="accent-accent"
         />
-        <input bind:value={item.name} aria-label="Field name" placeholder="Name" class={fieldClass} />
+        <input
+          bind:value={item.name}
+          use:completeVariables
+          aria-label="Field name"
+          placeholder="Name"
+          class={fieldClass}
+        />
         <select
           value={isFileParam(item) ? 'file' : 'text'}
           onchange={(event) => setKind(item, event.currentTarget.value as 'text' | 'file')}
@@ -76,7 +83,13 @@
                    outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
           />
         {:else}
-          <input bind:value={item.value} aria-label="Field value" placeholder="Value" class={fieldClass} />
+          <input
+            bind:value={item.value}
+            use:completeVariables
+            aria-label="Field value"
+            placeholder="Value"
+            class={fieldClass}
+          />
         {/if}
         <button
           type="button"

@@ -23,6 +23,7 @@
   import { confirmDialog } from './lib/confirm.svelte'
   import { assertCount, captureCount, enabledCount, METHODS, toRequestSpec } from './lib/request'
   import { refreshRuntime } from './lib/runtime.svelte'
+  import { completeVariables } from './lib/completion.svelte'
   import { openRun, run, watchRunProgress } from './lib/run.svelte'
   import { refreshCookies } from './lib/cookies.svelte'
   import { DEFAULT_DISPLAY_CAP, isSafeMethod } from './lib/response'
@@ -70,10 +71,11 @@
     variables,
     variablesReady
   } from './lib/vars.svelte'
-  import { loadSecretRows, persistSecretRows } from './lib/secrets.svelte'
+  import { loadSecretRows, persistSecretRows, refreshSecretNames } from './lib/secrets.svelte'
   import { setSecret } from './lib/secrets'
   import { cycleTheme, nextTheme, setTheme, THEMES } from './lib/theme.svelte'
   import KeyValueEditor from './components/KeyValueEditor.svelte'
+  import VariableMenu from './components/VariableMenu.svelte'
   import BodyEditor from './components/BodyEditor.svelte'
   import AssertEditor from './components/AssertEditor.svelte'
   import AuthEditor from './components/AuthEditor.svelte'
@@ -205,6 +207,12 @@
   $effect(() => {
     void loadUpdateState().catch(() => {})
     return watchUpdates()
+  })
+
+  // `{{name}}` completion offers secret and runtime names before the panel is ever opened.
+  $effect(() => {
+    void refreshSecretNames()
+    void refreshRuntime()
   })
 
   // Variables follow the collection of the active tab, not the workspace.
@@ -597,6 +605,9 @@
       nodes = await scanStore()
       storeError = ''
       importReport = report
+      if (report.secretsStored > 0) {
+        void refreshSecretNames()
+      }
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
     }
@@ -721,6 +732,7 @@
       const name = secretNameFor(field, tab)
       await setSecret(name, value)
       tab.draft.auth[field] = `{{${name}}}`
+      void refreshSecretNames()
     }
   }
 
@@ -1391,6 +1403,7 @@
           <input
             bind:this={urlInput}
             bind:value={active.draft.url}
+            use:completeVariables
             aria-label="Request URL"
             aria-invalid={urlRequired}
             spellcheck="false"
@@ -1727,6 +1740,7 @@
                   valueLabel="Query value"
                   addLabel="Add parameter"
                   emptyText="No query parameters yet."
+                  variables
                 />
               {:else if active.editorTab === 'headers'}
                 <KeyValueEditor
@@ -1735,6 +1749,7 @@
                   valueLabel="Header value"
                   addLabel="Add header"
                   emptyText="No headers yet."
+                  variables
                 />
               {:else if active.editorTab === 'body'}
                 <BodyEditor body={active.draft.body} collection={activeCollection} />
@@ -1865,4 +1880,5 @@
   {/if}
 
   <ConfirmDialog />
+  <VariableMenu />
 </div>
