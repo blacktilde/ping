@@ -80,18 +80,24 @@
     }
   })
 
-  // Open folders the first time they appear; leave collapse decisions alone afterwards.
-  $effect(() => {
+  /** Every collection and folder path in the tree, at any depth. */
+  function folderPaths(list: StoreNode[]): string[] {
     const folders: string[] = []
-    const collect = (list: StoreNode[]): void => {
-      for (const node of list) {
+    const collect = (level: StoreNode[]): void => {
+      for (const node of level) {
         if (node.type !== 'request') {
           folders.push(node.path)
           collect(node.children ?? [])
         }
       }
     }
-    collect(nodes)
+    collect(list)
+    return folders
+  }
+
+  // Open folders the first time they appear; leave collapse decisions alone afterwards.
+  $effect(() => {
+    const folders = folderPaths(nodes)
 
     const fresh = folders.filter((path) => !seen.has(path))
     if (fresh.length > 0) {
@@ -106,6 +112,14 @@
     expanded = expanded.includes(path)
       ? expanded.filter((existing) => existing !== path)
       : [...expanded, path]
+  }
+
+  function expandAll(): void {
+    expanded = folderPaths(nodes)
+  }
+
+  function collapseAll(): void {
+    expanded = []
   }
 
   // --- filter --------------------------------------------------------------------------
@@ -405,15 +419,20 @@
     <HistoryList entries={history} onSelect={onSelectHistory} />
   {:else}
     {#if workspaceRoot && nodes.length > 0}
-      <div class="border-b border-line px-2 py-1.5">
+      <div class="flex items-center gap-1 border-b border-line px-2 py-1.5">
         <input
           type="search"
           bind:value={filter}
           aria-label="Filter requests"
           placeholder="Filter requests"
-          class="w-full rounded-md border border-line bg-base px-2 py-1 text-xs outline-none
+          class="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1 text-xs outline-none
                  transition focus:border-accent focus:ring-3 focus:ring-accent/15"
         />
+        <!-- While filtering every match's ancestors are forced open, so these would do nothing. -->
+        <div class="flex items-center {filtering ? 'pointer-events-none opacity-40' : ''}">
+          {@render action('Expand all', expandAll, 'M7 15l5 5 5-5M7 9l5-5 5 5')}
+          {@render action('Collapse all', collapseAll, 'M7 20l5-5 5 5M7 4l5 5 5-5')}
+        </div>
       </div>
     {/if}
     <div class="flex-1 overflow-auto py-1">
@@ -579,6 +598,7 @@
                 type="button"
                 onclick={() => (confirming = node.path)}
                 aria-label="Delete {node.name}"
+                title="Delete {node.name}"
                 class="mr-1 rounded p-1 text-fg-faint transition hover:text-danger"
               >
                 <svg
@@ -588,9 +608,10 @@
                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
+                  stroke-linejoin="round"
                   aria-hidden="true"
                 >
-                  <path d="M18 6 6 18M6 6l12 12" />
+                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
                 </svg>
               </button>
             {/if}
