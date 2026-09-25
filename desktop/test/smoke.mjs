@@ -2391,16 +2391,11 @@ try {
   await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`)), 5000, 'the run dialog to close')
   check('the run panel closes', true)
 
-  console.log('--- 15n. logs')
-  await evaluate(pressCtrlK)
-  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="palette"]')`), 2000, 'the command palette')
-  await evaluate(typeInPalette('show logs'))
-  const logsOption =
-    `[...document.querySelectorAll('[data-role="palette"] [role="option"]')]` +
-    `.find(o => o.textContent.includes('Show logs'))`
-  await waitFor(async () => await evaluate(`!!${logsOption}`), 2000, 'the logs command')
-  await evaluate(`${logsOption}?.click()`)
-  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="logs-dialog"]')`), 3000, 'the logs dialog')
+  console.log('--- 15n. logs panel')
+  check('the logs panel starts closed', !(await evaluate(`!!document.querySelector('[data-role="logs-panel"]')`)))
+  await evaluate(`document.querySelector('[data-role="status-logs"]').click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="logs-panel"]')`), 3000, 'the logs panel')
+  check('the status bar icon opens the panel', (await evaluate(`document.querySelector('[data-role="status-logs"]').getAttribute('aria-pressed')`)) === 'true')
   await waitFor(
     async () => await evaluate(`[...document.querySelectorAll('[data-role="logs-line"]')].some(l => l.textContent.includes('ready'))`),
     3000,
@@ -2409,6 +2404,16 @@ try {
   const logLines = await evaluate(`[...document.querySelectorAll('[data-role="logs-line"]')].map(l => l.textContent)`)
   check('the log shows the build it came from', logLines.some((line) => /app\s*Ping \d/.test(line)), JSON.stringify(logLines.slice(0, 3)))
   check('the log shows the core starting', logLines.some((line) => line.includes('core') && line.includes('ready')))
+  const panelBox = await evaluate(`(() => {
+    const panel = document.querySelector('[data-role="logs-panel"]').getBoundingClientRect();
+    const bar = document.querySelector('[data-role="status-bar"]').getBoundingClientRect();
+    return { panelBottom: panel.bottom, barTop: bar.top, width: panel.width, windowWidth: window.innerWidth };
+  })()`)
+  check(
+    'the panel docks across the bottom, above the status bar',
+    Math.abs(panelBox.panelBottom - panelBox.barTop) <= 2 && panelBox.width >= panelBox.windowWidth - 2,
+    JSON.stringify(panelBox)
+  )
 
   const allLines = await evaluate(`document.querySelectorAll('[data-role="logs-line"]').length`)
   await evaluate(fillNetwork('logs-source', 'core'))
@@ -2424,9 +2429,14 @@ try {
   check('the log is written to userData/logs', logFile.includes('[app] Ping ') && logFile.includes('[core] ready'), logFile.slice(0, 200))
   check('the log holds no proxy password', !logFile.includes(proxyPassword) && !JSON.stringify(logLines).includes(proxyPassword))
 
+  await evaluate(`document.querySelector('[data-role="status-logs"]').click()`)
+  await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="logs-panel"]')`)), 3000, 'the logs panel to close')
+  check('the status bar icon closes the panel again', true)
+  await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', ctrlKey: true }))`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="logs-panel"]')`), 3000, 'the shortcut to open the panel')
   await evaluate(`document.querySelector('[data-role="logs-close"]').click()`)
-  await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="logs-dialog"]')`)), 3000, 'the logs dialog to close')
-  check('the logs dialog closes', true)
+  await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="logs-panel"]')`)), 3000, 'the close button')
+  check('the shortcut opens it and its close button closes it', true)
 
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)

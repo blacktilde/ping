@@ -119,46 +119,39 @@
     entries = []
   }
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
-    }
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<!-- Docked along the bottom of the window, under everything; the status bar toggles it. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<aside
+  data-role="logs-panel"
+  aria-label="Logs"
+  onkeydown={(event) => {
+    if (event.key === 'Escape') onClose()
+  }}
+  class="flex h-full w-full flex-col border-t border-line bg-panel"
+>
+  <div class="flex items-center gap-2 border-b border-line px-3 py-1.5">
+    <span class="rounded-md bg-line px-2 py-1 text-xs font-medium uppercase tracking-wide text-fg">
+      Logs
+    </span>
+    <span class="text-xs text-fg-faint" data-role="logs-count">
+      {shown.length === entries.length
+        ? `${entries.length} ${entries.length === 1 ? 'line' : 'lines'}`
+        : `${shown.length} of ${entries.length} lines`}
+    </span>
+    {#if error}
+      <span data-role="logs-error" role="alert" class="min-w-0 truncate text-xs text-danger">{error}</span>
+    {:else if status}
+      <span data-role="logs-status" role="status" class="text-xs text-success">{status}</span>
+    {/if}
 
-<div class="fixed inset-0 z-50 flex items-center justify-center motion-backdrop">
-  <button
-    type="button"
-    aria-label="Dismiss"
-    class="absolute inset-0 h-full w-full cursor-default"
-    onclick={onClose}
-  ></button>
-  <div
-    data-role="logs-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Logs"
-    tabindex="-1"
-    class="motion-rise relative z-10 flex h-[75vh] w-full max-w-4xl flex-col rounded-xl border
-           border-line bg-panel shadow-2xl"
-  >
-    <header class="border-b border-line px-5 py-4">
-      <h2 class="text-sm font-medium text-fg">Logs</h2>
-      <p class="mt-1 text-xs leading-relaxed text-fg-faint">
-        Diagnostics from the app and its core engine. Secret values and credential headers are
-        masked before a line is kept, so what you copy here is safe to attach to a bug report.
-      </p>
-    </header>
-
-    <div class="flex items-center gap-2 border-b border-line px-5 py-2">
+    <div class="ml-auto flex items-center gap-2">
       <select
         data-role="logs-source"
         bind:value={source}
         aria-label="Source"
-        class="rounded-md border border-line bg-base px-2 py-1.5 text-xs outline-none
+        class="rounded-md border border-line bg-base px-2 py-1 text-xs outline-none
                transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       >
         <option value="all">All sources</option>
@@ -173,7 +166,7 @@
         placeholder="Filter"
         autocomplete="off"
         spellcheck="false"
-        class="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1.5 text-xs outline-none
+        class="w-48 rounded-md border border-line bg-base px-2 py-1 text-xs outline-none
                transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       />
       <button
@@ -181,7 +174,8 @@
         data-role="logs-copy"
         disabled={shown.length === 0}
         onclick={() => void copy()}
-        class="rounded-md border border-line px-2 py-1.5 text-xs text-fg-muted transition
+        title="Copy the lines shown, with timestamps"
+        class="rounded-md border border-line px-2 py-1 text-xs text-fg-muted transition
                hover:border-fg-muted hover:text-fg disabled:opacity-50"
       >
         Copy
@@ -190,7 +184,7 @@
         type="button"
         data-role="logs-open-folder"
         onclick={() => void openFolder()}
-        class="rounded-md border border-line px-2 py-1.5 text-xs text-fg-muted transition
+        class="rounded-md border border-line px-2 py-1 text-xs text-fg-muted transition
                hover:border-fg-muted hover:text-fg"
       >
         Open log folder
@@ -200,54 +194,54 @@
         data-role="logs-clear"
         disabled={entries.length === 0}
         onclick={() => void clear()}
-        class="rounded-md border border-line px-2 py-1.5 text-xs text-fg-muted transition
+        title="Empty this view; the log file keeps everything"
+        class="rounded-md border border-line px-2 py-1 text-xs text-fg-muted transition
                hover:border-fg-muted hover:text-fg disabled:opacity-50"
       >
         Clear
       </button>
-    </div>
-
-    <div
-      bind:this={list}
-      onscroll={onScroll}
-      data-role="logs-list"
-      class="min-h-0 flex-1 overflow-auto bg-base px-5 py-2 font-mono text-xs leading-relaxed"
-    >
-      {#if shown.length === 0}
-        <p class="py-6 text-center font-sans text-fg-faint">
-          {entries.length === 0 ? 'Nothing has been logged this session.' : 'No lines match.'}
-        </p>
-      {:else}
-        {#each shown as entry (entry.seq)}
-          <div data-role="logs-line" class="flex gap-3 whitespace-pre-wrap break-all">
-            <span class="shrink-0 text-fg-faint">{time(entry)}</span>
-            <span class="w-20 shrink-0 truncate text-accent">{entry.source}</span>
-            <span class="min-w-0 flex-1 text-fg">{entry.text}</span>
-          </div>
-        {/each}
-      {/if}
-    </div>
-
-    <footer class="flex items-center justify-between gap-2 border-t border-line px-5 py-3 text-xs">
-      <span class="text-fg-faint" data-role="logs-count">
-        {shown.length === entries.length
-          ? `${entries.length} ${entries.length === 1 ? 'line' : 'lines'}`
-          : `${shown.length} of ${entries.length} lines`}
-      </span>
-      {#if error}
-        <span data-role="logs-error" role="alert" class="min-w-0 flex-1 truncate text-right text-danger">{error}</span>
-      {:else if status}
-        <span data-role="logs-status" role="status" class="text-success">{status}</span>
-      {/if}
       <button
         type="button"
         data-role="logs-close"
         onclick={onClose}
-        class="rounded-lg border border-line px-4 py-2 text-sm text-fg-muted transition
-               hover:border-fg-muted hover:text-fg"
+        aria-label="Close logs"
+        title="Close logs"
+        class="rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-fg"
       >
-        Close
+        <svg
+          viewBox="0 0 24 24"
+          class="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
       </button>
-    </footer>
+    </div>
   </div>
-</div>
+
+  <div
+    bind:this={list}
+    onscroll={onScroll}
+    data-role="logs-list"
+    class="min-h-0 flex-1 overflow-auto bg-base px-3 py-1.5 font-mono text-xs leading-relaxed"
+  >
+    {#if shown.length === 0}
+      <p class="py-4 text-center font-sans text-fg-faint">
+        {entries.length === 0 ? 'Nothing has been logged this session.' : 'No lines match.'}
+      </p>
+    {:else}
+      {#each shown as entry (entry.seq)}
+        <div data-role="logs-line" class="flex gap-3 whitespace-pre-wrap break-all">
+          <span class="shrink-0 text-fg-faint">{time(entry)}</span>
+          <span class="w-20 shrink-0 truncate text-accent">{entry.source}</span>
+          <span class="min-w-0 flex-1 text-fg">{entry.text}</span>
+        </div>
+      {/each}
+    {/if}
+  </div>
+</aside>

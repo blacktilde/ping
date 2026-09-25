@@ -265,8 +265,9 @@ assertions plus the runner change what the project is for.
   proxy, passphrase and OAuth values, credential headers, a URL's password, token-like query
   parameters), echoed to stderr as before, kept in a 2,000-line ring buffer, and appended to
   `ping.log` in the OS logs folder, rolling to `ping.1.log` at 1 MB. The core's stderr is reassembled
-  into lines first. A Logs view (command palette, or the link on the core-down banner) filters by
-  source and text, copies what it shows, and opens the folder. Still open: a verbose switch in the
+  into lines first. A Logs panel docks along the bottom of the window, toggled by the status-bar icon,
+  `Ctrl/⌘J`, the command palette, or the link on the core-down banner; it filters by source and
+  text, copies what it shows, and opens the folder. Still open: a verbose switch in the
   core itself, which would change the contract and needs its own JSON-sending test.
   *Gate: the view shows the build and the core starting, the file holds the same lines, and a saved
   proxy password appears in neither.*
