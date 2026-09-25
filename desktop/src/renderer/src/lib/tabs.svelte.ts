@@ -133,20 +133,52 @@ export function activateTab(id: string): void {
 }
 
 /**
+ * Inserts a tab right after another one and focuses it, so a copy sits beside its source rather
+ * than at the far end of the strip. A source that is gone by now puts it at the end.
+ */
+export function insertTabAfter(
+  afterId: string,
+  init: Partial<Pick<RequestTab, 'draft' | 'path' | 'savedKey'>>
+): RequestTab {
+  const index = tabs.list.findIndex((tab) => tab.id === afterId)
+  const at = index === -1 ? tabs.list.length : index + 1
+  tabs.list.splice(at, 0, makeTab(init))
+  tabs.activeId = tabs.list[at].id
+  persist()
+  // Read back from the list: the proxied copy is the one whose edits the UI sees.
+  return tabs.list[at]
+}
+
+/**
  * Closes a tab and focuses a neighbour. Closing the last tab leaves a fresh empty one, so
  * there is always somewhere to type. Returns the tab that was removed, for the caller to
  * cancel if it was mid-flight.
  */
 export function closeTab(id: string): RequestTab | undefined {
-  const index = tabs.list.findIndex((tab) => tab.id === id)
-  if (index === -1) {
-    return undefined
+  return closeTabs([id])[0]
+}
+
+/**
+ * Closes several tabs at once. When the active tab is among them, focus moves to the nearest
+ * survivor — the next one to its right, else the closest to its left — so closing the others or
+ * everything to the right of a tab lands on that tab. Closing every tab leaves a fresh empty one.
+ * Returns the tabs that were removed, for the caller to cancel any still in flight.
+ */
+export function closeTabs(ids: string[]): RequestTab[] {
+  const doomed = new Set(ids)
+  const removed = tabs.list.filter((tab) => doomed.has(tab.id))
+  if (removed.length === 0) {
+    return []
   }
-  const [removed] = tabs.list.splice(index, 1)
-  if (tabs.activeId === id) {
-    const neighbour = tabs.list[index] ?? tabs.list[index - 1]
+  if (doomed.has(tabs.activeId)) {
+    const index = tabs.list.findIndex((tab) => tab.id === tabs.activeId)
+    const survives = (tab: RequestTab): boolean => !doomed.has(tab.id)
+    const neighbour =
+      tabs.list.slice(index + 1).find(survives) ??
+      tabs.list.slice(0, index).reverse().find(survives)
     tabs.activeId = neighbour ? neighbour.id : ''
   }
+  tabs.list = tabs.list.filter((tab) => !doomed.has(tab.id))
   if (tabs.list.length === 0) {
     newTab()
   }

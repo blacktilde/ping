@@ -1429,6 +1429,92 @@ try {
     await activeTabPath()
   )
 
+  // Right-clicking a tab opens its action menu, drawn in the top layer so the strip cannot clip it.
+  const menuOpen = async () =>
+    await evaluate(`!!document.querySelector('[data-role="context-menu"]')?.matches(':popover-open')`)
+  const openTabMenu = async (index) => {
+    await evaluate(`(() => {
+      const tab = document.querySelectorAll('[data-role="request-tab"]')[${index}];
+      const rect = tab.getBoundingClientRect();
+      tab.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, cancelable: true, clientX: rect.left + 8, clientY: rect.bottom
+      }));
+      return true;
+    })()`)
+    await waitFor(menuOpen, 2000, 'the tab menu')
+  }
+  const menuItem = (role) => `document.querySelector('[data-role="${role}"]')`
+  const originalPath = await activeTabPath()
+
+  await openTabMenu(0)
+  check('right-click opens the tab menu', await menuOpen())
+  check(
+    'a lone tab cannot close the others',
+    await evaluate(`${menuItem('tab-menu-close-others')}.disabled`)
+  )
+  check('a saved tab can be revealed', !(await evaluate(`${menuItem('tab-menu-reveal')}.disabled`)))
+
+  // Duplicating a saved tab copies its file next to the original and opens the copy beside it.
+  await evaluate(`${menuItem('tab-menu-duplicate')}.click()`)
+  await waitFor(async () => (await tabCount()) === 2, 5000, 'the duplicated tab')
+  check('duplicate closes the menu', !(await menuOpen()))
+  const copyPath = await activeTabPath()
+  check(
+    'duplicate opens the copy as the active tab',
+    copyPath && copyPath !== originalPath && copyPath.startsWith(originalPath.split('/')[0] + '/'),
+    String(copyPath)
+  )
+  check('duplicate writes the copy to disk', !!copyPath && existsSync(join(workspaceDir, copyPath)))
+  check(
+    'the copy is named after its source',
+    (await evaluate(`document.querySelectorAll('[data-role="request-tab"]')[1].textContent`)).includes(
+      'Renamed by smoke copy'
+    )
+  )
+
+  // Closing the others asks once about the copy's unsaved edit, then keeps only the chosen tab.
+  await evaluate(setUrl(`${base}/edited-copy`))
+  await openTabMenu(0)
+  await evaluate(`${menuItem('tab-menu-close-others')}.click()`)
+  check('closing others confirms unsaved work', await acceptPrompt())
+  await waitFor(async () => (await tabCount()) === 1, 3000, 'the other tabs to close')
+  check('close others keeps the chosen tab', (await activeTabPath()) === originalPath, await activeTabPath())
+
+  // The keyboard reaches the same menu, and Escape dismisses it without doing anything.
+  await evaluate(`(() => {
+    const tab = document.querySelector('[data-role="request-tab"]');
+    tab.focus();
+    tab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true }));
+    return true;
+  })()`)
+  await waitFor(menuOpen, 2000, 'the keyboard tab menu')
+  check('the menu takes focus', await evaluate(`document.activeElement?.getAttribute('role') === 'menuitem'`))
+  await evaluate(
+    `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`
+  )
+  await waitFor(async () => !(await menuOpen()), 2000, 'the menu to close')
+  check('Escape closes the menu', (await tabCount()) === 1)
+
+  // Reveal focuses the tab's file in the collections tree.
+  await openTabMenu(0)
+  await evaluate(`${menuItem('tab-menu-reveal')}.click()`)
+  await waitFor(
+    async () =>
+      (await evaluate(`document.activeElement?.closest('[role="treeitem"]')?.dataset.path`)) ===
+      originalPath,
+    3000,
+    'the revealed row'
+  )
+  check('reveal focuses the request in the tree', true)
+
+  // The copy was only for this step; take it out so later steps see the collection they expect.
+  rmSync(join(workspaceDir, copyPath), { force: true })
+  await waitFor(
+    async () => !(await sidebarText()).includes('Renamed by smoke copy'),
+    8000,
+    'the removed copy to leave the tree'
+  )
+
   // The + button adds a scratch tab.
   await evaluate(`document.querySelector('button[aria-label="New request tab"]').click()`)
   await waitFor(async () => (await tabCount()) === 2, 3000, 'a scratch tab')

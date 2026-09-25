@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte'
   import { methodTone } from '../lib/format'
   import { draftKey } from '../lib/store'
   import type { RequestTab } from '../lib/tabs.svelte'
@@ -10,13 +11,31 @@
     onActivate: (id: string) => void
     onClose: (id: string) => void
     onNew: () => void
+    /** Closes several tabs at once, confirming once for all their unsaved work. */
+    onCloseMany: (ids: string[]) => void
+    onDuplicate: (id: string) => void
+    onCopyCurl: (id: string) => void
+    /** Shows a saved tab's file in the collections tree. */
+    onReveal: (id: string) => void
     /** Rendered before the tabs, pinned to the left edge. */
     leading?: Snippet
     /** Rendered after the tabs, pinned to the right edge and never scrolled with them. */
     trailing?: Snippet
   }
 
-  let { tabs, activeId, onActivate, onClose, onNew, leading, trailing }: Props = $props()
+  let {
+    tabs,
+    activeId,
+    onActivate,
+    onClose,
+    onNew,
+    onCloseMany,
+    onDuplicate,
+    onCopyCurl,
+    onReveal,
+    leading,
+    trailing
+  }: Props = $props()
 
   /** Shortcut hints must say which modifier this machine actually uses. */
   const mod = navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl+'
@@ -65,8 +84,72 @@
     }
   })
 
+  // The tab a context menu was opened on, and where to draw it.
+  let menu = $state<{ id: string; x: number; y: number } | null>(null)
+
+  function openMenu(event: MouseEvent, tab: RequestTab): void {
+    event.preventDefault()
+    menu = { id: tab.id, x: event.clientX, y: event.clientY }
+  }
+
+  /** Shift+F10 or the Menu key: the keyboard's right click, anchored under the tab. */
+  function openMenuFromKeyboard(tab: RequestTab): void {
+    const rect = document.getElementById(`request-tab-${tab.id}`)?.getBoundingClientRect()
+    menu = { id: tab.id, x: rect?.left ?? 0, y: rect?.bottom ?? 0 }
+  }
+
+  function menuItems(id: string): MenuItem[] {
+    const index = tabs.findIndex((tab) => tab.id === id)
+    const tab = tabs[index]
+    if (!tab) {
+      return []
+    }
+    const others = tabs.filter((other) => other.id !== id).map((other) => other.id)
+    const right = tabs.slice(index + 1).map((other) => other.id)
+    return [
+      { label: 'Rename', role: 'tab-menu-rename', run: () => startRename(tab) },
+      { label: 'Duplicate', role: 'tab-menu-duplicate', run: () => onDuplicate(id) },
+      { label: 'Copy as cURL', role: 'tab-menu-curl', run: () => onCopyCurl(id) },
+      {
+        label: 'Reveal in sidebar',
+        role: 'tab-menu-reveal',
+        // A scratch or history tab has no file to point at.
+        disabled: tab.path === null,
+        run: () => onReveal(id)
+      },
+      { label: 'Close', role: 'tab-menu-close', separated: true, run: () => onClose(id) },
+      {
+        label: 'Close other tabs',
+        role: 'tab-menu-close-others',
+        disabled: others.length === 0,
+        run: () => onCloseMany(others)
+      },
+      {
+        label: 'Close tabs to the right',
+        role: 'tab-menu-close-right',
+        disabled: right.length === 0,
+        run: () => onCloseMany(right)
+      },
+      {
+        label: 'Close all tabs',
+        role: 'tab-menu-close-all',
+        run: () => onCloseMany(tabs.map((other) => other.id))
+      }
+    ]
+  }
+
   function onKeydown(event: KeyboardEvent, index: number): void {
     const { key } = event
+    if (key === 'ContextMenu' || (key === 'F10' && event.shiftKey)) {
+      event.preventDefault()
+      openMenuFromKeyboard(tabs[index])
+      return
+    }
+    if (key === 'F2') {
+      event.preventDefault()
+      startRename(tabs[index])
+      return
+    }
     let next: number
     if (key === 'ArrowRight' || key === 'ArrowDown') {
       next = (index + 1) % tabs.length
@@ -104,6 +187,8 @@
     {#each tabs as tab, index (tab.id)}
       {@const active = tab.id === activeId}
       <div
+        role="presentation"
+        oncontextmenu={(event) => openMenu(event, tab)}
         class="group flex shrink-0 items-center border-b-2 transition-colors
                {active ? 'border-accent' : 'border-transparent hover:border-line'}"
       >
@@ -195,3 +280,15 @@
     <div class="flex shrink-0 items-center gap-2 pr-4">{@render trailing()}</div>
   {/if}
 </header>
+
+{#if menu}
+  {#key menu}
+    <ContextMenu
+      items={menuItems(menu.id)}
+      x={menu.x}
+      y={menu.y}
+      label="Tab actions"
+      onClose={() => (menu = null)}
+    />
+  {/key}
+{/if}
