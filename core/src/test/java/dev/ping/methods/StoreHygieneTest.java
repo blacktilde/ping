@@ -364,6 +364,124 @@ class StoreHygieneTest {
         assertEquals("demo/new-request.yaml", ok("store.create", Map.of("collection", "demo", "name", "New request")));
     }
 
+    // --- reorder --------------------------------------------------------------------------
+
+    /** Every node path at one level of the scanned tree, in sidebar order. */
+    private List<String> order(String folder) throws Exception {
+        JsonNode level = call("store.scan", Map.of()).path("result").path("collections");
+        String prefix = "";
+        for (String segment : folder.split("/")) {
+            prefix = prefix.isEmpty() ? segment : prefix + "/" + segment;
+            JsonNode next = null;
+            for (JsonNode node : level) {
+                if (node.path("path").asText().equals(prefix)) {
+                    next = node.path("children");
+                }
+            }
+            assertTrue(next != null, "no " + prefix + " in the tree");
+            level = next;
+        }
+        List<String> paths = new java.util.ArrayList<>();
+        level.forEach(node -> paths.add(node.path("path").asText()));
+        return paths;
+    }
+
+    private void reorder(String folder, List<String> names) throws Exception {
+        JsonNode response = call("store.reorder", Map.of("path", folder, "names", names));
+        assertFalse(response.has("error"), response.toString());
+    }
+
+    @Test
+    void anArrangedOrderOutranksTheAlphabetAndFoldersStayFirst() throws Exception {
+        file("demo/a.yaml", "name: Alpha\nmethod: GET\nurl: https://x.io\n");
+        file("demo/b.yaml", "name: Bravo\nmethod: GET\nurl: https://x.io\n");
+        file("demo/c.yaml", "name: Charlie\nmethod: GET\nurl: https://x.io\n");
+        file("demo/z/x.yaml", "name: X\nmethod: GET\nurl: https://x.io\n");
+        assertEquals(List.of("demo/z", "demo/a.yaml", "demo/b.yaml", "demo/c.yaml"), order("demo"));
+
+        reorder("demo", List.of("c.yaml", "a.yaml"));
+
+        assertEquals(List.of("demo/z", "demo/c.yaml", "demo/a.yaml", "demo/b.yaml"), order("demo"),
+                "listed entries first, the rest alphabetically after them, folders still ahead");
+        assertTrue(read("demo/.order.yaml").contains("- c.yaml"), read("demo/.order.yaml"));
+        assertTrue(read("demo/a.yaml").equals("name: Alpha\nmethod: GET\nurl: https://x.io\n"),
+                "arranging never rewrites a request");
+    }
+
+    @Test
+    void theRunnerFollowsTheArrangedOrder() throws Exception {
+        file("demo/a.yaml", "name: Alpha\nmethod: GET\nurl: https://x.io\n");
+        file("demo/b.yaml", "name: Bravo\nmethod: GET\nurl: https://x.io\n");
+        reorder("demo", List.of("b.yaml", "a.yaml"));
+
+        List<String> flat = new dev.ping.store.YamlStore().requestNodes(workspace, "demo").stream()
+                .map(dev.ping.store.CollectionNode::path).toList();
+        assertEquals(List.of("demo/b.yaml", "demo/a.yaml"), flat);
+    }
+
+    @Test
+    void anEmptyOrderReturnsToAlphabetical() throws Exception {
+        file("demo/a.yaml", "name: Alpha\nmethod: GET\nurl: https://x.io\n");
+        file("demo/b.yaml", "name: Bravo\nmethod: GET\nurl: https://x.io\n");
+        reorder("demo", List.of("b.yaml", "a.yaml"));
+        reorder("demo", List.of());
+        assertFalse(exists("demo/.order.yaml"));
+        assertEquals(List.of("demo/a.yaml", "demo/b.yaml"), order("demo"));
+    }
+
+    @Test
+    void renamingMovingDuplicatingAndDeletingKeepTheOrderInStep() throws Exception {
+        file("demo/a.yaml", "name: Alpha\nmethod: GET\nurl: https://x.io\n");
+        file("demo/b.yaml", "name: Bravo\nmethod: GET\nurl: https://x.io\n");
+        file("demo/c.yaml", "name: Charlie\nmethod: GET\nurl: https://x.io\n");
+        file("demo/f/x.yaml", "name: X\nmethod: GET\nurl: https://x.io\n");
+        reorder("demo", List.of("f", "c.yaml", "b.yaml", "a.yaml"));
+
+        assertEquals("demo/zulu.yaml", ok("store.rename", Map.of("path", "demo/c.yaml", "name", "Zulu")));
+        assertEquals(List.of("demo/f", "demo/zulu.yaml", "demo/b.yaml", "demo/a.yaml"), order("demo"),
+                "a renamed file keeps its place");
+
+        assertEquals("demo/bravo-copy.yaml", ok("store.duplicate", Map.of("path", "demo/b.yaml")));
+        assertEquals(List.of("demo/f", "demo/zulu.yaml", "demo/b.yaml", "demo/bravo-copy.yaml", "demo/a.yaml"),
+                order("demo"), "a copy sits right after its original");
+
+        assertEquals("demo/f/zulu.yaml", ok("store.move", Map.of("path", "demo/zulu.yaml", "to", "demo/f")));
+        assertFalse(read("demo/.order.yaml").contains("zulu"), read("demo/.order.yaml"));
+
+        assertFalse(call("store.delete", Map.of("path", "demo/b.yaml")).has("error"));
+        assertFalse(read("demo/.order.yaml").contains("- b.yaml"), read("demo/.order.yaml"));
+        assertEquals(List.of("demo/f", "demo/bravo-copy.yaml", "demo/a.yaml"), order("demo"));
+
+        assertEquals("demo/g", ok("store.rename", Map.of("path", "demo/f", "name", "g")));
+        assertTrue(read("demo/.order.yaml").contains("- g"), read("demo/.order.yaml"));
+    }
+
+    @Test
+    void anUnreadableOrderFallsBackToAlphabetical() throws Exception {
+        file("demo/a.yaml", "name: Alpha\nmethod: GET\nurl: https://x.io\n");
+        file("demo/b.yaml", "name: Bravo\nmethod: GET\nurl: https://x.io\n");
+        file("demo/.order.yaml", "{ not: [valid\n");
+        assertEquals(List.of("demo/a.yaml", "demo/b.yaml"), order("demo"));
+    }
+
+    @Test
+    void reorderTakesOnlyEntriesOfThatFolder() throws Exception {
+        file("demo/a.yaml", "name: Alpha\nmethod: GET\nurl: https://x.io\n");
+        file("demo/collection.yaml", "name: Demo\n");
+        file("demo/environments/dev.yaml", "name: Dev\n");
+        file("demo/f/x.yaml", "name: X\nmethod: GET\nurl: https://x.io\n");
+
+        for (String name : List.of("../a.yaml", "f/x.yaml", "..", "nope.yaml", "collection.yaml",
+                "environments", ".order.yaml", "")) {
+            assertEquals(INVALID, errorCode("store.reorder", Map.of("path", "demo", "names", List.of(name))), name);
+        }
+        assertEquals(INVALID, errorCode("store.reorder", Map.of("path", "demo")));
+        assertEquals(INVALID, errorCode("store.reorder", Map.of("path", "demo/environments", "names", List.of())));
+        assertEquals(INVALID, errorCode("store.reorder", Map.of("path", "../x", "names", List.of())));
+        assertEquals(INVALID, errorCode("store.reorder", Map.of("path", ".", "names", List.of())));
+        assertFalse(exists("demo/.order.yaml"));
+    }
+
     // --- escapes --------------------------------------------------------------------------
 
     @Test

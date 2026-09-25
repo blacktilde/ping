@@ -55,6 +55,7 @@
     openInFileManager,
     readRequest,
     renameEntry,
+    reorderEntries,
     scaffoldCollection,
     scanStore,
     storedToDraft,
@@ -465,6 +466,33 @@
       nodes = await scanStore()
       storeError = ''
     } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /**
+   * Places a request just before or after another. One from a different folder is moved there
+   * first; then the folder's whole order is written, so it holds from now on.
+   */
+  async function placeNode(node: StoreNode, target: StoreNode, where: 'before' | 'after'): Promise<void> {
+    const parent = (path: string): string => path.slice(0, Math.max(path.lastIndexOf('/'), 0))
+    const fileName = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
+    const folder = parent(target.path)
+    const siblings = findNode(nodes, folder)?.children ?? []
+    try {
+      let path = node.path
+      if (parent(node.path) !== folder) {
+        path = await moveEntry(node.path, folder)
+        retargetTabs(node.path, path)
+      }
+      const names = siblings.map((entry) => fileName(entry.path)).filter((name) => name !== fileName(path))
+      const at = names.indexOf(fileName(target.path))
+      names.splice(at < 0 ? names.length : where === 'before' ? at : at + 1, 0, fileName(path))
+      await reorderEntries(folder, names)
+      nodes = await scanStore()
+      storeError = ''
+    } catch (cause) {
+      nodes = await scanStore().catch(() => nodes)
       storeError = cause instanceof Error ? cause.message : String(cause)
     }
   }
@@ -1967,6 +1995,7 @@
               onRename={(node, name) => void renameNode(node, name)}
               onDuplicate={(node) => void duplicateNode(node)}
               onMove={(node, target) => void moveNode(node, target)}
+              onPlace={(node, target, where) => void placeNode(node, target, where)}
               onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
               onNewCollection={newCollection}
               onOpenFolder={openFolder}

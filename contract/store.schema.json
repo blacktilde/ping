@@ -177,6 +177,21 @@
       },
       "additionalProperties": false
     },
+    "store.reorder.params": {
+      "type": "object",
+      "required": ["root", "path", "names"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string", "description": "A collection or folder, relative to the root." },
+        "names": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "File names of entries directly inside it, in the order the sidebar and the runner should use. Written to the folder's hidden .order.yaml; anything left out follows alphabetically, folders stay ahead of requests, and an empty list removes the file. Rename, move, duplicate and delete keep it in step."
+        }
+      },
+      "additionalProperties": false
+    },
+    "store.reorder.result": { "type": "object", "additionalProperties": false },
     "store.rename.result": { "$ref": "#/$defs/store.pathResult" },
     "store.move.result": { "$ref": "#/$defs/store.pathResult" },
     "store.duplicate.result": { "$ref": "#/$defs/store.pathResult" },

@@ -210,6 +210,18 @@ function withWorkspaceRoot(
       return { message: `Unsafe ${field}: ${String(value)}` }
     }
   }
+  // `store.reorder` names entries of one folder: bare names, never a path.
+  if (safe.names !== undefined) {
+    const names = safe.names
+    if (
+      !Array.isArray(names) ||
+      !names.every(
+        (name) => typeof name === 'string' && name !== '' && name !== '.' && name !== '..' && !/[\\/]/.test(name)
+      )
+    ) {
+      return { message: 'Unsafe names' }
+    }
+  }
   return { params: safe }
 }
 
