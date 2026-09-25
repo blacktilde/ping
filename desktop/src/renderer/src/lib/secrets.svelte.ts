@@ -9,10 +9,14 @@ import { deleteSecret, listSecrets, setSecret } from './secrets'
 
 export const secretRows = $state<{ name: string; value: string }[]>([])
 
+/** The stored names, as saved rather than as edited; `{{name}}` completion offers these. */
+export const secretNames = $state<{ names: string[] }>({ names: [] })
+
 let originalNames: string[] = []
 
 export async function loadSecretRows(): Promise<void> {
   originalNames = await listSecrets()
+  secretNames.names = originalNames
   secretRows.splice(0, secretRows.length, ...originalNames.map((name) => ({ name, value: '' })))
 }
 
@@ -34,4 +38,13 @@ export async function persistSecretRows(): Promise<void> {
     }
   }
   await loadSecretRows()
+}
+
+/** Refreshes the names alone, leaving any rows being edited as they are. */
+export async function refreshSecretNames(): Promise<void> {
+  try {
+    secretNames.names = await listSecrets()
+  } catch {
+    // Completion is a courtesy: a failure here only leaves the list short.
+  }
 }

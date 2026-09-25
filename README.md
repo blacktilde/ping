@@ -23,7 +23,7 @@ no cloud sync and no telemetry — just a native engine, a YAML folder you own, 
 - **Collections are plain files.** A folder per collection, a YAML file per request. Keep
   them in Git, sync them however you like, and read them without the app.
 - **Variables and environments.** Interpolate `{{name}}` anywhere, define collection-wide
-  values, and override them per environment.
+  values, and override them per environment. Typing `{{` offers every name in scope.
 - **Secrets stay out of your files.** Values live in the OS keychain via Electron
   `safeStorage`; collections hold only the reference. A credential typed into a request is
   moved out of the file for you.

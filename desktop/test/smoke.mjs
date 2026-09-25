@@ -499,6 +499,14 @@ try {
     await evaluate(`document.querySelector('button[type=submit]').click()`)
   }
 
+  /** A real key press on whatever has focus, as a menu or an editor would receive it. */
+  async function pressKey(key) {
+    const codes = { Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38, Tab: 9 }
+    const event = { key, code: key, windowsVirtualKeyCode: codes[key], nativeVirtualKeyCode: codes[key] }
+    await cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...event })
+    await cdp('Input.dispatchKeyEvent', { type: 'keyUp', ...event })
+  }
+
   /** Presses the same button in its cancelling phase. */
   const clickCancel = () => evaluate(`document.querySelector('button[type=submit]').click()`)
 
@@ -728,7 +736,24 @@ try {
   await evaluate(`document.querySelector('[aria-label="Close variables"]')?.click()`)
   await evaluate(clickTab('Auth'))
   await evaluate(setSelect('Auth type', 'bearer'))
-  await evaluate(setInput('Bearer token', '{{smoke-token}}'))
+  // Typed through the DevTools input domain, so the menu sees trusted keystrokes: two braces
+  // and a prefix offer the secret by name, and Enter fills in the rest.
+  await evaluate(setInput('Bearer token', ''))
+  await evaluate(`document.querySelector('input[aria-label="Bearer token"]').focus()`)
+  await cdp('Input.insertText', { text: '{{smoke' })
+  const menuText = `document.querySelector('[data-role="variable-menu"]:popover-open')?.textContent.replace(/\\s+/g, ' ').trim() ?? null`
+  await waitFor(async () => (await evaluate(menuText)) !== null, 3000, 'the variable menu to open')
+  const offered = await evaluate(menuText)
+  check('offers the secret by name while typing {{', offered.includes('smoke-token secret'), offered)
+  check('never shows a secret value in the menu', !offered.includes('secret-value'), offered)
+  await pressKey('Enter')
+  await waitFor(
+    async () => (await evaluate(`document.querySelector('input[aria-label="Bearer token"]').value`)) === '{{smoke-token}}',
+    3000,
+    'the picked name to fill the placeholder',
+    async () => await evaluate(`document.querySelector('input[aria-label="Bearer token"]').value`)
+  )
+  check('closes the menu once a name is picked', (await evaluate(menuText)) === null)
   await clickSend()
   await waitFor(async () => (await snap()).body.includes('secret-value'), 5000, 'the bearer token')
   const bearer = echo((await snap()).body)
@@ -813,6 +838,34 @@ try {
     jsonPosted?.body === '{"code":"mirror"}',
     jsonPosted?.body ?? 'none'
   )
+
+  console.log('--- 3c. {{ completion in the body editor')
+  // CodeMirror offers names through its own completion, so the same pick works in a body.
+  await evaluate(`document.querySelector('[data-role="request"] .cm-content')?.focus()`)
+  await cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'End', code: 'End', windowsVirtualKeyCode: 35, modifiers: 2 })
+  await cdp('Input.insertText', { text: ' {{smoke-t' })
+  const completionText = `document.querySelector('.cm-tooltip-autocomplete')?.textContent ?? null`
+  await waitFor(
+    async () => (await evaluate(completionText))?.includes('smoke-token') ?? false,
+    3000,
+    'the body editor to offer the secret',
+    async () => await evaluate(completionText)
+  )
+  await pressKey('Enter')
+  const bodyText = `document.querySelector('[data-role="request"] .cm-content')?.textContent ?? ''`
+  await waitFor(
+    async () => (await evaluate(bodyText)).endsWith(' {{smoke-token}}'),
+    3000,
+    'the body to hold the picked name',
+    async () => await evaluate(bodyText)
+  )
+  check('completes a name in the body editor', true)
+  // Leave the body as the steps after this one expect it.
+  for (let i = 0; i < ' {{smoke-token}}'.length; i++) {
+    await cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 })
+    await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 })
+  }
+  await waitFor(async () => (await evaluate(bodyText)) === '{"code":"mirror"}', 3000, 'the body to be restored', async () => await evaluate(bodyText))
   check(
     'sets the JSON content type',
     (jsonPosted?.headers?.['content-type'] ?? '').startsWith('application/json'),

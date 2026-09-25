@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { completeVariables } from '../lib/completion.svelte'
   import type { AuthDraft, AuthType } from '../lib/http'
 
   interface Props {
@@ -41,6 +42,7 @@
     <input
       {value}
       oninput={(event) => set(event.currentTarget.value)}
+      use:completeVariables
       aria-label={aria ?? label}
       type={secret ? 'password' : 'text'}
       class="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-fg outline-none"
