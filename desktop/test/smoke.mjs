@@ -1905,6 +1905,22 @@ try {
   await drag('demo', 'demo/Archive')
   check('a collection cannot be dropped anywhere', existsSync(join(workspaceDir, 'demo', 'get.yaml')))
 
+  // Dropping a request on another request places it there instead of moving it, and the order
+  // is written beside the requests so it survives a rescan. A synthetic drop lands at the top of
+  // its row, so it places the request before the target.
+  const requestOrder = () => evaluate(`[...document.querySelectorAll('[data-node-type="request"]')]
+    .map((row) => row.dataset.path).filter((path) => path.startsWith('demo/') && path.split('/').length === 2)`)
+  const arranged = await requestOrder()
+  const lastRequest = arranged[arranged.length - 1]
+  await drag(lastRequest, arranged[0])
+  await waitFor(async () => (await requestOrder())[0] === lastRequest, 5000, 'the dragged request to lead')
+  check('dropping on a request places it before that one', (await requestOrder()).length === arranged.length, (await requestOrder()).join(', '))
+  const orderFile = join(workspaceDir, 'demo', '.order.yaml')
+  check('the order is kept on disk', existsSync(orderFile) && readFileSync(orderFile, 'utf8').includes(lastRequest.slice('demo/'.length)))
+  await evaluate(`${row(lastRequest)}.querySelector('button').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }))`)
+  await waitFor(async () => (await requestOrder())[1] === lastRequest, 5000, 'Alt+Down to move it a step')
+  check('Alt+Down moves a request one step down', (await requestOrder())[0] === arranged[0], (await requestOrder()).join(', '))
+
   // Renaming a folder re-points every tab inside it.
   await clickWhenReady('Rename Archive')
   await evaluate(setInput('Rename Archive', 'Old stuff'))

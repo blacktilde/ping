@@ -21,6 +21,8 @@
     onRename: (node: StoreNode, name: string) => void
     onDuplicate: (node: StoreNode) => void
     onMove: (node: StoreNode, target: StoreNode) => void
+    /** Puts a request just before or after another one, moving it into that folder if need be. */
+    onPlace: (node: StoreNode, target: StoreNode, where: 'before' | 'after') => void
     onCreateFolder: (parentPath: string, name: string) => void
     onNewCollection: (name: string) => void
     onOpenFolder: () => void
@@ -43,6 +45,7 @@
     onRename,
     onDuplicate,
     onMove,
+    onPlace,
     onCreateFolder,
     onNewCollection,
     onOpenFolder,
@@ -227,6 +230,8 @@
   // synthetic drag (the smoke test) does not always carry.
   let dragging = $state<StoreNode | null>(null)
   let dropTarget = $state<string | null>(null)
+  // Dropping a request on another request places it above or below that one instead.
+  let dropPlace = $state<{ path: string; where: 'before' | 'after' } | null>(null)
 
   function parentOf(path: string): string {
     const slash = path.lastIndexOf('/')
@@ -245,6 +250,43 @@
     )
   }
 
+  function canPlace(source: StoreNode | null, target: StoreNode): boolean {
+    return source !== null && source.type === 'request' && target.type === 'request' && source.path !== target.path
+  }
+
+  function clearDrag(): void {
+    dragging = null
+    dropTarget = null
+    dropPlace = null
+  }
+
+  /** The request next to this one in its folder, looked up in the whole tree, not the filtered one. */
+  function neighbour(node: StoreNode, step: -1 | 1): StoreNode | null {
+    const parent = parentOf(node.path)
+    const find = (list: StoreNode[]): StoreNode[] | null => {
+      for (const entry of list) {
+        if (entry.path === parent) return entry.children ?? []
+        const nested = entry.type === 'request' ? null : find(entry.children ?? [])
+        if (nested) return nested
+      }
+      return null
+    }
+    const siblings = (find(nodes) ?? []).filter((entry) => entry.type === 'request')
+    const index = siblings.findIndex((entry) => entry.path === node.path)
+    return index < 0 ? null : (siblings[index + step] ?? null)
+  }
+
+  /** Alt+Up and Alt+Down do what dragging does, a step at a time. */
+  function shift(event: KeyboardEvent, node: StoreNode): void {
+    if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
+    event.preventDefault()
+    const up = event.key === 'ArrowUp'
+    const target = neighbour(node, up ? -1 : 1)
+    if (target) {
+      onPlace(node, target, up ? 'before' : 'after')
+    }
+  }
+
   function dragStart(event: DragEvent, node: StoreNode): void {
     dragging = node
     if (event.dataTransfer) {
@@ -254,17 +296,26 @@
   }
 
   function dragOver(event: DragEvent, node: StoreNode): void {
-    if (canDrop(dragging, node)) {
+    if (canPlace(dragging, node)) {
+      event.preventDefault()
+      const row = (event.currentTarget as HTMLElement).getBoundingClientRect()
+      dropPlace = { path: node.path, where: event.clientY < row.top + row.height / 2 ? 'before' : 'after' }
+      dropTarget = null
+    } else if (canDrop(dragging, node)) {
       event.preventDefault()
       dropTarget = node.path
+      dropPlace = null
     }
   }
 
   function drop(event: DragEvent, node: StoreNode): void {
     const source = dragging
-    dragging = null
-    dropTarget = null
-    if (source && canDrop(source, node)) {
+    const place = dropPlace
+    clearDrag()
+    if (source && place?.path === node.path && canPlace(source, node)) {
+      event.preventDefault()
+      onPlace(source, node, place.where)
+    } else if (source && canDrop(source, node)) {
       event.preventDefault()
       onMove(source, node)
     }
@@ -499,18 +550,25 @@
           aria-selected={activePath === node.path}
           tabindex="-1"
           ondragstart={(event) => dragStart(event, node)}
-          ondragend={() => {
-            dragging = null
-            dropTarget = null
-          }}
+          ondragend={clearDrag}
           ondragover={(event) => dragOver(event, node)}
           ondragleave={() => {
             if (dropTarget === node.path) dropTarget = null
+            if (dropPlace?.path === node.path) dropPlace = null
           }}
           ondrop={(event) => drop(event, node)}
           class="group relative flex items-center {dropTarget === node.path ? 'bg-accent/15 ring-1 ring-accent' : ''}"
           style="padding-left: {row.depth * 12 + 6}px; padding-right: 6px"
         >
+          {#if dropPlace?.path === node.path}
+            <div
+              data-role="drop-line"
+              data-where={dropPlace.where}
+              class="pointer-events-none absolute right-1 z-10 h-0.5 rounded bg-accent
+                     {dropPlace.where === 'before' ? '-top-px' : '-bottom-px'}"
+              style="left: {row.depth * 12 + 6}px"
+            ></div>
+          {/if}
           {#if renaming === node.path}
             <input
               use:focusSelect
@@ -536,6 +594,7 @@
               ondblclick={() => startRename(node)}
               onkeydown={(event) => {
                 if (event.key === 'F2') startRename(node)
+                shift(event, node)
               }}
               class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left text-sm
                      transition

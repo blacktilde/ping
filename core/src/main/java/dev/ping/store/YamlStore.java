@@ -36,7 +36,8 @@ import java.util.stream.Stream;
  *
  * <p>Two names inside a collection are reserved and never appear in the sidebar:
  * {@code collection.yaml} holds the collection's own metadata, and {@code environments/}
- * holds one file per environment.
+ * holds one file per environment. Any folder may also hold a hidden {@code .order.yaml}, the
+ * order its entries were arranged in by hand.
  */
 public final class YamlStore {
 
@@ -45,6 +46,13 @@ public final class YamlStore {
 
     /** Folder of environment files, each overriding collection variables of the same name. */
     public static final String ENVIRONMENTS_DIR = "environments";
+
+    /**
+     * A folder's hand-arranged order: a YAML list of its entries' file names. Kept per folder so
+     * it travels with a folder that is moved or renamed, and so rearranging one folder changes one
+     * file rather than rewriting every request in it.
+     */
+    public static final String ORDER_FILE = ".order.yaml";
 
     /**
      * Loads as well as saves, so the writer's output is exactly what the reader expects.
@@ -162,7 +170,9 @@ public final class YamlStore {
         }
         node.put("name", name);
         writeValue(file, node);
-        return followSlug(base, file, slugify(name, "request"));
+        String path = followSlug(base, file, slugify(name, "request"));
+        renameInOrder(file.getParent(), file.getFileName().toString(), resolve(base, path).getFileName().toString());
+        return path;
     }
 
     /**
@@ -202,6 +212,7 @@ public final class YamlStore {
                     throw RpcException.invalidParams("A folder named \"" + clean + "\" already exists here");
                 }
                 moveInPlace(directory, target);
+                renameInOrder(parent, directory.getFileName().toString(), target.getFileName().toString());
             }
         } catch (IOException e) {
             throw RpcException.storeFailed("Could not rename to " + clean + ": " + e.getMessage(), e);
@@ -268,6 +279,8 @@ public final class YamlStore {
         } catch (IOException e) {
             throw RpcException.storeFailed("Could not move " + relativePath + ": " + e.getMessage(), e);
         }
+        // Unlisted in its new folder, so it lands after everything arranged there by hand.
+        dropFromOrder(source.getParent(), source.getFileName().toString());
         return relative(base, target);
     }
 
@@ -290,6 +303,7 @@ public final class YamlStore {
                 node.put("name", name);
                 Path target = unique(source.getParent(), slugify(name, "request"));
                 writeValue(target, node);
+                insertAfterInOrder(source.getParent(), source.getFileName().toString(), target.getFileName().toString());
                 return relative(base, target);
             }
 
@@ -302,6 +316,7 @@ public final class YamlStore {
                 CollectionDoc doc = collectionDoc(base, copy);
                 saveCollection(base, copy, new CollectionDoc(doc.name() + " copy", doc.variables(), doc.docs()));
             }
+            insertAfterInOrder(source.getParent(), source.getFileName().toString(), target.getFileName().toString());
             return copy;
         } catch (IOException e) {
             throw RpcException.storeFailed("Could not duplicate " + relativePath + ": " + e.getMessage(), e);
@@ -329,10 +344,13 @@ public final class YamlStore {
         });
     }
 
-    /** {@code collection.yaml} and anything under {@code environments/} are not tree items. */
+    /** {@code collection.yaml}, {@code .order.yaml} and anything under {@code environments/} are not tree items. */
     private static void guardReserved(Path base, Path path) {
         if (path.getFileName().toString().equals(COLLECTION_FILE)) {
             throw RpcException.invalidParams("collection.yaml is managed with the collection's variables");
+        }
+        if (path.getFileName().toString().equals(ORDER_FILE)) {
+            throw RpcException.invalidParams(".order.yaml is managed by arranging the sidebar");
         }
         for (String segment : relative(base, path).split("/")) {
             if (segment.equalsIgnoreCase(ENVIRONMENTS_DIR)) {
@@ -496,7 +514,7 @@ public final class YamlStore {
 
             boolean hasRequest;
             try (Stream<Path> entries = Files.list(collection)) {
-                hasRequest = entries.anyMatch(entry -> isYaml(entry)
+                hasRequest = entries.anyMatch(entry -> isYaml(entry) && !hidden(entry)
                         && !entry.getFileName().toString().equals(COLLECTION_FILE));
             }
             if (!hasRequest) {
@@ -515,7 +533,7 @@ public final class YamlStore {
 
     /**
      * Every request in a collection, flattened in sidebar order: folders before requests,
-     * each group by display name, depth first. The runner uses this so a run and the tree
+     * each group in its folder's arranged order and then by display name, depth first. The runner uses this so a run and the tree
      * cannot disagree about order.
      */
     public List<CollectionNode> requestNodes(Path root, String collectionPath) {
@@ -727,6 +745,123 @@ public final class YamlStore {
             throw RpcException.storeFailed(
                     "Could not delete " + relativePath + ": " + e.getMessage(), e);
         }
+        dropFromOrder(target.getParent(), target.getFileName().toString());
+    }
+
+    // --- arranged order ------------------------------------------------------------------
+
+    /**
+     * Arranges the entries of a collection or folder in the given order, by file name.
+     *
+     * <p>Each name must be an entry directly inside the folder; anything the list leaves out
+     * keeps its place after the arranged ones, alphabetically, which is also where a request
+     * created or moved in later appears. An empty list returns the folder to alphabetical order.
+     * Folders still come before requests: the order applies within each group.
+     */
+    public void reorder(Path root, String folderPath, List<String> names) {
+        Path base = normalize(root);
+        Path directory = resolve(base, folderPath);
+        guardReserved(base, directory);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw RpcException.storeFailed("No such folder: " + folderPath);
+        }
+
+        java.util.LinkedHashSet<String> order = new java.util.LinkedHashSet<>();
+        for (String name : names == null ? List.<String>of() : names) {
+            if (name == null || name.isBlank() || name.contains("/") || name.contains("\\")
+                    || name.startsWith(".") || name.equals(COLLECTION_FILE) || name.equals(ENVIRONMENTS_DIR)) {
+                throw RpcException.invalidParams("Not an entry of this folder: " + name);
+            }
+            Path entry = directory.resolve(name).normalize();
+            if (!directory.equals(entry.getParent()) || !Files.exists(entry, LinkOption.NOFOLLOW_LINKS)
+                    || Files.isSymbolicLink(entry)) {
+                throw RpcException.invalidParams("Not an entry of this folder: " + name);
+            }
+            order.add(name);
+        }
+        writeOrder(directory, List.copyOf(order));
+    }
+
+    /** The folder's arranged order, or empty when it has none or the file cannot be read. */
+    private static List<String> readOrder(Path directory) {
+        Path file = directory.resolve(ORDER_FILE);
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = YAML.readTree(file.toFile());
+            List<String> names = new ArrayList<>();
+            if (node != null && node.isArray()) {
+                node.forEach(item -> {
+                    if (item.isTextual()) {
+                        names.add(item.asText());
+                    }
+                });
+            }
+            return names;
+        } catch (IOException e) {
+            // A hand-edited file that no longer parses falls back to alphabetical, never an error.
+            return List.of();
+        }
+    }
+
+    private static void writeOrder(Path directory, List<String> names) {
+        if (names.isEmpty()) {
+            try {
+                Files.deleteIfExists(directory.resolve(ORDER_FILE));
+            } catch (IOException e) {
+                throw RpcException.storeFailed("Could not reset the order of " + directory.getFileName(), e);
+            }
+            return;
+        }
+        writeValue(directory.resolve(ORDER_FILE), names);
+    }
+
+    /**
+     * Edits a folder's arranged order after its entries changed underneath it. Only a folder that
+     * already has an order is touched, and a failure here never fails the operation that caused
+     * it: the files moved, and an order that is out of date only means an alphabetical tail.
+     */
+    private static void editOrder(Path directory, java.util.function.UnaryOperator<List<String>> edit) {
+        if (directory == null || !Files.isRegularFile(directory.resolve(ORDER_FILE), LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        try {
+            List<String> before = readOrder(directory);
+            List<String> after = edit.apply(new ArrayList<>(before));
+            if (!after.equals(before)) {
+                writeOrder(directory, after);
+            }
+        } catch (RuntimeException e) {
+            System.err.println("Could not update the order of " + directory.getFileName() + ": " + e.getMessage());
+        }
+    }
+
+    private static void renameInOrder(Path directory, String from, String to) {
+        if (!from.equals(to)) {
+            editOrder(directory, names -> {
+                names.replaceAll(name -> name.equals(from) ? to : name);
+                return names;
+            });
+        }
+    }
+
+    private static void dropFromOrder(Path directory, String name) {
+        editOrder(directory, names -> {
+            names.remove(name);
+            return names;
+        });
+    }
+
+    /** A copy sits right after its original rather than falling to the end. */
+    private static void insertAfterInOrder(Path directory, String original, String copy) {
+        editOrder(directory, names -> {
+            int index = names.indexOf(original);
+            if (index >= 0 && !names.contains(copy)) {
+                names.add(index + 1, copy);
+            }
+            return names;
+        });
     }
 
     // --- tree building -------------------------------------------------------------------
@@ -762,6 +897,20 @@ public final class YamlStore {
         // from its YAML and can differ from its slug, so sorting by path would look random.
         folders.sort(byDisplayName());
         requests.sort(byDisplayName());
+
+        // Then the folder's arranged order, if it has one. The sort is stable, so whatever the
+        // order does not list keeps its alphabetical place after everything it does.
+        List<String> order = readOrder(directory);
+        if (!order.isEmpty()) {
+            java.util.Map<String, Integer> rank = new java.util.HashMap<>();
+            for (int index = 0; index < order.size(); index++) {
+                rank.putIfAbsent(order.get(index), index);
+            }
+            Comparator<CollectionNode> arranged = Comparator.comparingInt(node ->
+                    rank.getOrDefault(node.path().substring(node.path().lastIndexOf('/') + 1), Integer.MAX_VALUE));
+            folders.sort(arranged);
+            requests.sort(arranged);
+        }
         folders.addAll(requests);
         return folders;
     }

@@ -9,6 +9,7 @@ import dev.ping.store.StoredRequest;
 import dev.ping.store.YamlStore;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -60,6 +61,22 @@ public final class StoreMethods {
 
         server.register("store.duplicate", params -> Map.of("path", store.duplicate(
                 root(params), requiredText(params, "path"))));
+
+        server.register("store.reorder", params -> {
+            JsonNode names = params.path("names");
+            if (!names.isArray()) {
+                throw RpcException.invalidParams("store.reorder requires a names list");
+            }
+            List<String> list = new java.util.ArrayList<>();
+            for (JsonNode name : names) {
+                if (!name.isTextual()) {
+                    throw RpcException.invalidParams("Every name must be a string");
+                }
+                list.add(name.asText());
+            }
+            store.reorder(root(params), requiredText(params, "path"), list);
+            return Map.of();
+        });
 
         server.register("store.scaffold", params -> Map.of(
                 "collection", store.scaffold(root(params),

@@ -111,6 +111,14 @@ export async function moveEntry(path: string, to: string): Promise<string> {
   return result.path
 }
 
+/**
+ * Arranges the entries of a collection or folder, by file name. Anything left out keeps its
+ * alphabetical place after the listed ones; folders stay ahead of requests either way.
+ */
+export async function reorderEntries(folder: string, names: string[]): Promise<void> {
+  await call<Record<string, never>>('store.reorder', { path: folder, names })
+}
+
 /** Copies a request, folder or collection next to the original; returns the copy's path. */
 export async function duplicateEntry(path: string): Promise<string> {
   const result = await call<{ path: string }>('store.duplicate', { path })

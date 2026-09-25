@@ -46,6 +46,7 @@ not `http.send`, whose length is the user's to set.
 | `store.rename`| `{ root, path, name }`    | `{ path: string }`                                  |
 | `store.move`  | `{ root, path, to }`      | `{ path: string }`                                  |
 | `store.duplicate`| `{ root, path }`       | `{ path: string }`                                  |
+| `store.reorder`| `{ root, path, names }`  | `{}`                                                |
 | `store.scaffold`| `{ root, collection? }` | `{ collection: string }`                          |
 | `store.delete`| `{ root, path }`          | `{}`                                                |
 | `vars.catalog`| `{ root, collection }`    | `{ name, variables, environments }`                 |
