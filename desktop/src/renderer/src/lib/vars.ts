@@ -59,6 +59,16 @@ export async function saveEnvironment(
   return result.path
 }
 
+/** Renames an environment and returns its path, which follows the new name. */
+export async function renameEnvironment(path: string, name: string): Promise<string> {
+  const result = await call<{ path: string }>('vars.renameEnvironment', { path, name })
+  return result.path
+}
+
+export async function deleteEnvironment(path: string): Promise<void> {
+  await call<Record<string, never>>('vars.deleteEnvironment', { path })
+}
+
 /** Flattened map; precedence is resolved in the core. */
 export async function resolveVariables(
   collection: string,

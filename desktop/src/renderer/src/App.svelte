@@ -64,6 +64,8 @@
     clearVariables,
     loadCollection,
     loadEnvironment,
+    renameEnvironment,
+    deleteEnvironment,
     persistVariables,
     variables,
     variablesReady
@@ -777,6 +779,41 @@
     try {
       await addEnvironment(name)
       showVariables = true
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  async function onRenameEnvironment(path: string, name: string): Promise<boolean> {
+    try {
+      const renamed = await renameEnvironment(path, name)
+      // A run set up with this environment keeps it under its new path.
+      if (run.environment === path) {
+        run.environment = renamed
+      }
+      storeError = ''
+      return true
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+      return false
+    }
+  }
+
+  async function onDeleteEnvironment(path: string): Promise<void> {
+    const name = variables.environments.find((entry) => entry.path === path)?.name ?? path
+    const proceed = await confirmDialog(
+      `Delete the environment "${name}"? Its file is removed from the collection.`,
+      { confirmLabel: 'Delete', destructive: true }
+    )
+    if (!proceed) {
+      return
+    }
+    try {
+      await deleteEnvironment(path)
+      if (run.environment === path) {
+        run.environment = ''
+      }
       storeError = ''
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
@@ -1764,6 +1801,8 @@
           onClose={() => (showVariables = false)}
           onSave={onSaveVariables}
           onAddEnvironment={onAddEnvironment}
+          {onRenameEnvironment}
+          {onDeleteEnvironment}
         />
       {/snippet}
     </SplitPane>

@@ -75,6 +75,14 @@ public final class VarsMethods {
             return Map.of("path", path);
         });
 
+        server.register("vars.renameEnvironment", params -> Map.of("path", store.renameEnvironment(
+                root(params), requiredText(params, "path"), requiredText(params, "name"))));
+
+        server.register("vars.deleteEnvironment", params -> {
+            store.deleteEnvironment(root(params), requiredText(params, "path"));
+            return Map.of();
+        });
+
         server.register("vars.resolve", params -> Map.of("variables", Variables.forCollection(
                 store, root(params), requiredText(params, "collection"),
                 params.path("environment").asText(null), null)));
