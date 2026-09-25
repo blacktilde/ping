@@ -52,6 +52,8 @@ not `http.send`, whose length is the user's to set.
 | `vars.environment`| `{ root, path }`      | `EnvironmentDoc`                                    |
 | `vars.saveCollection`| `{ root, collection, name?, variables? }` | `{}`                     |
 | `vars.saveEnvironment`| `{ root, collection?, path?, name, variables? }` | `{ path }`       |
+| `vars.renameEnvironment`| `{ root, path, name }` | `{ path }`                                  |
+| `vars.deleteEnvironment`| `{ root, path }`  | `{}`                                                |
 | `vars.resolve`| `{ root, collection, environment? }` | `{ variables: map }`                      |
 | `auth.authorize`| `{ auth, variables?, network? }`  | `{ flowId, authorizeUrl, redirectUri }`              |
 | `net.probe`   | `{ url, verifyTls?, timeoutMs?, network? }` | `ProbeResult` (see Connection probe)   |
@@ -144,6 +146,12 @@ and values, and body content, content type and fields. An unknown name is left e
 written, so a half-configured request shows what is missing on the wire rather than silently
 sending an empty value. Substitution happens in the core, so the future CLI behaves
 identically.
+
+`vars.renameEnvironment` and `vars.deleteEnvironment` take only a path directly inside an
+`environments/` folder, so neither can reach a request or `collection.yaml`. A rename changes
+the file's `name` (other fields survive) and moves the file to the new slug, taking a unique
+one if that file exists; a name another environment of the collection already shows is refused,
+since the picker lists environments by name.
 
 ### Auth
 

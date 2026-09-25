@@ -123,6 +123,37 @@
       "additionalProperties": false
     },
 
+    "vars.renameEnvironment.params": {
+      "type": "object",
+      "required": ["root", "path", "name"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string", "description": "An environment file: <collection>/environments/<file>.yaml." },
+        "name": {
+          "type": "string",
+          "description": "New display name. The file follows its slug; a name another environment in the collection already has is refused."
+        }
+      },
+      "additionalProperties": false
+    },
+    "vars.renameEnvironment.result": {
+      "type": "object",
+      "required": ["path"],
+      "properties": { "path": { "type": "string", "description": "The environment's path after the rename." } },
+      "additionalProperties": false
+    },
+
+    "vars.deleteEnvironment.params": {
+      "type": "object",
+      "required": ["root", "path"],
+      "properties": {
+        "root": { "type": "string" },
+        "path": { "type": "string", "description": "An environment file: <collection>/environments/<file>.yaml." }
+      },
+      "additionalProperties": false
+    },
+    "vars.deleteEnvironment.result": { "type": "object", "additionalProperties": false },
+
     "vars.resolve.params": {
       "type": "object",
       "required": ["root", "collection"],

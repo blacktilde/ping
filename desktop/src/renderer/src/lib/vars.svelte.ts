@@ -8,7 +8,9 @@
 
 import type { Param } from './http'
 import {
+  deleteEnvironment as deleteEnvironmentFile,
   normalizeVariables,
+  renameEnvironment as renameEnvironmentFile,
   readEnvironment,
   resolveVariables,
   saveCollection,
@@ -126,4 +128,29 @@ export async function addEnvironment(name: string): Promise<string> {
   await loadCollection(variables.collection)
   await loadEnvironment(path)
   return path
+}
+
+/**
+ * Renames an environment. Only the list and the selection are refreshed, not the rows: the
+ * file's variables did not change, and re-reading them would drop edits not yet saved.
+ */
+export async function renameEnvironment(path: string, name: string): Promise<string> {
+  const renamed = await renameEnvironmentFile(path, name)
+  variables.environments = (await varsCatalog(variables.collection)).environments
+  if (variables.environment === path) {
+    variables.environment = renamed
+  }
+  return renamed
+}
+
+/**
+ * Deletes an environment. Deleting the active one selects the first that remains, the same
+ * default opening a collection applies; the collection's rows are left as they are on screen.
+ */
+export async function deleteEnvironment(path: string): Promise<void> {
+  await deleteEnvironmentFile(path)
+  variables.environments = (await varsCatalog(variables.collection)).environments
+  if (variables.environment === path) {
+    await loadEnvironment(variables.environments[0]?.path ?? '')
+  }
 }

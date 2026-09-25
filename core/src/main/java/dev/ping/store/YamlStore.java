@@ -162,8 +162,14 @@ public final class YamlStore {
         }
         node.put("name", name);
         writeValue(file, node);
+        return followSlug(base, file, slugify(name, "request"));
+    }
 
-        String slug = slugify(name, "request");
+    /**
+     * Renames a file to match its new display name's slug and returns its relative path. A file
+     * that already carries the slug, or the slug with a numeric suffix, stays where it is.
+     */
+    private static String followSlug(Path base, Path file, String slug) {
         String stem = baseName(file);
         if (stem.equals(slug) || stem.matches(java.util.regex.Pattern.quote(slug) + "-\\d+")) {
             return relative(base, file);
@@ -628,6 +634,71 @@ public final class YamlStore {
         }
         writeValue(file, doc);
         return relative(base, file);
+    }
+
+    /**
+     * Renames an environment and returns its new relative path.
+     *
+     * <p>Like a request rename, only {@code name} changes in the file, and the file follows the
+     * new name's slug unless it already carries it. A name another environment of the same
+     * collection already shows is an error: the picker lists environments by name, so two of
+     * them would be indistinguishable.
+     */
+    public String renameEnvironment(Path root, String relativePath, String name) {
+        Path base = normalize(root);
+        Path file = environmentFile(base, relativePath);
+        String clean = name == null ? "" : name.strip();
+        if (clean.isEmpty()) {
+            throw RpcException.invalidParams("A name is required");
+        }
+        try (Stream<Path> siblings = Files.list(file.getParent())) {
+            boolean taken = siblings
+                    .filter(YamlStore::isYaml)
+                    .filter(path -> !hidden(path) && !Files.isSymbolicLink(path))
+                    .filter(path -> !path.equals(file))
+                    .anyMatch(path -> environmentName(path).equalsIgnoreCase(clean));
+            if (taken) {
+                throw RpcException.invalidParams("An environment named \"" + clean + "\" already exists");
+            }
+        } catch (IOException e) {
+            throw RpcException.storeFailed("Could not read " + relative(base, file.getParent()), e);
+        }
+
+        com.fasterxml.jackson.databind.node.ObjectNode node = readTree(base, file);
+        if (!clean.equals(node.path("name").asText(null))) {
+            node.put("name", clean);
+            writeValue(file, node);
+        }
+        return followSlug(base, file, slugify(clean));
+    }
+
+    /** Deletes one environment file. */
+    public void deleteEnvironment(Path root, String relativePath) {
+        Path file = environmentFile(normalize(root), relativePath);
+        try {
+            Files.delete(file);
+        } catch (IOException e) {
+            throw RpcException.storeFailed(
+                    "Could not delete " + relativePath + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Resolves a path that must name an environment: a YAML file directly inside an
+     * {@code environments/} folder. Renaming and deleting go through here, so neither can be
+     * pointed at a request or a collection's own file.
+     */
+    private static Path environmentFile(Path base, String relativePath) {
+        Path file = resolve(base, relativePath);
+        Path parent = file.getParent();
+        if (!isYaml(file) || parent == null || parent.equals(base)
+                || !parent.getFileName().toString().equals(ENVIRONMENTS_DIR)) {
+            throw RpcException.invalidParams("Not an environment: " + relativePath);
+        }
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            throw RpcException.storeFailed("No such environment: " + relativePath);
+        }
+        return file;
     }
 
     /**

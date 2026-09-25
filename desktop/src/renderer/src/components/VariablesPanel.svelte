@@ -12,15 +12,44 @@
     /** Saves, and reports whether it worked: only a real save earns the confirmation. */
     onSave: () => Promise<boolean>
     onAddEnvironment: (name: string) => void
+    /** Renames the active environment, and reports whether it worked so the field can close. */
+    onRenameEnvironment: (path: string, name: string) => Promise<boolean>
+    onDeleteEnvironment: (path: string) => void
   }
 
-  let { onClose, onSave, onAddEnvironment }: Props = $props()
+  let { onClose, onSave, onAddEnvironment, onRenameEnvironment, onDeleteEnvironment }: Props =
+    $props()
 
   // `window.prompt` is not supported in Electron, so naming an environment happens inline,
   // the same way the sidebar names a new collection.
   let naming = $state(false)
   let name = $state('')
   let nameInput = $state<HTMLInputElement>()
+
+  const activeEnvironment = $derived(
+    variables.environments.find((entry) => entry.path === variables.environment)
+  )
+
+  // Renaming the active environment happens inline too, in place of its name.
+  let renaming = $state(false)
+  let newName = $state('')
+  let renameInput = $state<HTMLInputElement>()
+
+  function startRenaming(): void {
+    renaming = true
+    newName = activeEnvironment?.name ?? ''
+  }
+
+  async function submitRename(event: SubmitEvent): Promise<void> {
+    event.preventDefault()
+    const trimmed = newName.trim()
+    if (!trimmed || !variables.environment) {
+      return
+    }
+    if (trimmed === activeEnvironment?.name || (await onRenameEnvironment(variables.environment, trimmed))) {
+      renaming = false
+    }
+  }
 
   // The notes are a paragraph of prose in a panel of fields, so they stay folded away until
   // asked for. A collection that has notes shows a dot, or folding them would hide them.
@@ -59,6 +88,21 @@
     if (naming) {
       queueMicrotask(() => nameInput?.focus())
     }
+  })
+
+  $effect(() => {
+    if (renaming) {
+      queueMicrotask(() => {
+        renameInput?.focus()
+        renameInput?.select()
+      })
+    }
+  })
+
+  // Switching environments while the field is open would rename the wrong one.
+  $effect(() => {
+    void variables.environment
+    renaming = false
   })
 
   $effect(() => () => window.clearTimeout(savedTimer))
@@ -203,6 +247,84 @@
         {/if}
       </div>
       {#if variables.environment}
+        <div data-role="environment-bar" class="flex items-center gap-1 px-3 pb-2">
+          {#if renaming}
+            <!-- Escape cancels the rename rather than closing the whole panel. -->
+            <form
+              class="flex min-w-0 flex-1 items-center gap-1"
+              onsubmit={(event) => void submitRename(event)}
+              onkeydown={(event) => {
+                if (event.key === 'Escape') {
+                  event.stopPropagation()
+                  renaming = false
+                }
+              }}
+            >
+              <input
+                bind:this={renameInput}
+                bind:value={newName}
+                aria-label="New environment name"
+                class="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1 text-sm
+                       outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
+              />
+              <button type="submit" class="rounded-md px-2 py-1 text-xs text-accent">Rename</button>
+              <button
+                type="button"
+                onclick={() => (renaming = false)}
+                class="rounded-md px-2 py-1 text-xs text-fg-muted transition hover:text-fg"
+              >
+                Cancel
+              </button>
+            </form>
+          {:else}
+            <span data-role="environment-name" class="min-w-0 flex-1 truncate text-sm text-fg">
+              {activeEnvironment?.name ?? ''}
+            </span>
+            <button
+              type="button"
+              data-role="rename-environment"
+              onclick={startRenaming}
+              aria-label="Rename environment"
+              title="Rename environment"
+              class="shrink-0 rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-fg"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 20h4L19 9l-4-4L4 16z" />
+                <path d="M13.5 6.5l4 4" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-role="delete-environment"
+              onclick={() => onDeleteEnvironment(variables.environment)}
+              aria-label="Delete environment"
+              title="Delete environment"
+              class="shrink-0 rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-danger"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+              </svg>
+            </button>
+          {/if}
+        </div>
         <div>
           <KeyValueEditor
             items={variables.environmentVariables}

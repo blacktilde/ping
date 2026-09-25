@@ -205,4 +205,102 @@ class VarsMethodsTest {
         assertFalse(catalog().has("docs"));
         assertFalse(Files.readString(workspace.resolve("demo/collection.yaml")).contains("docs"));
     }
+
+    // --- environment rename and delete -------------------------------------------------------
+
+    private JsonNode environmentCall(String method, Map<String, Object> extra) throws Exception {
+        Map<String, Object> params = new LinkedHashMap<>(extra);
+        params.put("root", workspace.toString());
+        return call(method, params);
+    }
+
+    @Test
+    void renamingAnEnvironmentUpdatesItsNameAndFollowsTheSlug() throws Exception {
+        seedCollection();
+        Files.writeString(workspace.resolve("demo/environments/dev.yaml"), """
+                name: Dev
+                variables:
+                  - name: base
+                    value: https://environment
+                futureField: kept
+                """);
+
+        JsonNode renamed = environmentCall("vars.renameEnvironment",
+                Map.of("path", "demo/environments/dev.yaml", "name", "Staging"));
+        assertEquals("demo/environments/staging.yaml", renamed.path("result").path("path").asText());
+        assertFalse(Files.exists(workspace.resolve("demo/environments/dev.yaml")));
+
+        String yaml = Files.readString(workspace.resolve("demo/environments/staging.yaml"));
+        assertTrue(yaml.contains("name: \"Staging\"") || yaml.contains("name: Staging"), yaml);
+        assertTrue(yaml.contains("https://environment"), "variables survive: " + yaml);
+        assertTrue(yaml.contains("futureField"), "unknown fields survive: " + yaml);
+
+        JsonNode environments = catalog().path("environments");
+        assertEquals(1, environments.size());
+        assertEquals("Staging", environments.get(0).path("name").asText());
+    }
+
+    @Test
+    void aCaseOnlyRenameKeepsTheFile() throws Exception {
+        seedCollection();
+        JsonNode renamed = environmentCall("vars.renameEnvironment",
+                Map.of("path", "demo/environments/dev.yaml", "name", "DEV"));
+        assertEquals("demo/environments/dev.yaml", renamed.path("result").path("path").asText());
+        assertEquals("DEV", catalog().path("environments").get(0).path("name").asText());
+    }
+
+    @Test
+    void renamingToAnotherEnvironmentsNameIsRefused() throws Exception {
+        seedCollection();
+        Files.writeString(workspace.resolve("demo/environments/prod.yaml"), "name: Prod\n");
+
+        JsonNode response = environmentCall("vars.renameEnvironment",
+                Map.of("path", "demo/environments/dev.yaml", "name", "prod"));
+        assertTrue(response.has("error"), response.toString());
+        assertTrue(Files.exists(workspace.resolve("demo/environments/dev.yaml")));
+        assertEquals("Dev", catalog().path("environments").get(0).path("name").asText());
+    }
+
+    @Test
+    void renamingToTheSlugOfAnotherFileTakesAUniqueName() throws Exception {
+        seedCollection();
+        // Named differently from its file, so "qa" is free as a name but qa.yaml is taken.
+        Files.writeString(workspace.resolve("demo/environments/qa.yaml"), "name: Quality\n");
+
+        JsonNode renamed = environmentCall("vars.renameEnvironment",
+                Map.of("path", "demo/environments/dev.yaml", "name", "QA"));
+        assertEquals("demo/environments/qa-2.yaml", renamed.path("result").path("path").asText());
+        assertEquals("Quality", call("vars.environment", Map.of(
+                "root", workspace.toString(), "path", "demo/environments/qa.yaml"))
+                .path("result").path("name").asText(), "the other file is untouched");
+    }
+
+    @Test
+    void deletingAnEnvironmentRemovesItFromTheCatalog() throws Exception {
+        seedCollection();
+        JsonNode deleted = environmentCall("vars.deleteEnvironment", Map.of("path", "demo/environments/dev.yaml"));
+        assertFalse(deleted.has("error"), deleted.toString());
+        assertFalse(Files.exists(workspace.resolve("demo/environments/dev.yaml")));
+        assertEquals(0, catalog().path("environments").size());
+    }
+
+    @Test
+    void renameAndDeleteOnlyReachEnvironmentFiles() throws Exception {
+        seedCollection();
+        Files.writeString(workspace.resolve("demo/get-thing.yaml"), "name: Get thing\nmethod: GET\nurl: https://x\n");
+
+        for (String path : List.of("demo/collection.yaml", "demo/get-thing.yaml", "demo/environments",
+                "../outside/environments/dev.yaml", "demo/environments/missing.yaml")) {
+            JsonNode deleted = environmentCall("vars.deleteEnvironment", Map.of("path", path));
+            assertTrue(deleted.has("error"), path + ": " + deleted);
+            JsonNode renamed = environmentCall("vars.renameEnvironment", Map.of("path", path, "name", "X"));
+            assertTrue(renamed.has("error"), path + ": " + renamed);
+        }
+        assertTrue(Files.exists(workspace.resolve("demo/collection.yaml")));
+        assertTrue(Files.exists(workspace.resolve("demo/get-thing.yaml")));
+
+        JsonNode blank = environmentCall("vars.renameEnvironment",
+                Map.of("path", "demo/environments/dev.yaml", "name", "  "));
+        assertTrue(blank.has("error"), blank.toString());
+    }
 }
