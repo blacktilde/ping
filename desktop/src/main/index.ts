@@ -18,6 +18,7 @@ import {
   updateState
 } from './updater'
 import { Workspace } from './workspace'
+import { log, logger } from './log'
 
 const core = new CoreClient()
 const workspace = new Workspace()
@@ -55,13 +56,13 @@ function createWindow(): void {
       const text = detail
         ? `${detail.message} (${detail.sourceId}:${detail.lineNumber})`
         : args.slice(1).join(' ')
-      process.stderr.write(`[renderer] ${text}\n`)
+      log('renderer', text)
     })
     mainWindow.webContents.on('did-fail-load', (_event, code, description, url) =>
-      process.stderr.write(`[renderer] failed to load ${url}: ${description} (${code})\n`)
+      log('renderer', `failed to load ${url}: ${description} (${code})`)
     )
     mainWindow.webContents.on('preload-error', (_event, path, error) =>
-      process.stderr.write(`[renderer] preload ${path} failed: ${error.message}\n`)
+      log('renderer', `preload ${path} failed: ${error.message}`)
     )
   }
 
@@ -592,6 +593,24 @@ function registerIpc(): void {
     secrets.delete(name)
   })
 
+  // The diagnostic log. Lines are redacted before they are kept, so what the renderer reads here
+  // is what the file on disk holds; the folder is opened by the shell and never named by the
+  // renderer.
+  ipcMain.handle('logs:list', () => logger.list())
+  ipcMain.handle('logs:clear', () => {
+    logger.clear()
+  })
+  ipcMain.handle('logs:openFolder', async () => {
+    const folder = logger.dir()
+    if (!folder) {
+      throw new Error('Logs are not being written to disk this session')
+    }
+    const error = await shell.openPath(folder)
+    if (error) {
+      throw new Error(error)
+    }
+  })
+
   // History is shell-local: the renderer records a finished exchange and reads the list
   // back, but the request payload is opaque here and is returned to the renderer unchanged.
   ipcMain.handle('history:list', () => history.list())
@@ -687,11 +706,32 @@ async function seedWorkspace(): Promise<void> {
     workspace.adopt(root)
   } catch (error) {
     // Not fatal: the sidebar still offers "Open a folder".
-    process.stderr.write(`[workspace] could not create a starter collection: ${String(error)}\n`)
+    log('workspace', `could not create a starter collection: ${String(error)}`)
   }
 }
 
+// Anything the log keeps, writes or shows has these masked: the values that must never leave
+// the shell. Read per line, so a secret saved a moment ago is already covered.
+logger.maskValues(() => [
+  ...Object.values(secrets.all()),
+  ...Object.values(runtime.all()),
+  ...network.sensitiveValues(),
+  ...oauthTokens.sensitiveValues()
+])
+
 app.whenReady().then(async () => {
+  logger.attach(app.getPath('logs'))
+  // The first line of every session, so a pasted log says which build it came from.
+  log(
+    'app',
+    `Ping ${app.getVersion()} on ${process.platform} ${process.arch}, Electron ${process.versions.electron}`
+  )
+  logger.onEntry((entry) => {
+    // Lines keep coming while the app shuts down, after the window is gone.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('logs:entry', entry)
+    }
+  })
   core.notifications((notification) => {
     if (notification.method === 'auth.completed') {
       // The shell owns token persistence; the core keeps its session cache. Only the

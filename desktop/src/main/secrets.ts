@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { writeFileSyncAtomic } from './atomic'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
+import { log } from './log'
 
 /**
  * Secret values, encrypted with Electron safeStorage.
@@ -26,7 +27,7 @@ export class SecretStore {
         this.values.set(name, value)
       }
     } catch (error) {
-      process.stderr.write(`[secrets] could not read the secret store: ${String(error)}\n`)
+      log('secrets', `could not read the secret store: ${String(error)}`)
     }
   }
 
@@ -55,13 +56,13 @@ export class SecretStore {
 
   private persist(): void {
     if (!this.encrypted) {
-      process.stderr.write('[secrets] no OS keyring; secrets are not persisted this session\n')
+      log('secrets', 'no OS keyring; secrets are not persisted this session')
       return
     }
     try {
       writeFileSyncAtomic(this.file(), safeStorage.encryptString(JSON.stringify(this.all())))
     } catch (error) {
-      process.stderr.write(`[secrets] could not write the secret store: ${String(error)}\n`)
+      log('secrets', `could not write the secret store: ${String(error)}`)
     }
   }
 

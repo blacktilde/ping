@@ -190,8 +190,8 @@
     if (!fixed && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
       fixAtCurrent()
     }
-    const decrease = vertical ? 'ArrowUp' : sign < 0 ? 'ArrowRight' : 'ArrowLeft'
-    const increase = vertical ? 'ArrowDown' : sign < 0 ? 'ArrowLeft' : 'ArrowRight'
+    const decrease = vertical ? (sign < 0 ? 'ArrowDown' : 'ArrowUp') : sign < 0 ? 'ArrowRight' : 'ArrowLeft'
+    const increase = vertical ? (sign < 0 ? 'ArrowUp' : 'ArrowDown') : sign < 0 ? 'ArrowLeft' : 'ArrowRight'
     if (event.key === decrease) {
       apply(size - step)
     } else if (event.key === increase) {
@@ -288,10 +288,16 @@
 </script>
 
 {#snippet pinned(content: Snippet, toEnd: boolean)}
-  <!-- Fixed to the pane's full width, so what slides in and out is clipped, not squeezed. -->
-  <div class="h-full {toEnd ? 'justify-self-end' : 'justify-self-start'}" style="width: {size}px">
-    {@render content()}
-  </div>
+  <!-- Fixed to the pane's full size, so what slides in and out is clipped, not squeezed. -->
+  {#if vertical}
+    <div class="w-full {toEnd ? 'self-end' : 'self-start'}" style="height: {size}px">
+      {@render content()}
+    </div>
+  {:else}
+    <div class="h-full {toEnd ? 'justify-self-end' : 'justify-self-start'}" style="width: {size}px">
+      {@render content()}
+    </div>
+  {/if}
 {/snippet}
 
 <div
@@ -336,8 +342,9 @@
       ondblclick={refit}
       onkeydown={onKeydown}
       style:width={vertical ? undefined : open ? '0.75rem' : '0'}
+      style:height={vertical && unit === 'pixels' ? (open ? '0.75rem' : '0') : undefined}
       class="group flex shrink-0 items-center justify-center overflow-hidden outline-none
-             {slide ? 'transition-[width] duration-200 ease-out motion-reduce:transition-none' : ''}
+             {slide ? 'transition-[width,height] duration-200 ease-out motion-reduce:transition-none' : ''}
              {vertical ? 'h-3 cursor-row-resize' : 'cursor-col-resize'}"
     >
       <span

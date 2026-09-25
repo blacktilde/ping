@@ -92,6 +92,7 @@
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import SaveRequestDialog from './components/SaveRequestDialog.svelte'
   import NetworkSettings from './components/NetworkSettings.svelte'
+  import LogsPanel from './components/LogsPanel.svelte'
   import RunPanel from './components/RunPanel.svelte'
   import UpdateBadge from './components/UpdateBadge.svelte'
   import type { HistoryEntry } from '../../shared/history'
@@ -116,6 +117,7 @@
   let showAbout = $state(false)
   let paletteOpen = $state(false)
   let showNetwork = $state(false)
+  let showLogs = $state(readLogsOpen())
   let workspaceRoot = $state<string | null>(null)
   let sidebarCollapsed = $state(readSidebarCollapsed())
   let editorCollapsed = $state(readEditorCollapsed())
@@ -863,6 +865,9 @@
     } else if (key === 'b') {
       event.preventDefault()
       toggleSidebar()
+    } else if (key === 'j') {
+      event.preventDefault()
+      toggleLogs()
     } else if (key === 't') {
       event.preventDefault()
       newTab()
@@ -905,6 +910,27 @@
     } catch {
       // A locked-down profile just means the choice is not remembered.
     }
+  }
+
+  function readLogsOpen(): boolean {
+    try {
+      return localStorage.getItem('ping.logs.open') === 'true'
+    } catch {
+      return false
+    }
+  }
+
+  function setLogsOpen(open: boolean): void {
+    showLogs = open
+    try {
+      localStorage.setItem('ping.logs.open', String(open))
+    } catch {
+      // A locked-down profile just means the choice is not remembered.
+    }
+  }
+
+  function toggleLogs(): void {
+    setLogsOpen(!showLogs)
   }
 
   function readEditorCollapsed(): boolean {
@@ -1076,6 +1102,7 @@
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
       { id: 'import', label: 'Import collection…', run: () => void importCollection() },
       { id: 'network', label: 'Network settings…', run: () => (showNetwork = true) },
+      { id: 'logs', label: showLogs ? 'Hide logs panel' : 'Show logs panel', hint: `${modKey}J`, run: toggleLogs },
       {
         id: 'sidebar',
         label: sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar',
@@ -1214,7 +1241,7 @@
   </svg>
 {/snippet}
 
-<div class="relative flex h-full">
+<div class="relative flex h-full flex-col">
   {#snippet mainContent()}
     <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
     <!--
@@ -1590,6 +1617,14 @@
           {coreState === 'down'
             ? 'The core engine stopped and is being restarted — requests will fail until it is back.'
             : 'Reconnecting to the core engine…'}
+          <button
+            type="button"
+            data-role="core-state-logs"
+            onclick={() => setLogsOpen(true)}
+            class="ml-1 underline underline-offset-2 hover:brightness-125"
+          >
+            Show logs
+          </button>
         </p>
       {/if}
 
@@ -1823,41 +1858,91 @@
     </SplitPane>
   {/snippet}
 
+  <!-- The logs panel docks along the bottom, under the sidebar and the workspace alike. -->
   <SplitPane
-    direction="horizontal"
+    direction="vertical"
     unit="pixels"
-    collapsed={sidebarCollapsed}
-    storageKey="ping.split.sidebar"
-    label="Resize sidebar"
+    anchor="end"
+    collapsed={!showLogs}
+    initial={240}
+    min={120}
+    max={640}
+    storageKey="ping.split.logs"
+    label="Resize logs"
   >
     {#snippet first()}
-      <Sidebar
-        {nodes}
-        activePath={active.path}
-        {workspaceRoot}
-        history={history.entries}
-        bind:panel={sidebarPanel}
-        onSelect={selectNode}
-        onCreate={createIn}
-        onRun={runCollection}
-        onDelete={deleteNode}
-        onOpenLocation={openLocation}
-        onRename={(node, name) => void renameNode(node, name)}
-        onDuplicate={(node) => void duplicateNode(node)}
-        onMove={(node, target) => void moveNode(node, target)}
-        onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
-        onNewCollection={newCollection}
-        onOpenFolder={openFolder}
-        onImport={() => void importCollection()}
-        onSelectHistory={selectHistory}
-        onClearHistory={clearHistoryEntries}
-      />
+        <SplitPane
+          direction="horizontal"
+          unit="pixels"
+          collapsed={sidebarCollapsed}
+          storageKey="ping.split.sidebar"
+          label="Resize sidebar"
+        >
+          {#snippet first()}
+            <Sidebar
+              {nodes}
+              activePath={active.path}
+              {workspaceRoot}
+              history={history.entries}
+              bind:panel={sidebarPanel}
+              onSelect={selectNode}
+              onCreate={createIn}
+              onRun={runCollection}
+              onDelete={deleteNode}
+              onOpenLocation={openLocation}
+              onRename={(node, name) => void renameNode(node, name)}
+              onDuplicate={(node) => void duplicateNode(node)}
+              onMove={(node, target) => void moveNode(node, target)}
+              onCreateFolder={(parent, name) => void createFolderIn(parent, name)}
+              onNewCollection={newCollection}
+              onOpenFolder={openFolder}
+              onImport={() => void importCollection()}
+              onSelectHistory={selectHistory}
+              onClearHistory={clearHistoryEntries}
+            />
+          {/snippet}
+
+          {#snippet second()}
+            {@render workspace()}
+          {/snippet}
+        </SplitPane>
     {/snippet}
 
     {#snippet second()}
-      {@render workspace()}
+      <LogsPanel onClose={() => setLogsOpen(false)} />
     {/snippet}
   </SplitPane>
+
+  <footer
+    data-role="status-bar"
+    class="flex h-7 shrink-0 items-center gap-1 border-t border-line bg-panel px-2 text-xs"
+  >
+    <button
+      type="button"
+      data-role="status-logs"
+      onclick={toggleLogs}
+      aria-pressed={showLogs}
+      aria-label={showLogs ? 'Hide logs' : 'Show logs'}
+      title={showLogs ? `Hide logs (${modKey}J)` : `Show logs (${modKey}J)`}
+      class="flex items-center gap-1.5 rounded px-1.5 py-0.5 transition hover:bg-line/60 hover:text-fg
+             {showLogs ? 'text-fg' : 'text-fg-faint'}"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        class="h-3.5 w-3.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M7 9l3 3-3 3M13 15h4" />
+      </svg>
+      Logs
+    </button>
+  </footer>
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
 

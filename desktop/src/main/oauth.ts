@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { writeFileSyncAtomic } from './atomic'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
+import { log } from './log'
 
 export interface OAuthTokens {
   accessToken: string
@@ -33,12 +34,19 @@ export class OAuthTokenStore {
         this.tokens.set(key, value)
       }
     } catch (error) {
-      process.stderr.write(`[oauth] could not read tokens: ${String(error)}\n`)
+      log('oauth', `could not read tokens: ${String(error)}`)
     }
   }
 
   get(key: string): OAuthTokens | undefined {
     return this.tokens.get(key)
+  }
+
+  /** Every stored token, for the log to mask. Never sent anywhere. */
+  sensitiveValues(): string[] {
+    return [...this.tokens.values()].flatMap((tokens) =>
+      [tokens.accessToken, tokens.refreshToken].filter((value): value is string => !!value)
+    )
   }
 
   set(key: string, tokens: OAuthTokens): void {
@@ -48,13 +56,13 @@ export class OAuthTokenStore {
 
   private persist(): void {
     if (!this.encrypted) {
-      process.stderr.write('[oauth] no OS keyring; tokens are not persisted this session\n')
+      log('oauth', 'no OS keyring; tokens are not persisted this session')
       return
     }
     try {
       writeFileSyncAtomic(this.file(), safeStorage.encryptString(JSON.stringify(Object.fromEntries(this.tokens))))
     } catch (error) {
-      process.stderr.write(`[oauth] could not write tokens: ${String(error)}\n`)
+      log('oauth', `could not write tokens: ${String(error)}`)
     }
   }
 

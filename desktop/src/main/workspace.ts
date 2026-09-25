@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { writeFileAtomic } from './atomic'
 import { join } from 'node:path'
 import { app, dialog } from 'electron'
+import { log } from './log'
 
 /**
  * Owns the folder the user opened: which one it is, when it changes on disk, and
@@ -86,10 +87,10 @@ export class Workspace {
       // An unhandled `error` event throws — deleting the open folder, a renamed root or an
       // exhausted inotify limit would take down the whole main process, not just the watch.
       this.watcher.on('error', (error) => {
-        process.stderr.write(`[workspace] watch error on ${this.root}: ${String(error)}\n`)
+        log('workspace', `watch error on ${this.root}: ${String(error)}`)
       })
     } catch (error) {
-      process.stderr.write(`[workspace] cannot watch ${this.root}: ${String(error)}\n`)
+      log('workspace', `cannot watch ${this.root}: ${String(error)}`)
     }
   }
 
