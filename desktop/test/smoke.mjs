@@ -2391,6 +2391,43 @@ try {
   await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="run-dialog"]')`)), 5000, 'the run dialog to close')
   check('the run panel closes', true)
 
+  console.log('--- 15n. logs')
+  await evaluate(pressCtrlK)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="palette"]')`), 2000, 'the command palette')
+  await evaluate(typeInPalette('show logs'))
+  const logsOption =
+    `[...document.querySelectorAll('[data-role="palette"] [role="option"]')]` +
+    `.find(o => o.textContent.includes('Show logs'))`
+  await waitFor(async () => await evaluate(`!!${logsOption}`), 2000, 'the logs command')
+  await evaluate(`${logsOption}?.click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="logs-dialog"]')`), 3000, 'the logs dialog')
+  await waitFor(
+    async () => await evaluate(`[...document.querySelectorAll('[data-role="logs-line"]')].some(l => l.textContent.includes('ready'))`),
+    3000,
+    'the core ready line'
+  )
+  const logLines = await evaluate(`[...document.querySelectorAll('[data-role="logs-line"]')].map(l => l.textContent)`)
+  check('the log shows the build it came from', logLines.some((line) => /app\s*Ping \d/.test(line)), JSON.stringify(logLines.slice(0, 3)))
+  check('the log shows the core starting', logLines.some((line) => line.includes('core') && line.includes('ready')))
+
+  const allLines = await evaluate(`document.querySelectorAll('[data-role="logs-line"]').length`)
+  await evaluate(fillNetwork('logs-source', 'core'))
+  await waitFor(
+    async () => await evaluate(`[...document.querySelectorAll('[data-role="logs-line"]')].every(l => l.textContent.includes('core'))`),
+    2000,
+    'the source filter'
+  )
+  check('filters by source', (await evaluate(`document.querySelectorAll('[data-role="logs-line"]').length`)) < allLines)
+  await evaluate(fillNetwork('logs-source', 'all'))
+
+  const logFile = readFileSync(join(userDataDir, 'logs', 'ping.log'), 'utf8')
+  check('the log is written to userData/logs', logFile.includes('[app] Ping ') && logFile.includes('[core] ready'), logFile.slice(0, 200))
+  check('the log holds no proxy password', !logFile.includes(proxyPassword) && !JSON.stringify(logLines).includes(proxyPassword))
+
+  await evaluate(`document.querySelector('[data-role="logs-close"]').click()`)
+  await waitFor(async () => !(await evaluate(`!!document.querySelector('[data-role="logs-dialog"]')`)), 3000, 'the logs dialog to close')
+  check('the logs dialog closes', true)
+
   console.log('--- 16. in-app update flow')
   await evaluate(pressCtrlK)
   await waitFor(

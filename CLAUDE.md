@@ -96,6 +96,11 @@ stored absolute and only readable if a file dialog chose it this session (`main/
 itself, `run.*` forces `allowAbsoluteFiles: false`, and paths are literal (never interpolated). New code
 that reads a file from a request must go through `FileAccess`.
 
+**Log through `log()`, never `process.stderr.write`.** `main/log.ts` redacts each line before it is
+kept, shown in the Logs view or written to `ping.log`, so a direct stderr write is a line the user cannot
+see. Redaction is a safety net, not a licence: never log a request's headers, body or resolved
+variables. A new store that holds a credential adds its values to `logger.maskValues` in `index.ts`.
+
 **A cookie's value never leaves the core.** The jar is session-only memory, `cookies.list` returns no value,
 and a run masks cookie values in its results. Keep it that way: the value is a session credential.
 

@@ -90,6 +90,7 @@
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import SaveRequestDialog from './components/SaveRequestDialog.svelte'
   import NetworkSettings from './components/NetworkSettings.svelte'
+  import LogsPanel from './components/LogsPanel.svelte'
   import RunPanel from './components/RunPanel.svelte'
   import UpdateBadge from './components/UpdateBadge.svelte'
   import type { HistoryEntry } from '../../shared/history'
@@ -114,6 +115,7 @@
   let showAbout = $state(false)
   let paletteOpen = $state(false)
   let showNetwork = $state(false)
+  let showLogs = $state(false)
   let workspaceRoot = $state<string | null>(null)
   let sidebarCollapsed = $state(readSidebarCollapsed())
   let editorCollapsed = $state(readEditorCollapsed())
@@ -1064,6 +1066,7 @@
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
       { id: 'import', label: 'Import collection…', run: () => void importCollection() },
       { id: 'network', label: 'Network settings…', run: () => (showNetwork = true) },
+      { id: 'logs', label: 'Show logs…', run: () => (showLogs = true) },
       {
         id: 'sidebar',
         label: sidebarCollapsed ? 'Show collections sidebar' : 'Hide collections sidebar',
@@ -1577,6 +1580,14 @@
           {coreState === 'down'
             ? 'The core engine stopped and is being restarted — requests will fail until it is back.'
             : 'Reconnecting to the core engine…'}
+          <button
+            type="button"
+            data-role="core-state-logs"
+            onclick={() => (showLogs = true)}
+            class="ml-1 underline underline-offset-2 hover:brightness-125"
+          >
+            Show logs
+          </button>
         </p>
       {/if}
 
@@ -1848,6 +1859,10 @@
 
   {#if showNetwork}
     <NetworkSettings onClose={() => (showNetwork = false)} />
+  {/if}
+
+  {#if showLogs}
+    <LogsPanel onClose={() => (showLogs = false)} />
   {/if}
 
   {#if run.open}

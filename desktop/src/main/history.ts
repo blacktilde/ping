@@ -3,6 +3,7 @@ import { writeFileSyncAtomic } from './atomic'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { HistoryEntry } from '../shared/history'
+import { log } from './log'
 
 /**
  * The requests that have been executed, most recent first.
@@ -31,7 +32,7 @@ export class HistoryStore {
         this.entries = parsed.filter(isEntry).slice(0, HistoryStore.LIMIT)
       }
     } catch (error) {
-      process.stderr.write(`[history] could not read the history store: ${String(error)}\n`)
+      log('history', `could not read the history store: ${String(error)}`)
     }
   }
 
@@ -62,7 +63,7 @@ export class HistoryStore {
     try {
       writeFileSyncAtomic(this.file(), JSON.stringify(this.entries))
     } catch (error) {
-      process.stderr.write(`[history] could not write the history store: ${String(error)}\n`)
+      log('history', `could not write the history store: ${String(error)}`)
     }
   }
 

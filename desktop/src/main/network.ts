@@ -9,6 +9,7 @@ import {
   type NetworkUpdate,
   type ProxyMode
 } from '../shared/network'
+import { log } from './log'
 
 /** The environment variables the core reads in `system` mode; nothing else is handed to it. */
 const PROXY_VARIABLES = [
@@ -78,7 +79,7 @@ export class NetworkStore {
         this.password = safeStorage.decryptString(Buffer.from(proxy.password, 'base64'))
       }
     } catch (error) {
-      process.stderr.write(`[network] could not read the network settings: ${String(error)}\n`)
+      log('network', `could not read the network settings: ${String(error)}`)
     }
   }
 
@@ -108,7 +109,7 @@ export class NetworkStore {
         try {
           this.passphrases.set(cert.id, safeStorage.decryptString(Buffer.from(item.passphrase, 'base64')))
         } catch (error) {
-          process.stderr.write(`[network] could not read a certificate passphrase: ${String(error)}\n`)
+          log('network', `could not read a certificate passphrase: ${String(error)}`)
         }
       }
       this.stored.certs.push(cert)
@@ -179,6 +180,11 @@ export class NetworkStore {
     return this.get()
   }
 
+  /** The proxy password and certificate passphrases, for the log to mask. Never sent anywhere. */
+  sensitiveValues(): string[] {
+    return [this.password, ...this.passphrases.values()].filter(Boolean)
+  }
+
   /**
    * What the core is told for a call, or undefined to go direct. The password appears here and
    * nowhere else; `system` mode carries only the proxy variables of the environment Ping runs in.
@@ -231,7 +237,7 @@ export class NetworkStore {
       if (this.password && safeStorage.isEncryptionAvailable()) {
         proxy.password = safeStorage.encryptString(this.password).toString('base64')
       } else if (this.password) {
-        process.stderr.write('[network] no OS keyring; the proxy password is not persisted this session\n')
+        log('network', 'no OS keyring; the proxy password is not persisted this session')
       }
       const certs = this.stored.certs.map((cert) => {
         const passphrase = this.passphrases.get(cert.id)
@@ -239,14 +245,14 @@ export class NetworkStore {
           return cert
         }
         if (!safeStorage.isEncryptionAvailable()) {
-          process.stderr.write('[network] no OS keyring; a certificate passphrase is not persisted this session\n')
+          log('network', 'no OS keyring; a certificate passphrase is not persisted this session')
           return cert
         }
         return { ...cert, passphrase: safeStorage.encryptString(passphrase).toString('base64') }
       })
       writeFileSyncAtomic(this.file(), JSON.stringify({ proxy, certs }))
     } catch (error) {
-      process.stderr.write(`[network] could not write the network settings: ${String(error)}\n`)
+      log('network', `could not write the network settings: ${String(error)}`)
     }
   }
 

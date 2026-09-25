@@ -260,6 +260,17 @@ assertions plus the runner change what the project is for.
   phase 19 carries over. *Gate: a loopback echo server round-trips text and binary frames through the
   UI; closing from either side is reported with its code; the connection is released on Stop.*
 
+- [x] **28. Logs.** A packaged app has no terminal, so every `[tag]` line on stderr was a line nobody
+  read. The main process now logs through `main/log.ts`: each line is redacted (known secret, runtime,
+  proxy, passphrase and OAuth values, credential headers, a URL's password, token-like query
+  parameters), echoed to stderr as before, kept in a 2,000-line ring buffer, and appended to
+  `ping.log` in the OS logs folder, rolling to `ping.1.log` at 1 MB. The core's stderr is reassembled
+  into lines first. A Logs view (command palette, or the link on the core-down banner) filters by
+  source and text, copies what it shows, and opens the folder. Still open: a verbose switch in the
+  core itself, which would change the contract and needs its own JSON-sending test.
+  *Gate: the view shows the build and the core starting, the file holds the same lines, and a saved
+  proxy password appears in neither.*
+
 ### Not planned
 
 Recorded so they are not re-raised. **A scripting sandbox** — see phase 15; predicates and

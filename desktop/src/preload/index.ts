@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { HistoryEntry } from '../shared/history'
 import type { CookieView } from '../shared/cookies'
 import type { ImportReport } from '../shared/import'
+import type { LogEntry } from '../shared/logs'
 import type { ClientCertRequest, NetworkSettings, NetworkUpdate } from '../shared/network'
 import type { UpdateState } from '../shared/updates'
 
@@ -204,6 +205,27 @@ const api = {
     },
     clear(): Promise<void> {
       return ipcRenderer.invoke('history:clear') as Promise<void>
+    }
+  },
+
+  /**
+   * The shell's diagnostic log, already redacted in the main process. The renderer reads it and
+   * can empty the view; the file on disk is the shell's, opened in the OS file manager on request.
+   */
+  logs: {
+    list(): Promise<LogEntry[]> {
+      return ipcRenderer.invoke('logs:list') as Promise<LogEntry[]>
+    },
+    clear(): Promise<void> {
+      return ipcRenderer.invoke('logs:clear') as Promise<void>
+    },
+    openFolder(): Promise<void> {
+      return ipcRenderer.invoke('logs:openFolder') as Promise<void>
+    },
+    onEntry(listener: (entry: LogEntry) => void): () => void {
+      const handler = (_event: IpcRendererEvent, entry: LogEntry): void => listener(entry)
+      ipcRenderer.on('logs:entry', handler)
+      return () => ipcRenderer.off('logs:entry', handler)
     }
   },
 

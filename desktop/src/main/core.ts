@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { LineSplitter } from './lines'
+import { log, LogLines } from './log'
 
 /** A server-initiated message: no id, so nothing is waiting on it. */
 export interface CoreNotification {
@@ -145,6 +146,7 @@ export class CoreClient {
     // development launcher on Windows is exactly that, so it needs one. The quotes survive a
     // path with a space in it: Node hands cmd.exe `/s /c "<command>"`, which strips one outer
     // pair. `windowsHide` keeps a console child from flashing its own window over the app.
+    log('core', `starting ${binary}`)
     const batch = process.platform === 'win32' && /\.(bat|cmd)$/i.test(binary)
     const child = spawn(batch ? `"${binary}"` : binary, [], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -157,9 +159,20 @@ export class CoreClient {
     child.stdout.setEncoding('utf8')
     child.stdout.on('data', (chunk: string) => this.consume(chunk))
 
-    // The core logs diagnostics to stderr precisely so they cannot corrupt the protocol.
+    // The core logs diagnostics to stderr precisely so they cannot corrupt the protocol. Pipe
+    // chunks ignore line boundaries, so lines are reassembled before they reach the log.
+    const diagnostics = new LogLines()
     child.stderr.setEncoding('utf8')
-    child.stderr.on('data', (chunk: string) => process.stderr.write(`[core] ${chunk}`))
+    child.stderr.on('data', (chunk: string) => {
+      for (const line of diagnostics.push(chunk)) {
+        log('core', line)
+      }
+    })
+    child.stderr.on('end', () => {
+      for (const line of diagnostics.flush()) {
+        log('core', line)
+      }
+    })
 
     child.on('error', (error) => this.fail(new Error(`Core failed to start: ${error.message}`)))
     child.on('exit', (code, signal) => {
@@ -220,12 +233,13 @@ export class CoreClient {
     try {
       message = JSON.parse(line)
     } catch {
-      process.stderr.write(`[core] unparseable line: ${line}\n`)
+      log('core', `unparseable line: ${line}`)
       return
     }
 
     if (message.id === undefined || message.id === null) {
       if (message.method === 'core.ready') {
+        log('core', 'ready')
         this.markReady()
         this.restartAttempts = 0
         this.onStateChange?.('ready')
@@ -236,7 +250,7 @@ export class CoreClient {
 
     const call = this.pending.get(message.id)
     if (!call) {
-      process.stderr.write(`[core] response for unknown id ${message.id}\n`)
+      log('core', `response for unknown id ${message.id}`)
       return
     }
     this.pending.delete(message.id)
@@ -253,6 +267,9 @@ export class CoreClient {
 
   /** A dead core cannot answer anything, so every in-flight call fails now rather than hanging. */
   private fail(error: Error): void {
+    if (!this.stopped) {
+      log('core', error.message)
+    }
     this.failReady(error)
     for (const call of this.pending.values()) {
       if (call.timer) {
@@ -285,7 +302,7 @@ export class CoreClient {
       if (this.stopped) {
         return
       }
-      process.stderr.write(`[core] restarting (attempt ${this.restartAttempts})\n`)
+      log('core', `restarting (attempt ${this.restartAttempts})`)
       this.spawn()
     }, delay).unref()
   }
