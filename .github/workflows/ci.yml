@@ -66,7 +66,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          cache: gradle
 
       - name: Test on the JVM
         run: ./gradlew :core:test
@@ -121,7 +120,6 @@ jobs:
         with:
           java-version: '25'
           distribution: graalvm-community
-          cache: gradle
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Test as a native image
@@ -149,7 +147,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          cache: gradle
 
       - run: ./gradlew :core:installDist
 
