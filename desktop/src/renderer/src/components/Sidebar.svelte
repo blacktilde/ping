@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte'
   import type { HistoryEntry } from '../../../shared/history'
   import { methodTone } from '../lib/format'
   import type { StoreNode } from '../lib/store'
@@ -112,6 +113,28 @@
     expanded = expanded.includes(path)
       ? expanded.filter((existing) => existing !== path)
       : [...expanded, path]
+  }
+
+  /**
+   * Brings a request into view: the collections panel, every folder above it open, and a filter
+   * that would hide it cleared. Focus lands on the row so the keyboard can carry on from there.
+   */
+  export async function reveal(path: string): Promise<void> {
+    panel = 'collections'
+    const segments = path.split('/')
+    const ancestors = segments
+      .slice(0, -1)
+      .map((_, index) => segments.slice(0, index + 1).join('/'))
+    expanded = [...new Set([...expanded, ...ancestors])]
+    if (filtering && !rows.some((row) => row.node.path === path)) {
+      filter = ''
+    }
+    await tick()
+    const row = [...document.querySelectorAll<HTMLElement>('[role="treeitem"]')].find(
+      (element) => element.dataset.path === path
+    )
+    row?.scrollIntoView({ block: 'nearest' })
+    row?.querySelector<HTMLButtonElement>('button')?.focus()
   }
 
   function expandAll(): void {

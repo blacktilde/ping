@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte'
   import { call, CoreError, RpcError } from './lib/core'
   import {
     authToSpec,
@@ -31,9 +32,10 @@
     activeTab,
     activateTab,
     bindTab,
-    closeTab,
+    closeTabs,
     closeTabsUnder,
     ensureTab,
+    insertTabAfter,
     newTab,
     openTab,
     retargetTabs,
@@ -686,14 +688,28 @@
   }
 
   /** Closes a tab, cancelling its exchange and confirming before discarding unsaved work. */
-  async function closeRequestTab(id: string): Promise<void> {
-    const tab = tabs.list.find((candidate) => candidate.id === id)
-    if (!tab) {
+  function closeRequestTab(id: string): Promise<void> {
+    return closeRequestTabs([id])
+  }
+
+  /**
+   * Closes several tabs, asking once for all of them when any has unsaved changes rather than
+   * once per tab, and cancelling whatever they still have in flight.
+   */
+  async function closeRequestTabs(ids: string[]): Promise<void> {
+    const doomed = tabs.list.filter((candidate) => ids.includes(candidate.id))
+    if (doomed.length === 0) {
       return
     }
-    const unsaved = tab.savedKey !== null && draftKey(tab.draft) !== tab.savedKey
-    if (unsaved) {
-      const discard = await confirmDialog('Discard unsaved changes?', {
+    const unsaved = doomed.filter(
+      (tab) => tab.savedKey !== null && draftKey(tab.draft) !== tab.savedKey
+    ).length
+    if (unsaved > 0) {
+      const message =
+        doomed.length === 1
+          ? 'Discard unsaved changes?'
+          : `Discard unsaved changes in ${unsaved} ${unsaved === 1 ? 'tab' : 'tabs'}?`
+      const discard = await confirmDialog(message, {
         confirmLabel: 'Discard changes',
         destructive: true
       })
@@ -701,10 +717,63 @@
         return
       }
     }
-    if (tab.requestId) {
-      void cancelRequest(tab.requestId).catch(() => {})
+    for (const tab of closeTabs(ids)) {
+      if (tab.requestId) {
+        void cancelRequest(tab.requestId).catch(() => {})
+      }
     }
-    closeTab(id)
+  }
+
+  /**
+   * Opens a copy of a tab beside it, edits included. A saved request is copied on disk first, the
+   * way the sidebar duplicates one, so the copy stays in its collection with the same variables and
+   * relative files; edits not yet saved in the source come along as unsaved edits in the copy. A
+   * scratch tab has no file, so its copy is another scratch tab.
+   */
+  async function duplicateRequestTab(id: string): Promise<void> {
+    const source = tabs.list.find((candidate) => candidate.id === id)
+    if (!source) {
+      return
+    }
+    const draft = $state.snapshot(source.draft) as RequestDraft
+    if (!source.path) {
+      draft.name = `${draft.name || 'Untitled request'} copy`
+      insertTabAfter(id, { draft })
+      return
+    }
+    try {
+      const path = await duplicateEntry(source.path)
+      const saved = storedToDraft(await readRequest(path))
+      draft.name = saved.name
+      insertTabAfter(id, { draft, path, savedKey: draftKey(saved) })
+      nodes = await scanStore()
+      storeError = ''
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /** Copies a tab's request as curl, focusing it so the confirmation shows beside that request. */
+  function copyTabAsCurl(id: string): void {
+    activateTab(id)
+    void copyAsCurl()
+  }
+
+  let sidebar = $state<ReturnType<typeof Sidebar>>()
+
+  /** Brings a saved tab's file into view in the collections tree, opening the sidebar if needed. */
+  async function revealTab(id: string): Promise<void> {
+    const tab = tabs.list.find((candidate) => candidate.id === id)
+    if (!tab?.path) {
+      return
+    }
+    activateTab(id)
+    if (sidebarCollapsed) {
+      toggleSidebar()
+    }
+    sidebarPanel = 'collections'
+    await tick()
+    sidebar?.reveal(tab.path)
   }
 
   function closeAllTabs(): void {
@@ -1255,6 +1324,10 @@
         onActivate={activateTab}
         onClose={closeRequestTab}
         onNew={newTab}
+        onCloseMany={(ids) => void closeRequestTabs(ids)}
+        onDuplicate={(id) => void duplicateRequestTab(id)}
+        onCopyCurl={copyTabAsCurl}
+        onReveal={(id) => void revealTab(id)}
       >
         {#snippet leading()}
           <button
@@ -1880,6 +1953,7 @@
         >
           {#snippet first()}
             <Sidebar
+              bind:this={sidebar}
               {nodes}
               activePath={active.path}
               {workspaceRoot}
