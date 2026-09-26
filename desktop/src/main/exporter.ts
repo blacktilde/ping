@@ -7,8 +7,8 @@
 
 import type { ExportReport } from '../shared/export'
 
-/** Postman's own suffix, so the file is recognised on sight. */
-const SUFFIX = '.postman_collection.json'
+/** Postman reads the format from the content, so the name needs nothing but `.json`. */
+const SUFFIX = '.json'
 
 interface CoreExportResult {
   name?: unknown
@@ -25,7 +25,7 @@ export interface Exported {
 }
 
 /**
- * The name suggested for a collection's file: `Shop API.postman_collection.json`, with
+ * The name suggested for a collection's file: `Shop API.json`, with
  * anything a file system would refuse replaced.
  */
 export function exportFileName(name: string): string {

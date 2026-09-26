@@ -6,28 +6,28 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { exportFileName, exportReport, readExport, uniqueFileNames } from '../src/main/exporter.ts'
 
-test('the suggested name carries the Postman suffix', () => {
-  assert.equal(exportFileName('Shop API'), 'Shop API.postman_collection.json')
+test('the suggested name is the collection name with .json', () => {
+  assert.equal(exportFileName('Shop API'), 'Shop API.json')
 })
 
 test('characters a file system refuses are replaced', () => {
-  assert.equal(exportFileName('a/b:c*?'), 'a b c.postman_collection.json')
-  assert.equal(exportFileName('../../etc'), '.. .. etc.postman_collection.json')
-  assert.equal(exportFileName('  '), 'collection.postman_collection.json')
+  assert.equal(exportFileName('a/b:c*?'), 'a b c.json')
+  assert.equal(exportFileName('../../etc'), '.. .. etc.json')
+  assert.equal(exportFileName('  '), 'collection.json')
 })
 
 test('collections sharing a name get distinct files', () => {
   assert.deepEqual(uniqueFileNames(['Shop', 'shop', 'Blog'], () => false), [
-    'Shop.postman_collection.json',
-    'shop 2.postman_collection.json',
-    'Blog.postman_collection.json'
+    'Shop.json',
+    'shop 2.json',
+    'Blog.json'
   ])
 })
 
 test('a file already in the folder is never overwritten', () => {
-  const existing = new Set(['Shop.postman_collection.json', 'Shop 2.postman_collection.json'])
+  const existing = new Set(['Shop.json', 'Shop 2.json'])
   assert.deepEqual(uniqueFileNames(['Shop'], (name) => existing.has(name)), [
-    'Shop 3.postman_collection.json'
+    'Shop 3.json'
   ])
 })
 

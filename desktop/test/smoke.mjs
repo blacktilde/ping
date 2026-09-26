@@ -1841,7 +1841,7 @@ try {
   const exportedFiles = readdirSync(exportDir).sort()
   check(
     'writes one file per collection into the chosen folder',
-    exportedFiles.join('|') === 'Demo.postman_collection.json|Imported demo.postman_collection.json',
+    exportedFiles.join('|') === 'Demo.json|Imported demo.json',
     exportedFiles.join('|')
   )
   const reportedFiles = await evaluate(`document.querySelectorAll('[data-role="export-file"]').length`)
