@@ -19,6 +19,7 @@
     looksLikeCurl,
     type ImportReport
   } from './lib/import'
+  import { exportCollectionFile, type ExportReport } from './lib/export'
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { confirmDialog } from './lib/confirm.svelte'
@@ -639,6 +640,22 @@
       importReport = report
       if (report.secretsStored > 0) {
         void refreshSecretNames()
+      }
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /** What the last collection export wrote and could not carry over; stays until dismissed. */
+  let exportReport = $state<ExportReport | null>(null)
+
+  /** Saves a collection as a Postman file where the user chooses, then says what was left out. */
+  async function exportCollection(node: StoreNode): Promise<void> {
+    try {
+      const report = await exportCollectionFile(node.path)
+      if (report) {
+        exportReport = report
+        storeError = ''
       }
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
@@ -1797,6 +1814,51 @@
         </div>
       {/if}
 
+      {#if exportReport}
+        <div
+          data-role="export-report"
+          role="status"
+          class="flex items-start gap-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="font-medium text-fg">
+              Exported {exportReport.name}: {exportReport.requests}
+              {exportReport.requests === 1 ? 'request' : 'requests'}
+            </p>
+            <p class="mt-1 truncate text-xs" title={exportReport.file}>{exportReport.file}</p>
+            <p class="mt-1 text-xs">
+              Secrets were exported as <code>{'{{name}}'}</code> references, never their values.
+            </p>
+            {#if exportReport.warnings.length > 0}
+              <p class="mt-2 text-xs font-medium text-warning">Not carried over</p>
+              <ul class="mt-1 max-h-40 list-disc space-y-0.5 overflow-auto pl-4 text-xs text-warning">
+                {#each exportReport.warnings as warning, index (index)}
+                  <li data-role="export-report-warning">{warning}</li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+          <button
+            type="button"
+            onclick={() => (exportReport = null)}
+            aria-label="Dismiss export report"
+            class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      {/if}
+
       {#if active.error || bootError}
         <p
           data-role="error"
@@ -1990,6 +2052,7 @@
               onSelect={selectNode}
               onCreate={createIn}
               onRun={runCollection}
+              onExport={(node) => void exportCollection(node)}
               onDelete={deleteNode}
               onOpenLocation={openLocation}
               onRename={(node, name) => void renameNode(node, name)}

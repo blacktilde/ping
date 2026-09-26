@@ -16,6 +16,8 @@
     onSelect: (node: StoreNode) => void
     onCreate: (collectionPath: string) => void
     onRun: (node: StoreNode) => void
+    /** Saves the collection as a Postman v2.1 file. */
+    onExport: (node: StoreNode) => void
     onDelete: (node: StoreNode) => void
     onOpenLocation: (node: StoreNode) => void
     onRename: (node: StoreNode, name: string) => void
@@ -40,6 +42,7 @@
     onSelect,
     onCreate,
     onRun,
+    onExport,
     onDelete,
     onOpenLocation,
     onRename,
@@ -668,6 +671,7 @@
                 <!-- A run is a whole collection: the core runs the folder that has the
                      collection file, so a sub-folder is not one of them. -->
                 {@render action(`Run ${node.name}`, () => onRun(node), 'M6 4l13 8-13 8z')}
+                {@render action(`Export ${node.name} for Postman`, () => onExport(node), 'M12 15V3M7 8l5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4')}
               {/if}
               {#if node.type !== 'request'}
                 {@render action(`Open ${node.name} in the file manager`, () => onOpenLocation(node), 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z')}

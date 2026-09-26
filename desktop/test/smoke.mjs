@@ -279,6 +279,8 @@ writeFileSync(
 // A Postman export the import flow reads. The shell normally asks a file dialog; the smoke
 // test cannot drive a native dialog, so PING_IMPORT_FILE stands in for it.
 const importFile = join(workspaceDir, '..', `ping-smoke-import-${process.pid}.json`)
+// Where the export flow writes; PING_EXPORT_FILE stands in for the save dialog the same way.
+const exportFile = join(tmpdir(), `ping-smoke-export-${process.pid}.json`)
 writeFileSync(
   importFile,
   JSON.stringify({
@@ -346,6 +348,7 @@ const app = spawn(
       PING_WORKSPACE: workspaceDir,
       PING_FAKE_UPDATE: '1',
       PING_IMPORT_FILE: importFile,
+      PING_EXPORT_FILE: exportFile,
       // Consumed in order: the first pick is the outside file, the second the one in the collection.
       PING_UPLOAD_FILE: [outsideUpload, insideUpload].join(delimiter),
       // Stand in for the certificate dialogs, consumed in order: a PKCS#12 bundle, then a PEM
@@ -1779,6 +1782,38 @@ try {
     `window.ping.request('import.collection', { root: '/tmp', content: '{}' })`
   )
   check('refuses import.collection over the generic channel', direct.ok === false && /import dialog/.test(direct.error?.message ?? ''), JSON.stringify(direct))
+
+  console.log('--- 15c2. export the imported collection for Postman')
+  await evaluate(`document.querySelector('button[aria-label="Export Imported demo for Postman"]')?.click()`)
+  await waitFor(
+    async () => await evaluate(`!!document.querySelector('[data-role="export-report"]')`),
+    8000,
+    'the export report'
+  )
+  const exportedText = readFileSync(exportFile, 'utf8')
+  const exportedDoc = JSON.parse(exportedText)
+  check('writes a Postman v2.1 file', exportedDoc.info?.schema?.includes('collection/v2.1.0'), exportedDoc.info?.schema ?? 'none')
+  check('exports every request', exportedDoc.item?.length === 2, String(exportedDoc.item?.length))
+  check('exports the secret as a reference', exportedText.includes('{{import-imported-demo-whoami-token}}'))
+  check('never exports the secret value', !exportedText.includes('smoke-import-token'))
+  const exportWarnings = await evaluate(
+    `[...document.querySelectorAll('[data-role="export-report-warning"]')].map(e => e.textContent.trim())`
+  )
+  check(
+    'reports the file it could not carry',
+    exportWarnings.some((w) => w.includes('payload.bin')),
+    exportWarnings.join(' | ')
+  )
+  await evaluate(`document.querySelector('button[aria-label="Dismiss export report"]')?.click()`)
+  rmSync(exportFile, { force: true })
+
+  // The generic channel must not reach the exporter: the renderer would choose the root.
+  const directExport = await evaluate(
+    `window.ping.request('export.collection', { root: '/', path: 'etc' })`
+  )
+  check('refuses export.collection over the generic channel', directExport.ok === false && /export dialog/.test(directExport.error?.message ?? ''), JSON.stringify(directExport))
+  const escapingExport = await evaluate(`window.ping.exportCollection('../outside')`)
+  check('refuses an export path outside the workspace', escapingExport.ok === false, JSON.stringify(escapingExport))
 
   console.log('--- 15d. capture a value and use it in the next request')
   await evaluate(`document.querySelector('button[aria-label="New request tab"]').click()`)

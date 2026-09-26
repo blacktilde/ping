@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { HistoryEntry } from '../shared/history'
 import type { CookieView } from '../shared/cookies'
+import type { ExportReport } from '../shared/export'
 import type { ImportReport } from '../shared/import'
 import type { LogEntry } from '../shared/logs'
 import type { ClientCertRequest, NetworkSettings, NetworkUpdate } from '../shared/network'
@@ -65,6 +66,15 @@ const api = {
    */
   importCollection(): Promise<CoreResult<ImportReport | null>> {
     return ipcRenderer.invoke('import:collection') as Promise<CoreResult<ImportReport | null>>
+  },
+
+  /**
+   * Exports a collection as a Postman v2.1 file. `path` is the collection relative to the open
+   * folder; the shell shows the save dialog and writes the file, so the document never comes
+   * back here. Resolves with `value: null` when the dialog is dismissed.
+   */
+  exportCollection(path: string): Promise<CoreResult<ExportReport | null>> {
+    return ipcRenderer.invoke('export:collection', path) as Promise<CoreResult<ExportReport | null>>
   },
 
   /**

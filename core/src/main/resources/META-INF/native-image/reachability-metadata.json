@@ -202,6 +202,27 @@
       ]
     },
     {
+      "type": "dev.ping.exports.ExportResult",
+      "methods": [
+        {
+          "name": "content",
+          "parameterTypes": []
+        },
+        {
+          "name": "name",
+          "parameterTypes": []
+        },
+        {
+          "name": "requests",
+          "parameterTypes": []
+        },
+        {
+          "name": "warnings",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "dev.ping.http.Assertion",
       "methods": [
         {

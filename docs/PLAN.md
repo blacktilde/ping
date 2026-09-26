@@ -272,6 +272,23 @@ assertions plus the runner change what the project is for.
   *Gate: the view shows the build and the core starting, the file holds the same lines, and a saved
   proxy password appears in neither.*
 
+- [x] **29. Export.** The way back out of Ping, so adopting it is never a one-way door. A
+  collection's sidebar row has an Export action that writes a **Postman v2.1** file: the most
+  widely read interchange format, and the inverse of the importer phase 14 already ships, so the
+  round trip is testable. `export.collection` builds the document in the core (the CLI will want
+  it) and writes nothing; the shell's `export:collection` handler injects the root, shows the save
+  dialog and writes atomically, and `core:request` refuses the method so the renderer cannot aim
+  it at another root. Nothing is resolved: a secret leaves as its `{{name}}` reference, which
+  Postman reads the same way, and an absolute file path is cut to its file name. What Postman
+  cannot hold (environments, assertions and captures, timeouts, HTTP version pins, the files
+  themselves) is reported, as import does.
+  *Gate: an exported collection imports back with the same URL, query and auth
+  (`ExportMethodsTest`), and `make smoke` exports an imported collection, finds the secret
+  reference and never its value, and sees the generic channel refuse the method.*
+  **Not yet:** environments as `postman_environment.json` files beside the collection, and
+  assertions generated as `pm.test` scripts. A lossless single-file Ping bundle is a separate
+  format decision, and a folder of YAML already travels well in Git.
+
 ### Not planned
 
 Recorded so they are not re-raised. **A scripting sandbox** — see phase 15; predicates and
