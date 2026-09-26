@@ -547,6 +547,19 @@ public final class YamlStore {
         return flat;
     }
 
+    /**
+     * A collection's folders and requests as the sidebar shows them, in the same order. The
+     * exporter uses this so an exported collection keeps the arrangement the user sees.
+     */
+    public List<CollectionNode> tree(Path root, String collectionPath) {
+        Path base = normalize(root);
+        Path directory = resolve(base, collectionPath);
+        if (!Files.isDirectory(directory)) {
+            throw RpcException.storeFailed("No such collection: " + collectionPath);
+        }
+        return children(base, directory);
+    }
+
     private static void flatten(List<CollectionNode> nodes, List<CollectionNode> into) {
         for (CollectionNode node : nodes) {
             if (CollectionNode.REQUEST.equals(node.type())) {

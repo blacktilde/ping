@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ping.dev/contract/export.schema.json",
+  "title": "Ping core RPC — export",
+  "$defs": {
+    "export.collection.params": {
+      "type": "object",
+      "required": ["root", "path"],
+      "properties": {
+        "root": {
+          "type": "string",
+          "description": "The workspace root. The shell injects it; the renderer cannot choose it."
+        },
+        "path": {
+          "type": "string",
+          "description": "The collection folder, relative to the root."
+        },
+        "format": {
+          "enum": ["postman"],
+          "default": "postman",
+          "description": "The document to produce. Postman collection v2.1 is the only one today."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "export.collection.result": {
+      "type": "object",
+      "description": "The exported document. Nothing is written: the shell saves it where the user chooses.",
+      "required": ["name", "content", "requests"],
+      "properties": {
+        "name": { "type": "string", "description": "The collection's name, suggested as the file name." },
+        "content": {
+          "type": "string",
+          "description": "The document. Values are exactly what the YAML holds: a {{name}} reference is never resolved, so no secret value is ever in it."
+        },
+        "requests": { "type": "integer" },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Everything the format could not carry: environments, assertions, captures, file contents, settings with no Postman field. Omitted when empty."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -63,6 +63,7 @@ not `http.send`, whose length is the user's to set.
 | `cookies.clearAll`| none                  | `{}`                                                |
 | `import.curl` | `{ command: string }`     | `{ request: StoredRequest, warnings?: string[] }`   |
 | `import.collection`| `{ root, content }`  | `{ collections, warnings?, secrets? }`, see `import.schema.json` |
+| `export.collection`| `{ root, path, format? }` | `{ name, content, requests, warnings? }`, see `export.schema.json` |
 | `run.collection`| `{ runId?, root, collection, environment?, variables? }` | `RunResult`, see `run.schema.json` |
 
 `core.info.nativeImage` reports whether the running core is the GraalVM native image or
@@ -461,6 +462,35 @@ the source's order is not kept. A failure part-way removes what the call created
 - Rejected with `-32602`, and a specific reason: not JSON or YAML, a Postman environment export,
   Postman v1, an Insomnia format other than 4 (including v5 YAML), Swagger 2.0, or an export
   with no workspace.
+
+### Export
+
+`export.collection` turns a collection folder into a **Postman collection v2.1** document and
+returns it as `content`; it writes nothing. The shell's `export:collections` handler takes the
+collections the user ticked in the Export dialog, calls this once for each (all of them before
+anything is written, so a failure leaves nothing half-exported), and writes one file per
+collection: through a save dialog for one, or into a chosen folder for several, where a name
+already taken becomes `Name 2` rather than overwriting a file. `core:request` refuses the method,
+because through the generic channel the renderer would choose the root and could read any folder
+on disk.
+
+- Mapped: folders and requests in sidebar order, method, URL (enabled query rows in `raw`, every
+  row in `query` with disabled ones marked), headers, bodies (`json` and `raw` as `raw` with a
+  language, `form` as `urlencoded`, `multipart` as `formdata`, `file` as `file`; a body's own
+  content type becomes a `Content-Type` header), `bearer`/`basic`/`api-key` auth, OAuth2
+  configuration without its tokens, collection variables, and `docs` as descriptions.
+  `redirects: never`, `verifyTls: false` and `cookies: false` go to `protocolProfileBehavior`.
+- **Nothing is resolved.** Values are written as the YAML holds them, so a secret stays a
+  `{{name}}` reference, which Postman reads the same way.
+- **File paths.** A path inside the collection stays relative; an absolute one is cut to its file
+  name, since it describes this machine (and its user name). Each is reported, because the file
+  itself is not in the export.
+- Reported in `warnings`: environments (a collection carries only collection variables),
+  assertions and captures (Postman needs test scripts for them), a multipart part's `filename`
+  override, `timeoutMs`, `httpVersion` and `maxBodyBytes`, and any request file that could not be
+  parsed, which is left out rather than failing the export.
+- Rejected with `-32602`: a missing root or path, a path outside the root, or a format other
+  than `postman`. A folder that does not exist is `-32003`.
 
 ### Error codes
 

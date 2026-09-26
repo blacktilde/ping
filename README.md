@@ -38,7 +38,8 @@ no cloud sync and no telemetry — just a native engine, a YAML folder you own, 
   PDFs rendered in place, headers, cookies, a per-phase timing breakdown, and saving the
   body to disk.
 - **Bring your collections along.** Import curl commands, Postman and Insomnia collections,
-  and OpenAPI 3 documents; keep Markdown notes on any request or collection.
+  and OpenAPI 3 documents, and export a collection back out as a Postman file; keep Markdown
+  notes on any request or collection.
 - **Run a whole collection.** Every request in order, with its assertions, from the sidebar
   or from the command line — the same engine either way, so CI and the app agree.
 - **Updates you approve.** The packaged app checks for a new release and never downloads or

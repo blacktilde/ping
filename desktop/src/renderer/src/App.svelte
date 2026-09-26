@@ -19,6 +19,7 @@
     looksLikeCurl,
     type ImportReport
   } from './lib/import'
+  import { exportCollectionFiles, type ExportReport } from './lib/export'
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { confirmDialog } from './lib/confirm.svelte'
@@ -94,6 +95,7 @@
   import CommandPalette from './components/CommandPalette.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import SaveRequestDialog from './components/SaveRequestDialog.svelte'
+  import ExportDialog from './components/ExportDialog.svelte'
   import NetworkSettings from './components/NetworkSettings.svelte'
   import LogsPanel from './components/LogsPanel.svelte'
   import RunPanel from './components/RunPanel.svelte'
@@ -639,6 +641,25 @@
       importReport = report
       if (report.secretsStored > 0) {
         void refreshSecretNames()
+      }
+    } catch (cause) {
+      storeError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  /** What the last collection export wrote and could not carry over; stays until dismissed. */
+  let exportReport = $state<ExportReport | null>(null)
+  /** The picker for which collections to export. */
+  let showExport = $state(false)
+
+  /** Saves the chosen collections as Postman files where the user says, then reports on them. */
+  async function exportCollections(paths: string[]): Promise<void> {
+    showExport = false
+    try {
+      const report = await exportCollectionFiles(paths)
+      if (report) {
+        exportReport = report
+        storeError = ''
       }
     } catch (cause) {
       storeError = cause instanceof Error ? cause.message : String(cause)
@@ -1198,6 +1219,7 @@
       { id: 'focus-url', label: 'Focus request URL', hint: `${modKey}L`, run: focusUrl },
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
       { id: 'import', label: 'Import collection…', run: () => void importCollection() },
+      { id: 'export', label: 'Export collections…', run: () => (showExport = true) },
       { id: 'network', label: 'Network settings…', run: () => (showNetwork = true) },
       { id: 'logs', label: showLogs ? 'Hide logs panel' : 'Show logs panel', hint: `${modKey}J`, run: toggleLogs },
       {
@@ -1797,6 +1819,58 @@
         </div>
       {/if}
 
+      {#if exportReport}
+        <div
+          data-role="export-report"
+          role="status"
+          class="flex items-start gap-3 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg-muted"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="font-medium text-fg">
+              Exported {exportReport.files.length}
+              {exportReport.files.length === 1 ? 'collection' : 'collections'}
+            </p>
+            <ul class="mt-1 space-y-0.5 text-xs">
+              {#each exportReport.files as written (written.file)}
+                <li data-role="export-file" class="truncate" title={written.file}>
+                  {written.name}: {written.requests}
+                  {written.requests === 1 ? 'request' : 'requests'} → {written.file}
+                </li>
+              {/each}
+            </ul>
+            <p class="mt-1 text-xs">
+              Secrets were exported as <code>{'{{name}}'}</code> references, never their values.
+            </p>
+            {#if exportReport.warnings.length > 0}
+              <p class="mt-2 text-xs font-medium text-warning">Not carried over</p>
+              <ul class="mt-1 max-h-40 list-disc space-y-0.5 overflow-auto pl-4 text-xs text-warning">
+                {#each exportReport.warnings as warning, index (index)}
+                  <li data-role="export-report-warning">{warning}</li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+          <button
+            type="button"
+            onclick={() => (exportReport = null)}
+            aria-label="Dismiss export report"
+            class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60 hover:text-fg"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      {/if}
+
       {#if active.error || bootError}
         <p
           data-role="error"
@@ -2000,6 +2074,7 @@
               onNewCollection={newCollection}
               onOpenFolder={openFolder}
               onImport={() => void importCollection()}
+              onExport={() => (showExport = true)}
               onSelectHistory={selectHistory}
               onClearHistory={clearHistoryEntries}
             />
@@ -2048,6 +2123,14 @@
   </footer>
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
+
+  {#if showExport}
+    <ExportDialog
+      {nodes}
+      onExport={(paths) => void exportCollections(paths)}
+      onCancel={() => (showExport = false)}
+    />
+  {/if}
 
   {#if showNetwork}
     <NetworkSettings onClose={() => (showNetwork = false)} />

@@ -1,10 +1,12 @@
 import { readFile, stat } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { basename, delimiter, join, resolve, sep } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { writeFileSyncAtomic } from './atomic'
 import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
 import { checkBodyFiles, FileGrants, isRelativePath, storedPathFor } from './files'
+import { exportFileName, exportReport, readExport, uniqueFileNames, type Exported } from './exporter'
 import { finishImport, MAX_IMPORT_BYTES } from './importer'
 import { NetworkStore } from './network'
 import { OAuthTokenStore } from './oauth'
@@ -138,6 +140,45 @@ async function chooseImportFile(): Promise<string | null> {
     filters: [
       { name: 'Postman, Insomnia or OpenAPI', extensions: ['json', 'yaml', 'yml'] }
     ]
+  }
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+}
+
+/**
+ * Where a single collection's export goes. `PING_EXPORT_FILE` stands in for the dialog so the
+ * smoke test can drive the flow, like `PING_IMPORT_FILE`; a real user picks through the dialog.
+ */
+async function chooseExportFile(suggested: string): Promise<string | null> {
+  const override = process.env.PING_EXPORT_FILE
+  if (override) {
+    return override
+  }
+  const options: Electron.SaveDialogOptions = {
+    defaultPath: suggested,
+    filters: [{ name: 'Postman collection', extensions: ['json'] }]
+  }
+  const result = mainWindow
+    ? await dialog.showSaveDialog(mainWindow, options)
+    : await dialog.showSaveDialog(options)
+  return result.canceled || !result.filePath ? null : result.filePath
+}
+
+/**
+ * The folder several collections' exports go into, one file each. `PING_EXPORT_DIR` stands in
+ * for the dialog the same way `PING_EXPORT_FILE` does.
+ */
+async function chooseExportFolder(): Promise<string | null> {
+  const override = process.env.PING_EXPORT_DIR
+  if (override) {
+    return override
+  }
+  const options: Electron.OpenDialogOptions = {
+    title: 'Export collections to',
+    buttonLabel: 'Export here',
+    properties: ['openDirectory', 'createDirectory']
   }
   const result = mainWindow
     ? await dialog.showOpenDialog(mainWindow, options)
@@ -491,6 +532,69 @@ function registerIpc(): void {
     }
   })
 
+  // Exports collections as Postman v2.1 files, one file each. The renderer names the collections
+  // by their relative paths; the root is injected here and the destination is chosen here, so
+  // the renderer can neither read outside the workspace nor pick where files land. One collection
+  // gets a save dialog; several get a folder, where a taken name becomes `Name 2` rather than
+  // overwriting a file the user never named. The documents go from the core straight to disk and
+  // never cross to the renderer.
+  ipcMain.handle('export:collections', async (_event, paths: unknown) => {
+    const current = workspace.current()
+    if (!current) {
+      return failure(null, 'No collection folder is open')
+    }
+    if (!Array.isArray(paths) || paths.length === 0) {
+      return failure(null, 'Choose at least one collection to export')
+    }
+    for (const path of paths) {
+      if (typeof path !== 'string' || path === '' || !isRelativePath(path)) {
+        return failure(null, `Unsafe path: ${String(path)}`)
+      }
+    }
+    try {
+      await core.ready
+      // Every document is built before anything is asked or written, so a collection that cannot
+      // be exported fails the whole export instead of leaving half of it on disk.
+      const exports: Exported[] = []
+      for (const path of new Set(paths as string[])) {
+        exports.push(
+          readExport(
+            await core.request('export.collection', { root: current.root, path, format: 'postman' })
+          )
+        )
+      }
+
+      let files: string[]
+      if (exports.length === 1) {
+        const file = await chooseExportFile(exportFileName(exports[0].name))
+        if (!file) {
+          return { ok: true, value: null }
+        }
+        files = [file]
+      } else {
+        const folder = await chooseExportFolder()
+        if (!folder) {
+          return { ok: true, value: null }
+        }
+        files = uniqueFileNames(
+          exports.map((exported) => exported.name),
+          (name) => existsSync(join(folder, name))
+        ).map((name) => join(folder, name))
+      }
+
+      exports.forEach((exported, index) => writeFileSyncAtomic(files[index], exported.content))
+      return {
+        ok: true,
+        value: exportReport(exports.map((exported, index) => ({ exported, file: files[index] })))
+      }
+    } catch (cause) {
+      return failure(
+        cause instanceof CoreRpcError ? cause.code : null,
+        cause instanceof Error ? cause.message : String(cause)
+      )
+    }
+  })
+
   // The updater runs in main and pushes its state; the renderer only asks for the next step.
   ipcMain.handle('updates:state', () => updateState())
   ipcMain.handle('updates:check', () => {
@@ -641,6 +745,12 @@ function registerIpc(): void {
     // root and keeps secret values away from the renderer, none of which this path would do.
     if (method === 'import.collection') {
       return failure(null, 'import.collection is only available through the import dialog')
+    }
+
+    // Reads a whole collection from a root the caller names. Only the `export:collection` handler
+    // may call it, because it injects the root; through here the renderer would choose it.
+    if (method === 'export.collection') {
+      return failure(null, 'export.collection is only available through the export dialog')
     }
 
     let args = params

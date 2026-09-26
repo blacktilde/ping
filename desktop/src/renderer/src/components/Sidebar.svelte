@@ -27,6 +27,8 @@
     onNewCollection: (name: string) => void
     onOpenFolder: () => void
     onImport: () => void
+    /** Opens the picker for which collections to export. */
+    onExport: () => void
     onSelectHistory: (entry: HistoryEntry) => void
     onClearHistory: () => void
   }
@@ -50,6 +52,7 @@
     onNewCollection,
     onOpenFolder,
     onImport,
+    onExport,
     onSelectHistory,
     onClearHistory
   }: Props = $props()
@@ -439,6 +442,28 @@
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onclick={onExport}
+              aria-label="Export collections"
+              title="Export collections as Postman files"
+              class="rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-fg"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
             </button>
           {/if}
