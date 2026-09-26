@@ -466,9 +466,13 @@ the source's order is not kept. A failure part-way removes what the call created
 ### Export
 
 `export.collection` turns a collection folder into a **Postman collection v2.1** document and
-returns it as `content`; it writes nothing. The shell's `export:collection` handler injects the
-root, shows the save dialog and writes the file, and `core:request` refuses the method, because
-through the generic channel the renderer would choose the root and could read any folder on disk.
+returns it as `content`; it writes nothing. The shell's `export:collections` handler takes the
+collections the user ticked in the Export dialog, calls this once for each (all of them before
+anything is written, so a failure leaves nothing half-exported), and writes one file per
+collection: through a save dialog for one, or into a chosen folder for several, where a name
+already taken becomes `Name 2` rather than overwriting a file. `core:request` refuses the method,
+because through the generic channel the renderer would choose the root and could read any folder
+on disk.
 
 - Mapped: folders and requests in sidebar order, method, URL (enabled query rows in `raw`, every
   row in `query` with disabled ones marked), headers, bodies (`json` and `raw` as `raw` with a
@@ -482,7 +486,7 @@ through the generic channel the renderer would choose the root and could read an
   name, since it describes this machine (and its user name). Each is reported, because the file
   itself is not in the export.
 - Reported in `warnings`: environments (a collection carries only collection variables),
-  assertions and captures (Postman expresses them as scripts), a multipart part's `filename`
+  assertions and captures (Postman needs test scripts for them), a multipart part's `filename`
   override, `timeoutMs`, `httpVersion` and `maxBodyBytes`, and any request file that could not be
   parsed, which is left out rather than failing the export.
 - Rejected with `-32602`: a missing root or path, a path outside the root, or a format other

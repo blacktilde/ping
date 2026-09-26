@@ -394,8 +394,8 @@ public final class PostmanExporter {
             parts.add(captures + (captures == 1 ? " capture" : " captures"));
         }
         if (!parts.isEmpty()) {
-            warnings.add(where + " has " + String.join(" and ", parts)
-                    + " that Postman expresses as test scripts; they were not exported.");
+            warnings.add("Not exported from " + where + ": " + String.join(" and ", parts)
+                    + " (Postman needs test scripts for these).");
         }
     }
 

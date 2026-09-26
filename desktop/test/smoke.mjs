@@ -11,7 +11,7 @@
  * live HTTPS check, which is what CI does so the suite does not depend on a third party.
  */
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import { tmpdir } from 'node:os'
@@ -279,8 +279,10 @@ writeFileSync(
 // A Postman export the import flow reads. The shell normally asks a file dialog; the smoke
 // test cannot drive a native dialog, so PING_IMPORT_FILE stands in for it.
 const importFile = join(workspaceDir, '..', `ping-smoke-import-${process.pid}.json`)
-// Where the export flow writes; PING_EXPORT_FILE stands in for the save dialog the same way.
+// Where the export flow writes: PING_EXPORT_FILE stands in for the save dialog (one collection)
+// and PING_EXPORT_DIR for the folder picker (several), the same way PING_IMPORT_FILE does.
 const exportFile = join(tmpdir(), `ping-smoke-export-${process.pid}.json`)
+const exportDir = mkdtempSync(join(tmpdir(), 'ping-smoke-export-dir-'))
 writeFileSync(
   importFile,
   JSON.stringify({
@@ -349,6 +351,7 @@ const app = spawn(
       PING_FAKE_UPDATE: '1',
       PING_IMPORT_FILE: importFile,
       PING_EXPORT_FILE: exportFile,
+      PING_EXPORT_DIR: exportDir,
       // Consumed in order: the first pick is the outside file, the second the one in the collection.
       PING_UPLOAD_FILE: [outsideUpload, insideUpload].join(delimiter),
       // Stand in for the certificate dialogs, consumed in order: a PKCS#12 bundle, then a PEM
@@ -1783,13 +1786,40 @@ try {
   )
   check('refuses import.collection over the generic channel', direct.ok === false && /import dialog/.test(direct.error?.message ?? ''), JSON.stringify(direct))
 
-  console.log('--- 15c2. export the imported collection for Postman')
-  await evaluate(`document.querySelector('button[aria-label="Export Imported demo for Postman"]')?.click()`)
-  await waitFor(
-    async () => await evaluate(`!!document.querySelector('[data-role="export-report"]')`),
-    8000,
-    'the export report'
+  console.log('--- 15c2. export collections for Postman')
+  // Ticks exactly the named collections in the export dialog, then accepts it.
+  const exportOnly = async (names) => {
+    await evaluate(`document.querySelector('button[aria-label="Export collections"]')?.click()`)
+    await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="export-dialog"]')`), 3000, 'the export dialog')
+    await evaluate(`(() => {
+      const all = document.querySelector('[data-role="export-select-all"]');
+      if (all.checked) all.click();
+      const wanted = ${JSON.stringify(names)};
+      for (const box of document.querySelectorAll('[data-role="export-collection"]')) {
+        const name = box.closest('label').querySelector('span').textContent.trim();
+        if (wanted.includes(name)) box.click();
+      }
+    })()`)
+    await evaluate(`document.querySelector('[data-role="export-accept"]')?.click()`)
+    await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="export-report"]')`), 8000, 'the export report')
+  }
+
+  await evaluate(`document.querySelector('button[aria-label="Export collections"]')?.click()`)
+  await waitFor(async () => await evaluate(`!!document.querySelector('[data-role="export-dialog"]')`), 3000, 'the export dialog')
+  const exportOffered = await evaluate(`(() => ({
+    total: document.querySelectorAll('[data-role="export-collection"]').length,
+    checked: document.querySelectorAll('[data-role="export-collection"]:checked').length
+  }))()`)
+  check('offers every collection, all ticked', exportOffered.total >= 2 && exportOffered.checked === exportOffered.total, JSON.stringify(exportOffered))
+  await evaluate(`document.querySelector('[data-role="export-select-all"]').click()`)
+  check(
+    'cannot export nothing',
+    await evaluate(`document.querySelector('[data-role="export-accept"]').disabled`)
   )
+  await evaluate(`document.querySelector('[data-role="export-cancel"]').click()`)
+  check('the row no longer has its own export button', !(await evaluate(`!!document.querySelector('button[aria-label^="Export Imported demo"]')`)))
+
+  await exportOnly(['Imported demo'])
   const exportedText = readFileSync(exportFile, 'utf8')
   const exportedDoc = JSON.parse(exportedText)
   check('writes a Postman v2.1 file', exportedDoc.info?.schema?.includes('collection/v2.1.0'), exportedDoc.info?.schema ?? 'none')
@@ -1801,19 +1831,39 @@ try {
   )
   check(
     'reports the file it could not carry',
-    exportWarnings.some((w) => w.includes('payload.bin')),
+    exportWarnings.some((w) => w.startsWith('Request "Upload"') && w.includes('payload.bin')),
     exportWarnings.join(' | ')
   )
   await evaluate(`document.querySelector('button[aria-label="Dismiss export report"]')?.click()`)
   rmSync(exportFile, { force: true })
+
+  await exportOnly(['Imported demo', 'demo'])
+  const exportedFiles = readdirSync(exportDir).sort()
+  check(
+    'writes one file per collection into the chosen folder',
+    exportedFiles.join('|') === 'Demo.postman_collection.json|Imported demo.postman_collection.json',
+    exportedFiles.join('|')
+  )
+  const reportedFiles = await evaluate(`document.querySelectorAll('[data-role="export-file"]').length`)
+  check('reports each file', reportedFiles === 2, String(reportedFiles))
+  const multiWarnings = await evaluate(
+    `[...document.querySelectorAll('[data-role="export-report-warning"]')].map(e => e.textContent.trim())`
+  )
+  check(
+    'names the collection each warning came from',
+    multiWarnings.some((w) => w.startsWith('Imported demo: ')),
+    multiWarnings.join(' | ')
+  )
+  await evaluate(`document.querySelector('button[aria-label="Dismiss export report"]')?.click()`)
+  rmSync(exportDir, { recursive: true, force: true })
 
   // The generic channel must not reach the exporter: the renderer would choose the root.
   const directExport = await evaluate(
     `window.ping.request('export.collection', { root: '/', path: 'etc' })`
   )
   check('refuses export.collection over the generic channel', directExport.ok === false && /export dialog/.test(directExport.error?.message ?? ''), JSON.stringify(directExport))
-  const escapingExport = await evaluate(`window.ping.exportCollection('../outside')`)
-  check('refuses an export path outside the workspace', escapingExport.ok === false, JSON.stringify(escapingExport))
+  const escapingExport = await evaluate(`window.ping.exportCollections(['demo', '../outside'])`)
+  check('refuses an export path outside the workspace', escapingExport.ok === false && /Unsafe path/.test(escapingExport.error?.message ?? ''), JSON.stringify(escapingExport))
 
   console.log('--- 15d. capture a value and use it in the next request')
   await evaluate(`document.querySelector('button[aria-label="New request tab"]').click()`)

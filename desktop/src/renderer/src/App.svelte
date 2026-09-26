@@ -19,7 +19,7 @@
     looksLikeCurl,
     type ImportReport
   } from './lib/import'
-  import { exportCollectionFile, type ExportReport } from './lib/export'
+  import { exportCollectionFiles, type ExportReport } from './lib/export'
   import { checkForUpdates, loadUpdateState, updates, watchUpdates } from './lib/updates.svelte'
   import { clearHistory, history, loadHistory, recordHistory } from './lib/history.svelte'
   import { confirmDialog } from './lib/confirm.svelte'
@@ -95,6 +95,7 @@
   import CommandPalette from './components/CommandPalette.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import SaveRequestDialog from './components/SaveRequestDialog.svelte'
+  import ExportDialog from './components/ExportDialog.svelte'
   import NetworkSettings from './components/NetworkSettings.svelte'
   import LogsPanel from './components/LogsPanel.svelte'
   import RunPanel from './components/RunPanel.svelte'
@@ -648,11 +649,14 @@
 
   /** What the last collection export wrote and could not carry over; stays until dismissed. */
   let exportReport = $state<ExportReport | null>(null)
+  /** The picker for which collections to export. */
+  let showExport = $state(false)
 
-  /** Saves a collection as a Postman file where the user chooses, then says what was left out. */
-  async function exportCollection(node: StoreNode): Promise<void> {
+  /** Saves the chosen collections as Postman files where the user says, then reports on them. */
+  async function exportCollections(paths: string[]): Promise<void> {
+    showExport = false
     try {
-      const report = await exportCollectionFile(node.path)
+      const report = await exportCollectionFiles(paths)
       if (report) {
         exportReport = report
         storeError = ''
@@ -1215,6 +1219,7 @@
       { id: 'focus-url', label: 'Focus request URL', hint: `${modKey}L`, run: focusUrl },
       { id: 'open', label: 'Open folder…', run: () => void openFolder() },
       { id: 'import', label: 'Import collection…', run: () => void importCollection() },
+      { id: 'export', label: 'Export collections…', run: () => (showExport = true) },
       { id: 'network', label: 'Network settings…', run: () => (showNetwork = true) },
       { id: 'logs', label: showLogs ? 'Hide logs panel' : 'Show logs panel', hint: `${modKey}J`, run: toggleLogs },
       {
@@ -1822,10 +1827,17 @@
         >
           <div class="min-w-0 flex-1">
             <p class="font-medium text-fg">
-              Exported {exportReport.name}: {exportReport.requests}
-              {exportReport.requests === 1 ? 'request' : 'requests'}
+              Exported {exportReport.files.length}
+              {exportReport.files.length === 1 ? 'collection' : 'collections'}
             </p>
-            <p class="mt-1 truncate text-xs" title={exportReport.file}>{exportReport.file}</p>
+            <ul class="mt-1 space-y-0.5 text-xs">
+              {#each exportReport.files as written (written.file)}
+                <li data-role="export-file" class="truncate" title={written.file}>
+                  {written.name}: {written.requests}
+                  {written.requests === 1 ? 'request' : 'requests'} → {written.file}
+                </li>
+              {/each}
+            </ul>
             <p class="mt-1 text-xs">
               Secrets were exported as <code>{'{{name}}'}</code> references, never their values.
             </p>
@@ -2052,7 +2064,6 @@
               onSelect={selectNode}
               onCreate={createIn}
               onRun={runCollection}
-              onExport={(node) => void exportCollection(node)}
               onDelete={deleteNode}
               onOpenLocation={openLocation}
               onRename={(node, name) => void renameNode(node, name)}
@@ -2063,6 +2074,7 @@
               onNewCollection={newCollection}
               onOpenFolder={openFolder}
               onImport={() => void importCollection()}
+              onExport={() => (showExport = true)}
               onSelectHistory={selectHistory}
               onClearHistory={clearHistoryEntries}
             />
@@ -2111,6 +2123,14 @@
   </footer>
 
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
+
+  {#if showExport}
+    <ExportDialog
+      {nodes}
+      onExport={(paths) => void exportCollections(paths)}
+      onCancel={() => (showExport = false)}
+    />
+  {/if}
 
   {#if showNetwork}
     <NetworkSettings onClose={() => (showNetwork = false)} />

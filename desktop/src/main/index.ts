@@ -1,11 +1,12 @@
 import { readFile, stat } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { basename, delimiter, join, resolve, sep } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { writeFileSyncAtomic } from './atomic'
 import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
 import { checkBodyFiles, FileGrants, isRelativePath, storedPathFor } from './files'
-import { exportFileName, exportReport, readExport } from './exporter'
+import { exportFileName, exportReport, readExport, uniqueFileNames, type Exported } from './exporter'
 import { finishImport, MAX_IMPORT_BYTES } from './importer'
 import { NetworkStore } from './network'
 import { OAuthTokenStore } from './oauth'
@@ -147,8 +148,8 @@ async function chooseImportFile(): Promise<string | null> {
 }
 
 /**
- * Where an export goes. `PING_EXPORT_FILE` stands in for the dialog so the smoke test can drive
- * the flow, like `PING_IMPORT_FILE`; a real user picks through the dialog.
+ * Where a single collection's export goes. `PING_EXPORT_FILE` stands in for the dialog so the
+ * smoke test can drive the flow, like `PING_IMPORT_FILE`; a real user picks through the dialog.
  */
 async function chooseExportFile(suggested: string): Promise<string | null> {
   const override = process.env.PING_EXPORT_FILE
@@ -163,6 +164,26 @@ async function chooseExportFile(suggested: string): Promise<string | null> {
     ? await dialog.showSaveDialog(mainWindow, options)
     : await dialog.showSaveDialog(options)
   return result.canceled || !result.filePath ? null : result.filePath
+}
+
+/**
+ * The folder several collections' exports go into, one file each. `PING_EXPORT_DIR` stands in
+ * for the dialog the same way `PING_EXPORT_FILE` does.
+ */
+async function chooseExportFolder(): Promise<string | null> {
+  const override = process.env.PING_EXPORT_DIR
+  if (override) {
+    return override
+  }
+  const options: Electron.OpenDialogOptions = {
+    title: 'Export collections to',
+    buttonLabel: 'Export here',
+    properties: ['openDirectory', 'createDirectory']
+  }
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options)
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
 }
 
 /**
@@ -511,29 +532,61 @@ function registerIpc(): void {
     }
   })
 
-  // Exports a collection as a Postman v2.1 file. The renderer names the collection by its
-  // relative path; the root is injected here and the file is chosen here, so the renderer can
-  // neither read outside the workspace nor pick where the file lands. The document goes from the
-  // core straight to disk and never crosses to the renderer.
-  ipcMain.handle('export:collection', async (_event, path: unknown) => {
+  // Exports collections as Postman v2.1 files, one file each. The renderer names the collections
+  // by their relative paths; the root is injected here and the destination is chosen here, so
+  // the renderer can neither read outside the workspace nor pick where files land. One collection
+  // gets a save dialog; several get a folder, where a taken name becomes `Name 2` rather than
+  // overwriting a file the user never named. The documents go from the core straight to disk and
+  // never cross to the renderer.
+  ipcMain.handle('export:collections', async (_event, paths: unknown) => {
     const current = workspace.current()
     if (!current) {
       return failure(null, 'No collection folder is open')
     }
-    if (typeof path !== 'string' || path === '' || !isRelativePath(path)) {
-      return failure(null, `Unsafe path: ${String(path)}`)
+    if (!Array.isArray(paths) || paths.length === 0) {
+      return failure(null, 'Choose at least one collection to export')
+    }
+    for (const path of paths) {
+      if (typeof path !== 'string' || path === '' || !isRelativePath(path)) {
+        return failure(null, `Unsafe path: ${String(path)}`)
+      }
     }
     try {
       await core.ready
-      const exported = readExport(
-        await core.request('export.collection', { root: current.root, path, format: 'postman' })
-      )
-      const file = await chooseExportFile(exportFileName(exported.name))
-      if (!file) {
-        return { ok: true, value: null }
+      // Every document is built before anything is asked or written, so a collection that cannot
+      // be exported fails the whole export instead of leaving half of it on disk.
+      const exports: Exported[] = []
+      for (const path of new Set(paths as string[])) {
+        exports.push(
+          readExport(
+            await core.request('export.collection', { root: current.root, path, format: 'postman' })
+          )
+        )
       }
-      writeFileSyncAtomic(file, exported.content)
-      return { ok: true, value: exportReport(file, exported) }
+
+      let files: string[]
+      if (exports.length === 1) {
+        const file = await chooseExportFile(exportFileName(exports[0].name))
+        if (!file) {
+          return { ok: true, value: null }
+        }
+        files = [file]
+      } else {
+        const folder = await chooseExportFolder()
+        if (!folder) {
+          return { ok: true, value: null }
+        }
+        files = uniqueFileNames(
+          exports.map((exported) => exported.name),
+          (name) => existsSync(join(folder, name))
+        ).map((name) => join(folder, name))
+      }
+
+      exports.forEach((exported, index) => writeFileSyncAtomic(files[index], exported.content))
+      return {
+        ok: true,
+        value: exportReport(exports.map((exported, index) => ({ exported, file: files[index] })))
+      }
     } catch (cause) {
       return failure(
         cause instanceof CoreRpcError ? cause.code : null,

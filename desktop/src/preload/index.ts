@@ -69,12 +69,12 @@ const api = {
   },
 
   /**
-   * Exports a collection as a Postman v2.1 file. `path` is the collection relative to the open
-   * folder; the shell shows the save dialog and writes the file, so the document never comes
-   * back here. Resolves with `value: null` when the dialog is dismissed.
+   * Exports collections as Postman v2.1 files, one each. `paths` are collections relative to the
+   * open folder; the shell asks where they go and writes them, so the documents never come back
+   * here. Resolves with `value: null` when the dialog is dismissed.
    */
-  exportCollection(path: string): Promise<CoreResult<ExportReport | null>> {
-    return ipcRenderer.invoke('export:collection', path) as Promise<CoreResult<ExportReport | null>>
+  exportCollections(paths: string[]): Promise<CoreResult<ExportReport | null>> {
+    return ipcRenderer.invoke('export:collections', paths) as Promise<CoreResult<ExportReport | null>>
   },
 
   /**

@@ -109,8 +109,8 @@ the workspace root and returns the credentials it lifted out of the files. Only 
 `import:collection` IPC handler may call it: it picks the file, injects the root, stores the
 secrets and strips their values before the renderer sees the result. `core:request` refuses the
 method for that reason. `export.collection` is the mirror image: it reads a whole collection from
-the root it is given, so only the `export:collection` handler may call it, injecting the root and
-writing the file the save dialog chose. An export never resolves a variable: secrets leave as
+the root it is given, so only the `export:collections` handler may call it, injecting the root and
+writing where the user's dialog chose. An export never resolves a variable: secrets leave as
 `{{name}}` references, and an absolute file path leaves as its file name.
 
 **Notes are untrusted text.** Request and collection `docs` come from shared files and other

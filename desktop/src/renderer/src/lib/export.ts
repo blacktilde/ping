@@ -11,13 +11,13 @@ import type { ExportReport } from '../../../shared/export'
 export type { ExportReport }
 
 /**
- * Asks the shell to export a collection as a Postman v2.1 file.
+ * Asks the shell to export collections as Postman v2.1 files, one per collection.
  *
- * @param path the collection, relative to the open folder
- * @returns the report, or null when the user dismissed the save dialog
+ * @param paths the collections, relative to the open folder
+ * @returns the report, or null when the user dismissed the dialog
  */
-export async function exportCollectionFile(path: string): Promise<ExportReport | null> {
-  const result = await window.ping.exportCollection(path)
+export async function exportCollectionFiles(paths: string[]): Promise<ExportReport | null> {
+  const result = await window.ping.exportCollections(paths)
   if (result.ok) {
     return result.value
   }

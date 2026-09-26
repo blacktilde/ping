@@ -16,8 +16,6 @@
     onSelect: (node: StoreNode) => void
     onCreate: (collectionPath: string) => void
     onRun: (node: StoreNode) => void
-    /** Saves the collection as a Postman v2.1 file. */
-    onExport: (node: StoreNode) => void
     onDelete: (node: StoreNode) => void
     onOpenLocation: (node: StoreNode) => void
     onRename: (node: StoreNode, name: string) => void
@@ -29,6 +27,8 @@
     onNewCollection: (name: string) => void
     onOpenFolder: () => void
     onImport: () => void
+    /** Opens the picker for which collections to export. */
+    onExport: () => void
     onSelectHistory: (entry: HistoryEntry) => void
     onClearHistory: () => void
   }
@@ -42,7 +42,6 @@
     onSelect,
     onCreate,
     onRun,
-    onExport,
     onDelete,
     onOpenLocation,
     onRename,
@@ -53,6 +52,7 @@
     onNewCollection,
     onOpenFolder,
     onImport,
+    onExport,
     onSelectHistory,
     onClearHistory
   }: Props = $props()
@@ -444,6 +444,28 @@
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
+            <button
+              type="button"
+              onclick={onExport}
+              aria-label="Export collections"
+              title="Export collections as Postman files"
+              class="rounded-md p-1.5 text-fg-muted transition hover:bg-line/60 hover:text-fg"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </button>
           {/if}
           <button
             type="button"
@@ -671,7 +693,6 @@
                 <!-- A run is a whole collection: the core runs the folder that has the
                      collection file, so a sub-folder is not one of them. -->
                 {@render action(`Run ${node.name}`, () => onRun(node), 'M6 4l13 8-13 8z')}
-                {@render action(`Export ${node.name} for Postman`, () => onExport(node), 'M12 15V3M7 8l5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4')}
               {/if}
               {#if node.type !== 'request'}
                 {@render action(`Open ${node.name} in the file manager`, () => onOpenLocation(node), 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z')}
