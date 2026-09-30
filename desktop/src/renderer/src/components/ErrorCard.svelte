@@ -12,7 +12,7 @@
     /** Whether the request verifies TLS; the connection check follows it. */
     verifyTls?: boolean
     onRetry: () => void
-    /** Turns TLS verification off for this request and sends it again. */
+    /** Sends the request again once with TLS verification off; the request keeps its own setting. */
     onSkipTls?: () => void
     onOpenNetwork?: () => void
   }
@@ -69,7 +69,7 @@
     },
     'skip-tls': {
       title: 'Send once without verifying the certificate',
-      detail: 'Turns verification off for this request and saves with it; switch it back in its Settings tab.'
+      detail: 'Sends this one request unverified. The request itself is left unchanged.'
     }
   }
 
