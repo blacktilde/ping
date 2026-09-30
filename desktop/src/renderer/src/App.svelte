@@ -1871,7 +1871,9 @@
         </div>
       {/if}
 
-      {#if active.error || bootError}
+      <!-- A failed send is explained in the response pane (ErrorCard); this line is for a
+           failure with a response still on screen, and for the core failing to boot. -->
+      {#if (active.error && active.response) || bootError}
         <p
           data-role="error"
           role="alert"
@@ -1997,6 +1999,14 @@
             events={active.events}
             cap={active.responseCap}
             onResend={(maxBodyBytes) => void resendWithCap(maxBodyBytes)}
+            error={active.error}
+            url={active.draft.url}
+            onRetry={() => void send()}
+            onSkipTls={() => {
+              active.draft.verifyTls = false
+              void send()
+            }}
+            onOpenNetwork={() => (showNetwork = true)}
           />
         {/snippet}
       </SplitPane>

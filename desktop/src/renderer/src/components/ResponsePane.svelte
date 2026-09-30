@@ -4,6 +4,7 @@
   import type { SseEvent } from '../lib/sse'
   import { formatBytes, formatDuration, reasonPhrase, statusTone, versionLabel } from '../lib/format'
   import { DEFAULT_DISPLAY_CAP, parseCookies } from '../lib/response'
+  import ErrorCard from './ErrorCard.svelte'
   import ResponseAssertions from './ResponseAssertions.svelte'
   import ResponseCaptures from './ResponseCaptures.svelte'
   import ResponseBody from './ResponseBody.svelte'
@@ -24,6 +25,13 @@
     cap?: number
     /** Sends the request again with a larger display cap. */
     onResend?: (maxBodyBytes: number) => void
+    /** Why the last send failed; shown in place of a response when there is none. */
+    error?: string
+    /** The request's url as typed, for naming the host in the error. */
+    url?: string
+    onRetry?: () => void
+    onSkipTls?: () => void
+    onOpenNetwork?: () => void
   }
 
   let {
@@ -33,7 +41,12 @@
     verifyTls = true,
     events = [],
     cap = DEFAULT_DISPLAY_CAP,
-    onResend
+    onResend,
+    error = '',
+    url = '',
+    onRetry,
+    onSkipTls,
+    onOpenNetwork
   }: Props = $props()
 
   // The probe belongs to the response it was run for, and survives switching response tabs.
@@ -241,6 +254,8 @@
         />
       {/if}
     </div>
+  {:else if error && !inFlight && onRetry}
+    <ErrorCard message={error} {url} {verifyTls} {onRetry} {onSkipTls} {onOpenNetwork} />
   {:else}
     <div class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-sm text-fg-faint">
       <svg
