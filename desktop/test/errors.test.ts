@@ -67,3 +67,10 @@ test('only variable-free http(s) urls can be probed', () => {
   assert.equal(originOf('ftp://a.test'), null)
   assert.equal(originOf('nonsense'), null)
 })
+
+test('a url that starts with a variable shows no TLS stage unless TLS is what failed', () => {
+  const refused = describeError('Connection refused', '{{baseUrl}}/a')
+  assert.deepEqual(stageRows(refused, '{{baseUrl}}/a').map((row) => row.key), ['dns', 'connect', 'request', 'response'])
+  const tls = describeError('TLS handshake failed: PKIX path building failed', '{{baseUrl}}/a')
+  assert.ok(stageRows(tls, '{{baseUrl}}/a').some((row) => row.key === 'tls'))
+})

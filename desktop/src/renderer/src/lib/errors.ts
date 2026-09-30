@@ -170,7 +170,8 @@ export function stageRows(info: ErrorInfo, url: string, probe: ProbeResult | nul
     : info.stage
   if (!failed) return []
 
-  const https = !/^http:/i.test(url.trim())
+  // A url that starts with a variable has no scheme to read; TLS is shown only when it is known to matter.
+  const https = /^https:/i.test(url.trim()) || failed === 'tls'
   const rows: { key: StageKey; label: string; ms?: number }[] = [
     { key: 'dns', label: 'DNS', ms: probe?.dnsMs },
     { key: 'connect', label: 'Connect', ms: probe?.connectMs },
