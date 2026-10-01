@@ -16,6 +16,7 @@ import type { SseEvent, SseParser } from './sse'
 import { newDraft } from './request'
 import { draftKey } from './store'
 import { DEFAULT_DISPLAY_CAP } from './response'
+import { moveItem } from './reorder'
 
 const STORAGE_KEY = 'ping.tabs'
 
@@ -130,6 +131,23 @@ export function activateTab(id: string): void {
     tabs.activeId = id
     persist()
   }
+}
+
+/**
+ * Drags a tab to a new place in the strip: it lands before the tab at `before` (an index into the
+ * current list; the list's length means the end). Focus does not change.
+ */
+export function moveTab(id: string, before: number): void {
+  const from = tabs.list.findIndex((tab) => tab.id === id)
+  if (from === -1) {
+    return
+  }
+  const next = moveItem(tabs.list, from, before)
+  if (next.every((tab, i) => tab === tabs.list[i])) {
+    return
+  }
+  tabs.list = next
+  persist()
 }
 
 /**

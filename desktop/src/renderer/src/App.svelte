@@ -35,6 +35,7 @@
     bindTab,
     closeTabs,
     closeTabsUnder,
+    moveTab,
     ensureTab,
     insertTabAfter,
     newTab,
@@ -1380,6 +1381,7 @@
         onDuplicate={(id) => void duplicateRequestTab(id)}
         onCopyCurl={copyTabAsCurl}
         onReveal={(id) => void revealTab(id)}
+        onReorder={moveTab}
       >
         {#snippet leading()}
           <button
