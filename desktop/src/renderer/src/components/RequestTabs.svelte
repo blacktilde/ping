@@ -215,7 +215,7 @@
   arrives here and the layout below it never moves. Only the tabs scroll; the wrapper carries
   the rule and the edges, so a long list of tabs never pushes the environment picker out of reach.
 -->
-<header class="flex items-stretch border-b border-line">
+<header class="tab-strip flex items-stretch border-b border-line">
   {#if leading}
     <div class="flex shrink-0 items-center pl-2">{@render leading()}</div>
   {/if}
