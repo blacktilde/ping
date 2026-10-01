@@ -1365,7 +1365,7 @@
 
 <div class="relative flex h-full flex-col">
   {#snippet mainContent()}
-    <main class="flex min-w-0 flex-1 flex-col gap-3 p-5">
+    <main class="main-area flex min-w-0 flex-1 flex-col gap-3 p-5">
     <!--
       Edge to edge and flush with the top: the strip's rule separates it from the page, so it
       ignores the gutter, and it carries the app's own controls instead of a title row above it.

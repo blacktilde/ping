@@ -258,7 +258,7 @@
     ),
     linear-gradient(
       to bottom,
-      rgb(209 220 198 / 0) 0%,
+      rgb(246 248 244 / 0.32) 0%,
       rgb(209 220 198 / 0) 20%,
       rgb(209 220 198 / 0.6) 31%,
       #d1dcc6 40%
@@ -270,9 +270,30 @@
   background-attachment: fixed;
 }
 
-/* The tab strip sits straight on the sky, where the faint foreground shades are unreadable. */
+/* The tab strip sits straight on the sky, where the faint foreground shades are unreadable. Its
+   backing is solid behind the text and fades out toward its lower edge, so it melts into the sky
+   instead of ending on a hard line. */
 :root[data-theme='daydream'] .tab-strip {
-  background-color: rgb(255 255 255 / 0.86);
+  background-image: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0.9) 0%,
+    rgb(255 255 255 / 0.84) 55%,
+    rgb(255 255 255 / 0) 100%
+  );
+  background-origin: border-box;
+  border-bottom-color: transparent;
+}
+
+/* The sidebar is opaque, so its edge is feathered into the sky from the main area's side: the
+   divider takes the panel tint and the main area fades it out. (A glow on the sidebar itself would
+   be clipped by the grid cell that holds it.) */
+:root[data-theme='daydream'] [role='separator'][aria-orientation='vertical'] {
+  background-color: rgb(246 248 244 / 0.5);
+}
+
+:root[data-theme='daydream'] .main-area {
+  background-image: linear-gradient(to right, rgb(246 248 244 / 0.5), rgb(246 248 244 / 0) 36px);
+  background-repeat: no-repeat;
 }
 
 /* A purple-dark theme borrowed from the ping.dkgg.de site palette. */
