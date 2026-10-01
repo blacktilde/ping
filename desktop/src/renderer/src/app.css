@@ -177,8 +177,8 @@
  * picture is a smooth gradient and those would band it.
  */
 :root[data-theme='milkyway'] {
-  --color-base: rgb(6 10 20 / 0.5);
-  --color-panel: rgb(6 10 20 / 0.76);
+  --color-base: rgb(6 10 20 / 0.4);
+  --color-panel: rgb(6 10 20 / 0.66);
   --color-line: rgb(255 255 255 / 0.11);
   --color-accent: #7fb6ff;
   --color-fg: #eef2f8;
@@ -192,11 +192,11 @@
   background-image:
     linear-gradient(
       to bottom,
-      rgb(3 6 14 / 0.1) 0%,
-      rgb(3 6 14 / 0.22) 30%,
-      rgb(3 6 14 / 0.58) 52%,
-      rgb(3 6 14 / 0.86) 72%,
-      #030610 92%
+      rgb(3 6 14 / 0) 0%,
+      rgb(3 6 14 / 0.05) 35%,
+      rgb(3 6 14 / 0.25) 58%,
+      rgb(3 6 14 / 0.6) 80%,
+      rgb(3 6 14 / 0.85) 100%
     ),
     url('./assets/milkyway.webp');
   background-repeat: no-repeat, no-repeat;
