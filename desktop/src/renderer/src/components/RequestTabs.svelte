@@ -17,6 +17,8 @@
     onCopyCurl: (id: string) => void
     /** Shows a saved tab's file in the collections tree. */
     onReveal: (id: string) => void
+    /** Drops a dragged tab before the tab at this index (the list's length means the end). */
+    onReorder: (id: string, before: number) => void
     /** Rendered before the tabs, pinned to the left edge. */
     leading?: Snippet
     /** Rendered after the tabs, pinned to the right edge and never scrolled with them. */
@@ -33,6 +35,7 @@
     onDuplicate,
     onCopyCurl,
     onReveal,
+    onReorder,
     leading,
     trailing
   }: Props = $props()
@@ -83,6 +86,43 @@
       })
     }
   })
+
+  // Drag to reorder: the tab in hand, and the gap it would land in (an index into `tabs`).
+  let dragId = $state<string | null>(null)
+  let dropAt = $state<number | null>(null)
+
+  function onDragStart(event: DragEvent, tab: RequestTab): void {
+    dragId = tab.id
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', tab.draft.name)
+    }
+  }
+
+  function onDragOver(event: DragEvent, index: number): void {
+    if (dragId === null) {
+      return
+    }
+    event.preventDefault()
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move'
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    dropAt = event.clientX < rect.left + rect.width / 2 ? index : index + 1
+  }
+
+  function onDrop(event: DragEvent): void {
+    event.preventDefault()
+    if (dragId !== null && dropAt !== null) {
+      onReorder(dragId, dropAt)
+    }
+    endDrag()
+  }
+
+  function endDrag(): void {
+    dragId = null
+    dropAt = null
+  }
 
   // The tab a context menu was opened on, and where to draw it.
   let menu = $state<{ id: string; x: number; y: number } | null>(null)
@@ -188,10 +228,29 @@
       {@const active = tab.id === activeId}
       <div
         role="presentation"
+        draggable={renaming !== tab.id}
+        ondragstart={(event) => onDragStart(event, tab)}
+        ondragover={(event) => onDragOver(event, index)}
+        ondrop={onDrop}
+        ondragend={endDrag}
         oncontextmenu={(event) => openMenu(event, tab)}
-        class="group flex shrink-0 items-center border-b-2 transition-colors
-               {active ? 'border-accent' : 'border-transparent hover:border-line'}"
+        data-role="request-tab-slot"
+        class="group relative flex shrink-0 items-center border-b-2 transition-colors
+               {active ? 'border-accent' : 'border-transparent hover:border-line'}
+               {dragId === tab.id ? 'opacity-40' : ''}"
       >
+        {#if dragId !== null && dropAt === index}
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute -left-1 inset-y-2 w-0.5 rounded-full bg-accent"
+          ></span>
+        {/if}
+        {#if dragId !== null && dropAt === tabs.length && index === tabs.length - 1}
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute -right-1 inset-y-2 w-0.5 rounded-full bg-accent"
+          ></span>
+        {/if}
         {#if renaming === tab.id}
           <span class="flex items-center gap-1.5 py-3 pl-3 text-sm">
             <span class="font-mono text-[10px] uppercase {methodTone(tab.draft.method)}">{tab.draft.method}</span>
