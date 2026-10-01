@@ -1,10 +1,10 @@
 /** Theme choice: follow the system, or force a concrete theme. Persisted in the renderer only. */
 
-/** The themes that actually paint. The `rocket-*` themes carry a photograph behind the UI. */
-export type ThemeName = 'light' | 'dark' | 'rocket-night' | 'rocket-daylight' | 'violet'
+/** The themes that actually paint. The `rocket-*` and `milkyway` themes carry a photograph behind the UI. */
+export type ThemeName = 'light' | 'dark' | 'rocket-night' | 'rocket-daylight' | 'violet' | 'milkyway'
 export type ThemeChoice = 'system' | ThemeName
 
-const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night', 'rocket-daylight', 'violet']
+const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night', 'rocket-daylight', 'violet', 'milkyway']
 
 /** The palette's theme targets, with the name each shows. */
 export const THEMES: { name: ThemeName; label: string }[] = NAMES.map((name) => ({
@@ -14,12 +14,13 @@ export const THEMES: { name: ThemeName; label: string }[] = NAMES.map((name) => 
     dark: 'Dark',
     'rocket-night': 'Rocket Night',
     'rocket-daylight': 'Rocket Daylight',
-    violet: 'Violet'
+    violet: 'Violet',
+    milkyway: 'Milky Way'
   }[name]
 }))
 
 /** Light follows dark so the original dark-to-light flip still works on the first press. */
-const CYCLE: ThemeName[] = ['dark', 'light', 'rocket-night', 'rocket-daylight', 'violet']
+const CYCLE: ThemeName[] = ['dark', 'light', 'rocket-night', 'rocket-daylight', 'violet', 'milkyway']
 
 export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
   choice: 'system',
@@ -27,7 +28,7 @@ export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
 })
 
 /** Dark surfaces. rocket-daylight carries a photo but is light, so it is not listed. */
-const DARK: ThemeName[] = ['dark', 'rocket-night', 'violet']
+const DARK: ThemeName[] = ['dark', 'rocket-night', 'violet', 'milkyway']
 
 /** Whether the resolved theme wants dark syntax colours. Ask this, never compare against 'dark'. */
 export function isDark(): boolean {

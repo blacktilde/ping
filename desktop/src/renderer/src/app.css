@@ -170,6 +170,42 @@
   background-attachment: fixed;
 }
 
+/*
+ * A dark theme wearing a night-sky photograph: the Milky Way arching over a still lake. The
+ * photo's lower half is already dark water, so the scrim stays gentle at the top, where the arch
+ * should show, and closes to near-black below it for legibility. No dither or scanlines: the
+ * picture is a smooth gradient and those would band it.
+ */
+:root[data-theme='milkyway'] {
+  --color-base: rgb(6 10 20 / 0.5);
+  --color-panel: rgb(6 10 20 / 0.76);
+  --color-line: rgb(255 255 255 / 0.11);
+  --color-accent: #7fb6ff;
+  --color-fg: #eef2f8;
+  --color-fg-muted: #b4bfd0;
+  --color-fg-faint: #7f8aa0;
+}
+
+:root[data-theme='milkyway'] body {
+  /* Sits under the photo, so a slow decode never flashes white. */
+  background-color: #030610;
+  background-image:
+    linear-gradient(
+      to bottom,
+      rgb(3 6 14 / 0.1) 0%,
+      rgb(3 6 14 / 0.22) 30%,
+      rgb(3 6 14 / 0.58) 52%,
+      rgb(3 6 14 / 0.86) 72%,
+      #030610 92%
+    ),
+    url('./assets/milkyway.webp');
+  background-repeat: no-repeat, no-repeat;
+  background-size: auto, cover;
+  /* The arch sits in the top half; anchoring there keeps it clear of the request editor. */
+  background-position: center, center top;
+  background-attachment: fixed;
+}
+
 /* A purple-dark theme borrowed from the ping.dkgg.de site palette. */
 :root[data-theme='violet'] {
   --color-base: #1d1b2c;
