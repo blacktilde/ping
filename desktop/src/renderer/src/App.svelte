@@ -1100,7 +1100,7 @@
    * `maxBodyBytes` overrides the draft's display cap for this one send, without editing the
    * request: the truncation banner uses it to fetch a body that did not fit.
    */
-  async function send(override: { maxBodyBytes?: number } = {}): Promise<void> {
+  async function send(override: { maxBodyBytes?: number; verifyTls?: boolean } = {}): Promise<void> {
     // Capture the tab: the user can switch tabs while this exchange is in flight, and the
     // response belongs to the tab that sent it, not whichever is on screen when it lands.
     const tab = active
@@ -1134,6 +1134,8 @@
       await variablesReady()
       const spec = toRequestSpec(tab.draft, requestId)
       if (override.maxBodyBytes != null) spec.maxBodyBytes = override.maxBodyBytes
+      // A one-off choice from the error card: it rides this send only and never reaches the draft.
+      if (override.verifyTls != null) spec.verifyTls = override.verifyTls
       // Recorded now and applied when the response lands: the previous response stays on
       // screen meanwhile, and its banner must keep describing the cap it was read under.
       capByRequest.set(requestId, spec.maxBodyBytes && spec.maxBodyBytes > 0 ? spec.maxBodyBytes : DEFAULT_DISPLAY_CAP)
@@ -1871,7 +1873,9 @@
         </div>
       {/if}
 
-      {#if active.error || bootError}
+      <!-- A failed send is explained in the response pane (ErrorCard); this line is for a
+           failure with a response still on screen, and for the core failing to boot. -->
+      {#if (active.error && active.response) || bootError}
         <p
           data-role="error"
           role="alert"
@@ -1997,6 +2001,11 @@
             events={active.events}
             cap={active.responseCap}
             onResend={(maxBodyBytes) => void resendWithCap(maxBodyBytes)}
+            error={active.error}
+            url={active.draft.url}
+            onRetry={() => void send()}
+            onSkipTls={() => void send({ verifyTls: false })}
+            onOpenNetwork={() => (showNetwork = true)}
           />
         {/snippet}
       </SplitPane>
