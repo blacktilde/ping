@@ -89,9 +89,12 @@
 }
 
 :root[data-theme='rocket-night'] body {
+  /* Ordered (Bayer 4x4) dither over the photo, drawn as the topmost layer. */
+  --dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' fill='black' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='1' height='1' fill-opacity='0.000'/%3E%3Crect x='1' y='0' width='1' height='1' fill-opacity='0.181'/%3E%3Crect x='2' y='0' width='1' height='1' fill-opacity='0.045'/%3E%3Crect x='3' y='0' width='1' height='1' fill-opacity='0.227'/%3E%3Crect x='0' y='1' width='1' height='1' fill-opacity='0.272'/%3E%3Crect x='1' y='1' width='1' height='1' fill-opacity='0.091'/%3E%3Crect x='2' y='1' width='1' height='1' fill-opacity='0.317'/%3E%3Crect x='3' y='1' width='1' height='1' fill-opacity='0.136'/%3E%3Crect x='0' y='2' width='1' height='1' fill-opacity='0.068'/%3E%3Crect x='1' y='2' width='1' height='1' fill-opacity='0.249'/%3E%3Crect x='2' y='2' width='1' height='1' fill-opacity='0.023'/%3E%3Crect x='3' y='2' width='1' height='1' fill-opacity='0.204'/%3E%3Crect x='0' y='3' width='1' height='1' fill-opacity='0.340'/%3E%3Crect x='1' y='3' width='1' height='1' fill-opacity='0.159'/%3E%3Crect x='2' y='3' width='1' height='1' fill-opacity='0.295'/%3E%3Crect x='3' y='3' width='1' height='1' fill-opacity='0.113'/%3E%3C/svg%3E");
   /* Sits under the photo, so a slow decode never flashes white. */
   background-color: #03050a;
   background-image:
+    var(--dither),
     repeating-linear-gradient(
       to bottom,
       rgb(0 0 0 / 0.26) 0,
@@ -108,10 +111,10 @@
       #03050a 88%
     ),
     url('./assets/rocket-night.webp');
-  background-repeat: repeat, no-repeat, no-repeat;
-  background-size: auto, auto, cover;
+  background-repeat: repeat, repeat, no-repeat, no-repeat;
+  background-size: 8px 8px, auto, auto, cover;
   /* The rocket is a tall column; 22% lifts it clear of the request editor. */
-  background-position: center, center, center 22%;
+  background-position: 0 0, center, center, center 22%;
   background-attachment: fixed;
 }
 
@@ -140,8 +143,11 @@
 }
 
 :root[data-theme='rocket-daylight'] body {
+  /* Ordered (Bayer 4x4) dither over the photo, drawn as the topmost layer. */
+  --dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' fill='%2316202e' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='1' height='1' fill-opacity='0.000'/%3E%3Crect x='1' y='0' width='1' height='1' fill-opacity='0.085'/%3E%3Crect x='2' y='0' width='1' height='1' fill-opacity='0.021'/%3E%3Crect x='3' y='0' width='1' height='1' fill-opacity='0.107'/%3E%3Crect x='0' y='1' width='1' height='1' fill-opacity='0.128'/%3E%3Crect x='1' y='1' width='1' height='1' fill-opacity='0.043'/%3E%3Crect x='2' y='1' width='1' height='1' fill-opacity='0.149'/%3E%3Crect x='3' y='1' width='1' height='1' fill-opacity='0.064'/%3E%3Crect x='0' y='2' width='1' height='1' fill-opacity='0.032'/%3E%3Crect x='1' y='2' width='1' height='1' fill-opacity='0.117'/%3E%3Crect x='2' y='2' width='1' height='1' fill-opacity='0.011'/%3E%3Crect x='3' y='2' width='1' height='1' fill-opacity='0.096'/%3E%3Crect x='0' y='3' width='1' height='1' fill-opacity='0.160'/%3E%3Crect x='1' y='3' width='1' height='1' fill-opacity='0.075'/%3E%3Crect x='2' y='3' width='1' height='1' fill-opacity='0.139'/%3E%3Crect x='3' y='3' width='1' height='1' fill-opacity='0.053'/%3E%3C/svg%3E");
   background-color: #f5f7fa;
   background-image:
+    var(--dither),
     repeating-linear-gradient(
       to bottom,
       rgb(0 0 0 / 0.07) 0,
@@ -158,9 +164,9 @@
       #f5f7fa 94%
     ),
     url('./assets/rocket-daylight.webp');
-  background-repeat: repeat, no-repeat, no-repeat;
-  background-size: auto, auto, cover;
-  background-position: center, center, center 22%;
+  background-repeat: repeat, repeat, no-repeat, no-repeat;
+  background-size: 8px 8px, auto, auto, cover;
+  background-position: 0 0, center, center, center 22%;
   background-attachment: fixed;
 }
 
