@@ -842,6 +842,9 @@ logger.maskValues(() => [
 ])
 
 app.whenReady().then(async () => {
+  // Electron puts `logs` in ~/Library/Logs on macOS but inside userData elsewhere. The log's home is
+  // userData/logs on every OS (the smoke run's isolated profile relies on it), so say so.
+  app.setAppLogsPath(join(app.getPath('userData'), 'logs'))
   logger.attach(app.getPath('logs'))
   // The first line of every session, so a pasted log says which build it came from.
   log(
