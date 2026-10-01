@@ -22,7 +22,7 @@ const root = new URL('..', import.meta.url)
 
 // The screenshot driver can be told which theme to paint and which shots to take, so callers
 // (like the website's update-screenshots.sh) can regenerate a single shot per theme.
-const THEMES = ['light', 'dark', 'rocket-night', 'rocket-daylight', 'violet', 'milkyway']
+const THEMES = ['light', 'dark', 'rocket-night', 'rocket-daylight', 'violet', 'stargazer']
 const THEME = THEMES.includes(process.env.PING_SHOT_THEME) ? process.env.PING_SHOT_THEME : 'dark'
 if (process.env.PING_SHOT_THEME && process.env.PING_SHOT_THEME !== THEME) {
   console.error(`[shots] unknown PING_SHOT_THEME ${process.env.PING_SHOT_THEME}; using ${THEME}`)

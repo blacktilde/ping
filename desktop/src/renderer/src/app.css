@@ -176,7 +176,7 @@
  * should show, and closes to near-black below it for legibility. Same four layers as rocket-night:
  * dither, scanlines, scrim, photo.
  */
-:root[data-theme='milkyway'] {
+:root[data-theme='stargazer'] {
   --color-base: rgb(6 10 20 / 0.4);
   --color-panel: rgb(6 10 20 / 0.66);
   --color-line: rgb(255 255 255 / 0.11);
@@ -186,7 +186,7 @@
   --color-fg-faint: #7f8aa0;
 }
 
-:root[data-theme='milkyway'] body {
+:root[data-theme='stargazer'] body {
   /* Ordered (Bayer 4x4) dither over the photo, drawn as the topmost layer. */
   --dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' fill='black' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='1' height='1' fill-opacity='0.000'/%3E%3Crect x='1' y='0' width='1' height='1' fill-opacity='0.181'/%3E%3Crect x='2' y='0' width='1' height='1' fill-opacity='0.045'/%3E%3Crect x='3' y='0' width='1' height='1' fill-opacity='0.227'/%3E%3Crect x='0' y='1' width='1' height='1' fill-opacity='0.272'/%3E%3Crect x='1' y='1' width='1' height='1' fill-opacity='0.091'/%3E%3Crect x='2' y='1' width='1' height='1' fill-opacity='0.317'/%3E%3Crect x='3' y='1' width='1' height='1' fill-opacity='0.136'/%3E%3Crect x='0' y='2' width='1' height='1' fill-opacity='0.068'/%3E%3Crect x='1' y='2' width='1' height='1' fill-opacity='0.249'/%3E%3Crect x='2' y='2' width='1' height='1' fill-opacity='0.023'/%3E%3Crect x='3' y='2' width='1' height='1' fill-opacity='0.204'/%3E%3Crect x='0' y='3' width='1' height='1' fill-opacity='0.340'/%3E%3Crect x='1' y='3' width='1' height='1' fill-opacity='0.159'/%3E%3Crect x='2' y='3' width='1' height='1' fill-opacity='0.295'/%3E%3Crect x='3' y='3' width='1' height='1' fill-opacity='0.113'/%3E%3C/svg%3E");
   /* Sits under the photo, so a slow decode never flashes white. */
@@ -208,7 +208,7 @@
       rgb(3 6 14 / 0.6) 80%,
       rgb(3 6 14 / 0.85) 100%
     ),
-    url('./assets/milkyway.webp');
+    url('./assets/stargazer.webp');
   background-repeat: repeat, repeat, no-repeat, no-repeat;
   background-size: 8px 8px, auto, auto, cover;
   /* The arch sits in the top half; anchoring there keeps it clear of the request editor. */
