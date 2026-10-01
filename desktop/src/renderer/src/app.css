@@ -216,6 +216,60 @@
   background-attachment: fixed;
 }
 
+/*
+ * A light theme wearing a pastel cloudscape. The picture is a short strip of sky, so it is sized
+ * to the window's width and pinned to the top rather than covered, and the scrim melts its lower
+ * edge into the pale green the page rests on. The halftone is part of the photo, so the dither
+ * on top is kept faint to avoid a moire. A light theme, so isDark() reports false for it.
+ */
+:root[data-theme='daydream'] {
+  --color-base: rgb(255 255 255 / 0.55);
+  --color-panel: rgb(255 255 255 / 0.74);
+  --color-line: rgb(15 23 42 / 0.12);
+  --color-accent: #4f6bd8;
+  --color-fg: #1d2433;
+  --color-fg-muted: #4a566b;
+  --color-fg-faint: #76849a;
+  --color-danger: #dc2626;
+  --color-danger-soft: rgb(254 226 226 / 0.8);
+  --color-warning: #b45309;
+  --color-warning-soft: rgb(254 243 199 / 0.8);
+  --color-success: #059669;
+  --color-verb-get: #047857;
+  --color-verb-post: #0369a1;
+  --color-verb-put: #b45309;
+  --color-verb-patch: #6d28d9;
+  --color-verb-delete: #be123c;
+}
+
+:root[data-theme='daydream'] body {
+  /* Ordered (Bayer 4x4) dither over the photo, drawn as the topmost layer. */
+  --dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' fill='%2316202e' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='1' height='1' fill-opacity='0.000'/%3E%3Crect x='1' y='0' width='1' height='1' fill-opacity='0.085'/%3E%3Crect x='2' y='0' width='1' height='1' fill-opacity='0.021'/%3E%3Crect x='3' y='0' width='1' height='1' fill-opacity='0.107'/%3E%3Crect x='0' y='1' width='1' height='1' fill-opacity='0.128'/%3E%3Crect x='1' y='1' width='1' height='1' fill-opacity='0.043'/%3E%3Crect x='2' y='1' width='1' height='1' fill-opacity='0.149'/%3E%3Crect x='3' y='1' width='1' height='1' fill-opacity='0.064'/%3E%3Crect x='0' y='2' width='1' height='1' fill-opacity='0.032'/%3E%3Crect x='1' y='2' width='1' height='1' fill-opacity='0.117'/%3E%3Crect x='2' y='2' width='1' height='1' fill-opacity='0.011'/%3E%3Crect x='3' y='2' width='1' height='1' fill-opacity='0.096'/%3E%3Crect x='0' y='3' width='1' height='1' fill-opacity='0.160'/%3E%3Crect x='1' y='3' width='1' height='1' fill-opacity='0.075'/%3E%3Crect x='2' y='3' width='1' height='1' fill-opacity='0.139'/%3E%3Crect x='3' y='3' width='1' height='1' fill-opacity='0.053'/%3E%3C/svg%3E");
+  /* The haze the sky fades into, and what shows under a slow decode. */
+  background-color: #d1dcc6;
+  background-image:
+    var(--dither),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.04) 0,
+      rgb(0 0 0 / 0.04) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(209 220 198 / 0) 0%,
+      rgb(209 220 198 / 0) 20%,
+      rgb(209 220 198 / 0.6) 31%,
+      #d1dcc6 40%
+    ),
+    url('./assets/daydream.webp');
+  background-repeat: repeat, repeat, no-repeat, no-repeat;
+  background-size: 8px 8px, auto, auto, 100% auto;
+  background-position: 0 0, center, center, center top;
+  background-attachment: fixed;
+}
+
 /* A purple-dark theme borrowed from the ping.dkgg.de site palette. */
 :root[data-theme='violet'] {
   --color-base: #1d1b2c;
