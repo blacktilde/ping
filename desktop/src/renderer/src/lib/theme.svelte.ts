@@ -1,10 +1,31 @@
 /** Theme choice: follow the system, or force a concrete theme. Persisted in the renderer only. */
 
 /** The themes that actually paint. The `rocket-*` themes carry a photograph behind the UI. */
-export type ThemeName = 'light' | 'dark' | 'rocket-night' | 'rocket-daylight' | 'violet'
+export type ThemeName =
+  | 'light'
+  | 'dark'
+  | 'rocket-night'
+  | 'rocket-daylight'
+  | 'violet'
+  | 'nord'
+  | 'dracula'
+  | 'gruvbox'
+  | 'solarized'
+  | 'rose-dawn'
 export type ThemeChoice = 'system' | ThemeName
 
-const NAMES: ThemeName[] = ['light', 'dark', 'rocket-night', 'rocket-daylight', 'violet']
+const NAMES: ThemeName[] = [
+  'light',
+  'dark',
+  'rocket-night',
+  'rocket-daylight',
+  'violet',
+  'nord',
+  'dracula',
+  'gruvbox',
+  'solarized',
+  'rose-dawn'
+]
 
 /** The palette's theme targets, with the name each shows. */
 export const THEMES: { name: ThemeName; label: string }[] = NAMES.map((name) => ({
@@ -14,12 +35,28 @@ export const THEMES: { name: ThemeName; label: string }[] = NAMES.map((name) => 
     dark: 'Dark',
     'rocket-night': 'Rocket Night',
     'rocket-daylight': 'Rocket Daylight',
-    violet: 'Violet'
+    violet: 'Violet',
+    nord: 'Nord',
+    dracula: 'Dracula',
+    gruvbox: 'Gruvbox',
+    solarized: 'Solarized Light',
+    'rose-dawn': 'Rosé Dawn'
   }[name]
 }))
 
 /** Light follows dark so the original dark-to-light flip still works on the first press. */
-const CYCLE: ThemeName[] = ['dark', 'light', 'rocket-night', 'rocket-daylight', 'violet']
+const CYCLE: ThemeName[] = [
+  'dark',
+  'light',
+  'rocket-night',
+  'rocket-daylight',
+  'violet',
+  'nord',
+  'dracula',
+  'gruvbox',
+  'solarized',
+  'rose-dawn'
+]
 
 export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
   choice: 'system',
@@ -27,7 +64,7 @@ export const theme = $state<{ choice: ThemeChoice; resolved: ThemeName }>({
 })
 
 /** Dark surfaces. rocket-daylight carries a photo but is light, so it is not listed. */
-const DARK: ThemeName[] = ['dark', 'rocket-night', 'violet']
+const DARK: ThemeName[] = ['dark', 'rocket-night', 'violet', 'nord', 'dracula', 'gruvbox']
 
 /** Whether the resolved theme wants dark syntax colours. Ask this, never compare against 'dark'. */
 export function isDark(): boolean {
