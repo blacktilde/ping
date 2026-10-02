@@ -1088,7 +1088,7 @@ try {
   // Walk the cycle until it returns. Distinct stops prove none is skipped or repeated; the
   // cap keeps a broken cycle from spinning forever.
   const ring = [initialTheme, await evaluate(`document.documentElement.dataset.theme`)]
-  const MAX_THEMES = 8
+  const MAX_THEMES = 14
   while (ring[ring.length - 1] !== initialTheme && ring.length <= MAX_THEMES) {
     await evaluate(pressCtrlK)
     await wait(200)

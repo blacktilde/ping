@@ -182,6 +182,111 @@
   --color-danger: #ff7a8a;
 }
 
+/* Nord: arctic blue-greys with a frost accent. */
+:root[data-theme='nord'] {
+  --color-base: #2e3440;
+  --color-panel: #3b4252;
+  --color-line: #4c566a;
+  --color-accent: #88c0d0;
+  --color-fg: #eceff4;
+  --color-fg-muted: #b8c2d4;
+  --color-fg-faint: #7b88a1;
+  --color-danger: #bf616a;
+  --color-danger-soft: rgb(191 97 106 / 0.25);
+  --color-warning: #ebcb8b;
+  --color-warning-soft: rgb(235 203 139 / 0.18);
+  --color-success: #a3be8c;
+  --color-verb-get: #a3be8c;
+  --color-verb-post: #81a1c1;
+  --color-verb-put: #ebcb8b;
+  --color-verb-patch: #b48ead;
+  --color-verb-delete: #d08770;
+}
+
+/* Dracula: the familiar deep purple-grey with a pink accent. */
+:root[data-theme='dracula'] {
+  --color-base: #21222c;
+  --color-panel: #282a36;
+  --color-line: #44475a;
+  --color-accent: #ff79c6;
+  --color-fg: #f8f8f2;
+  --color-fg-muted: #bdc0d4;
+  --color-fg-faint: #6272a4;
+  --color-danger: #ff5555;
+  --color-danger-soft: rgb(255 85 85 / 0.22);
+  --color-warning: #f1fa8c;
+  --color-warning-soft: rgb(241 250 140 / 0.14);
+  --color-success: #50fa7b;
+  --color-verb-get: #50fa7b;
+  --color-verb-post: #8be9fd;
+  --color-verb-put: #ffb86c;
+  --color-verb-patch: #bd93f9;
+  --color-verb-delete: #ff5555;
+}
+
+/* Gruvbox dark: warm, low-glare browns with an amber accent. */
+:root[data-theme='gruvbox'] {
+  --color-base: #1d2021;
+  --color-panel: #282828;
+  --color-line: #3c3836;
+  --color-accent: #fabd2f;
+  --color-fg: #ebdbb2;
+  --color-fg-muted: #bdae93;
+  --color-fg-faint: #928374;
+  --color-danger: #fb4934;
+  --color-danger-soft: rgb(251 73 52 / 0.22);
+  --color-warning: #fe8019;
+  --color-warning-soft: rgb(254 128 25 / 0.16);
+  --color-success: #b8bb26;
+  --color-verb-get: #b8bb26;
+  --color-verb-post: #83a598;
+  --color-verb-put: #fabd2f;
+  --color-verb-patch: #d3869b;
+  --color-verb-delete: #fb4934;
+}
+
+/* Solarized light: the cream paper palette with its blue accent. */
+:root[data-theme='solarized'] {
+  --color-base: #eee8d5;
+  --color-panel: #fdf6e3;
+  --color-line: #d8d0b8;
+  --color-accent: #268bd2;
+  --color-fg: #073642;
+  --color-fg-muted: #586e75;
+  --color-fg-faint: #8a9a9a;
+  --color-danger: #dc322f;
+  --color-danger-soft: rgb(220 50 47 / 0.14);
+  --color-warning: #b58900;
+  --color-warning-soft: rgb(181 137 0 / 0.16);
+  --color-success: #738a05;
+  --color-verb-get: #5f7300;
+  --color-verb-post: #1f77b4;
+  --color-verb-put: #946c00;
+  --color-verb-patch: #6c71c4;
+  --color-verb-delete: #c42b28;
+}
+
+/* Rosé Dawn: a soft, warm light theme with a rose accent. */
+:root[data-theme='rose-dawn'] {
+  --color-base: #f2e9e1;
+  --color-panel: #faf4ed;
+  --color-line: #dfd3c8;
+  --color-accent: #b4637a;
+  --color-fg: #575279;
+  --color-fg-muted: #6e6a86;
+  --color-fg-faint: #9893a5;
+  --color-danger: #b4637a;
+  --color-danger-soft: rgb(180 99 122 / 0.15);
+  --color-warning: #a9690f;
+  --color-warning-soft: rgb(234 157 52 / 0.2);
+  --color-success: #3f7f77;
+  --color-verb-get: #3f7f77;
+  --color-verb-post: #286983;
+  --color-verb-put: #a9690f;
+  --color-verb-patch: #7a5ea8;
+  --color-verb-delete: #b4637a;
+}
+
 :root[data-theme='light'] {
   --color-base: #f3f4f6;
   --color-panel: #ffffff;
