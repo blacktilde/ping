@@ -2,6 +2,7 @@
   import { completeVariables } from '../lib/completion.svelte'
   import type { RequestBody } from '../lib/http'
   import { BODY_MODES } from '../lib/request'
+  import { prettyJson } from '../lib/response'
   import CodeEditor from './CodeEditor.svelte'
   import FileField from './FileField.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
@@ -14,6 +15,25 @@
   }
 
   let { body, collection }: Props = $props()
+
+  let beautifyError = $state('')
+
+  function beautify(): void {
+    const formatted = prettyJson(body.content)
+    if (formatted === null) {
+      beautifyError = 'Not valid JSON, so it was left as is.'
+      return
+    }
+    beautifyError = ''
+    body.content = formatted
+  }
+
+  // A message about one body must not outlive an edit or a mode switch.
+  $effect(() => {
+    void body.content
+    void body.type
+    beautifyError = ''
+  })
 </script>
 
 <div class="flex h-full flex-col">
@@ -38,6 +58,23 @@
         class="min-w-0 flex-1 rounded-md border border-line bg-base px-3 py-1.5 font-mono
                text-sm outline-none transition focus:border-accent focus:ring-3 focus:ring-accent/15"
       />
+    {/if}
+
+    {#if body.type === 'json'}
+      <button
+        type="button"
+        onclick={beautify}
+        disabled={!body.content.trim()}
+        title="Re-indent the JSON body"
+        class="ml-auto rounded-md border border-line bg-base px-3 py-1.5 text-sm transition
+               hover:border-accent disabled:cursor-default disabled:opacity-50
+               disabled:hover:border-line"
+      >
+        Beautify
+      </button>
+      {#if beautifyError}
+        <span role="alert" class="text-xs text-fg-faint">{beautifyError}</span>
+      {/if}
     {/if}
   </div>
 
