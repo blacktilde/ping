@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { basename, delimiter, join, resolve, sep } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
 import { writeFileSyncAtomic } from './atomic'
 import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
@@ -19,6 +19,7 @@ import {
   startUpdater,
   updateState
 } from './updater'
+import { readWindowState, restoreBounds, type WindowState } from './window-state'
 import { Workspace } from './workspace'
 import { log, logger } from './log'
 
@@ -34,12 +35,39 @@ let mainWindow: BrowserWindow | null = null
 /** Set when a close has been approved (renderer confirmed, or the updater is restarting). */
 let closeApproved = false
 
+const MIN_WINDOW = { width: 900, height: 600 }
+
+function windowStateFile(): string {
+  return join(app.getPath('userData'), 'window-state.json')
+}
+
+/** Remember where the user left the window; a maximized window keeps its un-maximized size. */
+function saveWindowState(win: BrowserWindow): void {
+  if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) {
+    return
+  }
+  const state: WindowState = { ...win.getNormalBounds(), maximized: win.isMaximized() }
+  try {
+    mkdirSync(app.getPath('userData'), { recursive: true })
+    writeFileSyncAtomic(windowStateFile(), JSON.stringify(state))
+  } catch (error) {
+    // Losing the window size is not worth an error dialog.
+    log('window', `could not save the window state: ${String(error)}`)
+  }
+}
+
 function createWindow(): void {
+  const saved = readWindowState(windowStateFile())
+  const bounds = restoreBounds(
+    saved,
+    { width: 1280, height: 820 },
+    MIN_WINDOW,
+    screen.getAllDisplays().map((display) => display.workArea)
+  )
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 900,
-    minHeight: 600,
+    ...bounds,
+    minWidth: MIN_WINDOW.width,
+    minHeight: MIN_WINDOW.height,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#0b0d10',
@@ -67,6 +95,17 @@ function createWindow(): void {
       log('renderer', `preload ${path} failed: ${error.message}`)
     )
   }
+
+  if (saved?.maximized) {
+    mainWindow.maximize()
+  }
+  let saveTimer: NodeJS.Timeout | undefined
+  const scheduleSave = (): void => {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => mainWindow && saveWindowState(mainWindow), 500)
+  }
+  mainWindow.on('resize', scheduleSave)
+  mainWindow.on('move', scheduleSave)
 
   // Show only once painted, so startup never flashes an empty white frame.
   mainWindow.once('ready-to-show', () => mainWindow?.show())
@@ -97,6 +136,9 @@ function createWindow(): void {
   // Unsaved work lives in the renderer, so closing always asks it first. Already-approved
   // closes pass through without a second prompt.
   mainWindow.on('close', (event) => {
+    if (mainWindow) {
+      saveWindowState(mainWindow)
+    }
     if (closeApproved) {
       closeApproved = false
       return
