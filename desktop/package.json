@@ -34,7 +34,7 @@
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.5",
     "codemirror": "^6.0.2",
-    "electron": "^44.7.2",
+    "electron": "^45.0.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "svelte": "^5.57.2",
