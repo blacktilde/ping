@@ -124,6 +124,16 @@
     dropAt = null
   }
 
+  /** A mouse wheel only turns vertically; over the strip it should scroll the tabs sideways. */
+  function onWheel(event: WheelEvent): void {
+    const strip = event.currentTarget as HTMLElement
+    if (strip.scrollWidth <= strip.clientWidth || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+      return
+    }
+    event.preventDefault()
+    strip.scrollLeft += event.deltaY
+  }
+
   // The tab a context menu was opened on, and where to draw it.
   let menu = $state<{ id: string; x: number; y: number } | null>(null)
 
@@ -212,7 +222,7 @@
 <!--
   A header, not a bare strip: the app's own controls share this row rather than taking one
   above it, so this is where anything that must not shift the page belongs — an update offer
-  arrives here and the layout below it never moves. Only the tabs scroll; the wrapper carries
+  arrives here and the layout below it never moves. Only the tabs scroll — the new-tab button sits outside them so it stays visible however many are open; the wrapper carries
   the rule and the edges, so a long list of tabs never pushes the environment picker out of reach.
 -->
 <header class="flex items-stretch border-b border-line">
@@ -222,6 +232,7 @@
   <div
     role="tablist"
     aria-label="Open requests"
+    onwheel={onWheel}
     class="scroll-quiet flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto px-2"
   >
     {#each tabs as tab, index (tab.id)}
@@ -313,13 +324,14 @@
         </button>
       </div>
     {/each}
-
+  </div>
+  <div class="flex shrink-0 items-center pr-2">
     <button
       type="button"
       onclick={onNew}
       aria-label="New request tab"
       title={`New request tab (${mod}T)`}
-      class="my-auto shrink-0 rounded-md p-1.5 text-fg-faint transition hover:bg-line/60
+      class="rounded-md p-1.5 text-fg-faint transition hover:bg-line/60
              hover:text-fg"
     >
       <svg
