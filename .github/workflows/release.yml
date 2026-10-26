@@ -40,6 +40,7 @@ jobs:
     name: Native core (${{ matrix.os }})
     needs: tag
     runs-on: ${{ fromJSON(matrix.runner) }}
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +84,7 @@ jobs:
     name: Package (${{ matrix.os }})
     needs: [tag, core]
     runs-on: ${{ fromJSON(matrix.runner) }}
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
