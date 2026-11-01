@@ -3,7 +3,7 @@ import groovy.json.JsonSlurper
 plugins {
     java
     application
-    id("org.graalvm.buildtools.native") version "1.1.16"
+    id("org.graalvm.buildtools.native") version "1.1.17"
 }
 
 group = "dev.ping"
