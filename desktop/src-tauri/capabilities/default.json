@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The renderer reaches the shell's own commands and event listening only. No filesystem, shell or dialog plugin API is exposed to it: dialogs are opened by Rust.",
+  "windows": ["main"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

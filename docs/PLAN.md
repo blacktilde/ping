@@ -294,6 +294,53 @@ assertions plus the runner change what the project is for.
   assertions generated as `pm.test` scripts. A lossless single-file Ping bundle is a separate
   format decision, and a folder of YAML already travels well in Git.
 
+- [ ] **30. Tauri shell.** Revisits the Electron decision above for size, memory and startup.
+  The renderer and the core stay; only the shell moves, from TypeScript in `desktop/src/main` to
+  Rust in `desktop/src-tauri`. That is possible without touching the UI because the renderer's
+  whole view of the world is `window.ping`: on Tauri it is `src/tauri/bridge.ts`, the same
+  `PingApi` type over Tauri commands. Both shells live side by side until 30d, so every slice can
+  be compared against the one that ships.
+  - [x] **30a. Spike.** The core process (`core.rs`: line framing, the 60s deadline with
+    `http.cancel`, unbounded sends and runs, backoff restart), `core:request` with the shell's
+    guards (`guard.rs`, unit tested: root injection, refused paths and names, dialog-only
+    methods, the renderer's `network` discarded, `filesBase`/`cookieScope` decided by the shell,
+    no ungranted absolute file, `allowAbsoluteFiles: false` on runs, captured values stripped),
+    workspace restore/choose/seed, runtime values and the cookie jar. Everything else is a stub
+    that returns an empty view or refuses, never one that pretends to store.
+    *Gate, met: under Xvfb the Tauri build seeds the starter collection, renders the full UI, and
+    a send from the URL bar reaches a loopback server and shows its `200` and body.*
+    **Measured** (Linux, Xvfb, no GPU, same JVM core, both shells built for release; PSS of the
+    shell's processes, core excluded, after 8s idle; launch to the Send button painted):
+
+    | | Shell on disk | Memory | Painted |
+    |---|---|---|---|
+    | Electron 44 | 283 MB unpacked | 325 MB, 6 processes | 1.1 s |
+    | Tauri 2, WebKitGTK 2.52 | 8.2 MB + system WebKitGTK | 421–442 MB, 3 processes | 2.2 s |
+    | Tauri 2, `WEBKIT_DISABLE_DMABUF_RENDERER=1` | same | 235 MB | 1.3 s |
+
+    Size is the certain win. Memory and startup depend on WebKitGTK's renderer on Linux, and
+    without a GPU its default (DMA-BUF) path is worse than Electron on both. **Still to measure,
+    before 30d:** the same table on macOS (WKWebView) and Windows (WebView2, itself Chromium, so
+    expect the smallest memory gain there) on real hardware, and whether the DMA-BUF switch
+    belongs in the shell or only on machines without a GPU.
+  - [ ] **30b. The stores.** Secrets in the OS keychain (`keyring`) in place of `safeStorage`,
+    with a one-time migration that reads Electron's `userData` so nobody re-enters a secret;
+    `network.json`, OAuth tokens, history, window state and `log()` with its redaction and
+    `maskValues`, all in the app's config directory. Proxy password and certificate passphrase
+    stay out of the secret list, as now.
+  - [ ] **30c. Dialogs and grants.** File pick (with the session grants that `guard.rs` already
+    takes as a callback), save response, import and export, client certificates, open folder,
+    filesystem watching (`notify`) for `store:changed`, and quit protection on `CloseRequested`.
+    The capability file stays as it is: the renderer gets no plugin API, Rust opens every dialog.
+  - [ ] **30d. Ship it.** Bundle the native core as a resource, `tauri-plugin-updater` against the
+    same public `dbohry/ping` feed (its Ed25519-signed artifacts replace `mac-update.ts` and
+    electron-updater alike), artifact names without spaces, signing from the same secrets, CI
+    jobs for `cargo test` and a Tauri smoke run, then remove `desktop/src/main`, the preload and
+    electron-builder. `make smoke` needs a new driver: WebKitGTK has no CDP, so it moves to
+    `tauri-driver` (WebDriver).
+    *Gate: every `make smoke` scenario passes on the Tauri build, and an update installs on all
+    three OSes.*
+
 ### Not planned
 
 Recorded so they are not re-raised. **A scripting sandbox** — see phase 15; predicates and

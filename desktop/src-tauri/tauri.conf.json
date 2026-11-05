@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Ping",
+  "version": "0.0.6",
+  "identifier": "io.github.dbohry.ping",
+  "build": {
+    "beforeDevCommand": "npm run tauri:renderer:dev",
+    "devUrl": "http://localhost:5174",
+    "beforeBuildCommand": "npm run tauri:renderer:build",
+    "frontendDist": "../out/tauri"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Ping",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src blob:; frame-src blob:"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": ["../build/icon.png"]
+  }
+}

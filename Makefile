@@ -5,7 +5,7 @@
 GRAALVM_HOME ?= $(lastword $(sort $(wildcard $(HOME)/.sdkman/candidates/java/*-graalce)))
 export GRAALVM_HOME
 
-.PHONY: help setup core test dev build check smoke package clean native native-test agent ci-run
+.PHONY: help setup core test dev build check smoke package clean native native-test agent ci-run tauri-dev tauri-build tauri-test
 
 help:
 	@echo "setup  Install desktop dependencies and build the core"
@@ -22,6 +22,10 @@ help:
 	@echo "native-test  Run the same test suite compiled as a native image"
 	@echo "ci-run       Drive the runner CLI against a loopback server (JVM launcher)"
 	@echo "agent        Regenerate native-image reachability metadata (see CLAUDE.md)"
+	@echo ""
+	@echo "tauri-dev    Build the core, then start the Tauri shell (phase 30, beside Electron)"
+	@echo "tauri-build  Release build of the Tauri shell, no installer yet"
+	@echo "tauri-test   Unit-test the Tauri shell's guards"
 
 setup: core
 	cd desktop && npm install
@@ -80,6 +84,16 @@ require-graalvm:
 		echo "or set GRAALVM_HOME to an installation containing bin/native-image."; \
 		exit 1; }
 
+# Phase 30: the Tauri shell lives beside Electron until it replaces it. Same renderer, same core.
+tauri-dev: core
+	cd desktop && npm run tauri:dev
+
+tauri-build: core
+	cd desktop && npm run tauri:build -- --no-bundle
+
+tauri-test:
+	cd desktop/src-tauri && cargo test
+
 clean:
 	./gradlew clean
-	rm -rf desktop/out
+	rm -rf desktop/out desktop/src-tauri/target

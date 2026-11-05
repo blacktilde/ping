@@ -17,6 +17,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.svelte",
-    "electron.vite.config.ts"
+    "electron.vite.config.ts",
+    "vite.tauri.config.ts"
   ]
 }

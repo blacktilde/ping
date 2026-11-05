@@ -1,0 +1,3 @@
+# Build output and the schemas tauri-build regenerates on every build.
+/target/
+/gen/

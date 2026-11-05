@@ -24,6 +24,8 @@ lists open review findings, each tagged with the phase it should be folded into.
 | `make native-test`| Run the suite compiled as a native image       |
 | `make agent`| Regenerate native-image reachability metadata        |
 | `make ci-run`| Drive the runner CLI against a loopback server (`BIN=` for native) |
+| `make tauri-dev`| Start the Tauri shell (phase 30) with the same renderer and core |
+| `make tauri-test`| Unit-test the Tauri shell's request guards               |
 
 The Electron dev server does not rebuild Java. After editing the core, run `make core`
 and restart.
@@ -128,6 +130,10 @@ this; `make agent` regenerates the metadata afterwards.
 
 ## Stack notes
 
+- Phase 30 is moving the shell to Tauri (`desktop/src-tauri`). Until 30d both shells exist, and
+  the rules above bind both: a guard added to the `core:request` handler in `main/index.ts` gets
+  its twin, with a test, in `src-tauri/src/guard.rs`, and a new `window.ping` method gets a
+  command or an explicit refusal in `src/tauri/bridge.ts`.
 - Tailwind v4: colors declared in `@theme` become utilities (`--color-panel` gives
   `bg-panel`). The older `bg-[--color-panel]` arbitrary syntax does not work.
 - `electron-vite` builds the preload as CJS so the renderer can stay sandboxed; Electron
