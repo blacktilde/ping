@@ -12,3 +12,9 @@ if (!target) {
 loadTheme()
 
 export default mount(App, { target })
+
+// The performance benchmark (docs/PERF.md). A build without VITE_PING_BENCH=1 folds this to
+// `if (false)` and drops the module, so releases never carry it.
+if (import.meta.env.VITE_PING_BENCH === '1') {
+  void import('./bench/bench')
+}
