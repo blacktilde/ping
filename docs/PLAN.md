@@ -323,6 +323,11 @@ assertions plus the runner change what the project is for.
     before 30d:** the same table on macOS (WKWebView) and Windows (WebView2, itself Chromium, so
     expect the smallest memory gain there) on real hardware, and whether the DMA-BUF switch
     belongs in the shell or only on machines without a GPU.
+    **Full Linux comparison: [PERF.md](PERF.md).** Its verdict: on Linux the change is not justified.
+    Only the `.deb` shrinks decisively (96 → 2 MB). Startup is 300–400 ms slower, IPC and large
+    responses are 1.3–1.7× slower, and memory is lower only with the DMA-BUF workaround. 30b–30d
+    wait until macOS and Windows are measured; if size is the goal there, Electron's own size
+    options come first.
   - [ ] **30b. The stores.** Secrets in the OS keychain (`keyring`) in place of `safeStorage`,
     with a one-time migration that reads Electron's `userData` so nobody re-enters a secret;
     `network.json`, OAuth tokens, history, window state and `log()` with its redaction and

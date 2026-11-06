@@ -1,0 +1,1937 @@
+{
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cores": 4,
+    "memoryGB": 15.709007263183594,
+    "kernel": "6.18.44-fc-v236"
+  },
+  "startedAt": "2026-11-06T00:03:50.472Z",
+  "shells": {
+    "electron": {
+      "warm": [
+        {
+          "navigationStartMs": 198.60009765625,
+          "domContentLoadedMs": 358,
+          "firstPaintMs": 394.60009765625,
+          "readyMs": 769,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 210.800048828125,
+          "domContentLoadedMs": 349.60009765625,
+          "firstPaintMs": 382.800048828125,
+          "readyMs": 757,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 205.199951171875,
+          "domContentLoadedMs": 351.699951171875,
+          "firstPaintMs": 389.199951171875,
+          "readyMs": 790,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 233,
+          "domContentLoadedMs": 368.300048828125,
+          "firstPaintMs": 405,
+          "readyMs": 806,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 212.300048828125,
+          "domContentLoadedMs": 343.5,
+          "firstPaintMs": 376.300048828125,
+          "readyMs": 748,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 192.10009765625,
+          "domContentLoadedMs": 326.60009765625,
+          "firstPaintMs": 368.10009765625,
+          "readyMs": 727,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 257.60009765625,
+          "domContentLoadedMs": 397.400146484375,
+          "firstPaintMs": 433.60009765625,
+          "readyMs": 790,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 200.199951171875,
+          "domContentLoadedMs": 315.39990234375,
+          "firstPaintMs": 348.199951171875,
+          "readyMs": 740,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 252,
+          "domContentLoadedMs": 392.800048828125,
+          "firstPaintMs": 428,
+          "readyMs": 801,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 196.800048828125,
+          "domContentLoadedMs": 329.400146484375,
+          "firstPaintMs": 364.800048828125,
+          "readyMs": 739,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        }
+      ],
+      "cold": [
+        {
+          "navigationStartMs": 371.60009765625,
+          "domContentLoadedMs": 554.300048828125,
+          "firstPaintMs": 599.60009765625,
+          "readyMs": 1007,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 347.300048828125,
+          "domContentLoadedMs": 496,
+          "firstPaintMs": 535.300048828125,
+          "readyMs": 972,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 318.5,
+          "domContentLoadedMs": 478.699951171875,
+          "firstPaintMs": 518.5,
+          "readyMs": 919,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 346.10009765625,
+          "domContentLoadedMs": 520.2001953125,
+          "firstPaintMs": 558.10009765625,
+          "readyMs": 935,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        },
+        {
+          "navigationStartMs": 342.199951171875,
+          "domContentLoadedMs": 534.199951171875,
+          "firstPaintMs": 578.199951171875,
+          "readyMs": 939,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+        }
+      ],
+      "full": [
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.11759999999962747,
+                "n": 1000,
+                "mean": 0.11719999999739229,
+                "p50": 0.10000000055879354,
+                "p95": 0.20000000018626451,
+                "max": 1.400000000372529
+              },
+              "coreSmall": {
+                "perCallMs": 0.41220000000018625,
+                "n": 1000,
+                "mean": 0.412,
+                "p50": 0.39999999944120646,
+                "p95": 0.7000000001862645,
+                "max": 4.599999999627471
+              },
+              "parallel1000": {
+                "totalMs": 51.90000000037253,
+                "callsPerSecond": 19267.82273589253
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 7.120000000111759,
+                  "p50": 6,
+                  "p95": 15.600000000558794,
+                  "max": 15.600000000558794,
+                  "mbPerSecond": 32.552083333333336
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 22.44000000003725,
+                  "p50": 20.90000000037253,
+                  "p95": 26.899999999441206,
+                  "max": 26.899999999441206,
+                  "mbPerSecond": 95.69377990260054
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 154.1800000000745,
+                  "p50": 156.8999999994412,
+                  "p95": 184.6000000005588,
+                  "max": 184.6000000005588,
+                  "mbPerSecond": 114.72275334648889
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 7.7000000001862645,
+              "statusShownMs": 48.700000000186265,
+              "renderedMs": 118.5,
+              "loadFrames": {
+                "n": 4,
+                "mean": 24.975000000000364,
+                "p50": 16.700000000000728,
+                "p95": 50,
+                "max": 50,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.66638655462184,
+                "p50": 16.700000000000728,
+                "p95": 16.700000000000728,
+                "max": 16.80000000000291,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 60.00100842030961
+            },
+            "render-9mb": {
+              "newTabMs": 6.7000000001862645,
+              "statusShownMs": 252.80000000074506,
+              "renderedMs": 468.80000000074506,
+              "loadFrames": {
+                "n": 21,
+                "mean": 21.42380952380959,
+                "p50": 16.69999999999709,
+                "p95": 16.799999999999272,
+                "max": 116.60000000000218,
+                "over50ms": 1,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.80672268907563,
+                "p50": 16.700000000000728,
+                "p95": 16.799999999999272,
+                "max": 33.29999999999927,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 59.5
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 31.944999999925493,
+                "p50": 33.299999999813735,
+                "p95": 34.200000000186265,
+                "max": 34.200000000186265
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 33.325,
+                "p50": 33.299999999813735,
+                "p95": 38.40000000037253,
+                "max": 38.40000000037253
+              },
+              "tabs": 23
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 10.796666666694607,
+              "p50": 10.599999999627471,
+              "p95": 17.90000000037253,
+              "max": 18.40000000037253,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 15.271666666679085,
+              "p50": 13.700000000186265,
+              "p95": 32.59999999962747,
+              "max": 34.59999999962747,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 288.57421875,
+              "shellRssMB": 583.87890625,
+              "shellAnonMB": 106.9765625,
+              "corePssMB": 92.2373046875,
+              "processes": 6,
+              "threads": 67
+            },
+            "after-render-1mb": {
+              "shellPssMB": 491.4931640625,
+              "shellRssMB": 798.015625,
+              "shellAnonMB": 299.32421875,
+              "corePssMB": 326.3076171875,
+              "processes": 6,
+              "threads": 68
+            },
+            "after-render-9mb": {
+              "shellPssMB": 617.919921875,
+              "shellRssMB": 924.859375,
+              "shellAnonMB": 425.30859375,
+              "corePssMB": 332.1396484375,
+              "processes": 6,
+              "threads": 68
+            },
+            "end": {
+              "shellPssMB": 541.0751953125,
+              "shellRssMB": 844.80859375,
+              "shellAnonMB": 348.796875,
+              "corePssMB": 338.025390625,
+              "processes": 6,
+              "threads": 68
+            }
+          },
+          "cpu": {
+            "idlePercent": 0,
+            "endIdlePercent": 2
+          }
+        },
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.11540000000037252,
+                "n": 1000,
+                "mean": 0.11509999999962747,
+                "p50": 0.09999999962747097,
+                "p95": 0.20000000018626451,
+                "max": 4.2000000001862645
+              },
+              "coreSmall": {
+                "perCallMs": 0.442,
+                "n": 1000,
+                "mean": 0.4414999999990687,
+                "p50": 0.40000000037252903,
+                "p95": 0.8000000007450581,
+                "max": 3
+              },
+              "parallel1000": {
+                "totalMs": 55.10000000055879,
+                "callsPerSecond": 18148.82032649471
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 6.8,
+                  "p50": 6.2999999998137355,
+                  "p95": 10.299999999813735,
+                  "max": 10.299999999813735,
+                  "mbPerSecond": 31.001984127900723
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 23.42000000011176,
+                  "p50": 22,
+                  "p95": 27.700000000186265,
+                  "max": 27.700000000186265,
+                  "mbPerSecond": 90.90909090909092
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 147.15999999996274,
+                  "p50": 148.1000000005588,
+                  "p95": 182.79999999981374,
+                  "max": 182.79999999981374,
+                  "mbPerSecond": 121.53950033715115
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 5.2999999998137355,
+              "statusShownMs": 52.799999999813735,
+              "renderedMs": 110.90000000037253,
+              "loadFrames": {
+                "n": 5,
+                "mean": 16.659999999999854,
+                "p50": 16.69999999999709,
+                "p95": 16.700000000000728,
+                "max": 16.700000000000728,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.66638655462184,
+                "p50": 16.69999999999709,
+                "p95": 16.700000000000728,
+                "max": 16.799999999999272,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 60.00100842030961
+            },
+            "render-9mb": {
+              "newTabMs": 13.600000000558794,
+              "statusShownMs": 192.79999999981374,
+              "renderedMs": 389.20000000018626,
+              "loadFrames": {
+                "n": 16,
+                "mean": 22.912500000000136,
+                "p50": 16.69999999999709,
+                "p95": 116.70000000000073,
+                "max": 116.70000000000073,
+                "over50ms": 1,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.666386554621873,
+                "p50": 16.69999999999709,
+                "p95": 16.799999999999272,
+                "max": 16.799999999999272,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 60.001008420309496
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 31.86999999997206,
+                "p50": 33.200000000186265,
+                "p95": 34.09999999962747,
+                "max": 34.09999999962747
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 33.335000000009316,
+                "p50": 33.200000000186265,
+                "p95": 34.59999999962747,
+                "max": 34.59999999962747
+              },
+              "tabs": 25
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 11.226666666644936,
+              "p50": 11.5,
+              "p95": 19,
+              "max": 19.5,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 15.039999999913077,
+              "p50": 13.799999999813735,
+              "p95": 30.700000000186265,
+              "max": 32.09999999962747,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 294.0390625,
+              "shellRssMB": 591.2109375,
+              "shellAnonMB": 108.6484375,
+              "corePssMB": 92.6015625,
+              "processes": 6,
+              "threads": 67
+            },
+            "after-render-1mb": {
+              "shellPssMB": 516.6474609375,
+              "shellRssMB": 826.671875,
+              "shellAnonMB": 322.4609375,
+              "corePssMB": 330.0380859375,
+              "processes": 6,
+              "threads": 67
+            },
+            "after-render-9mb": {
+              "shellPssMB": 619.0791015625,
+              "shellRssMB": 928.81640625,
+              "shellAnonMB": 425.48828125,
+              "corePssMB": 335.3427734375,
+              "processes": 6,
+              "threads": 67
+            },
+            "end": {
+              "shellPssMB": 604.0546875,
+              "shellRssMB": 910.4765625,
+              "shellAnonMB": 411.30078125,
+              "corePssMB": 338.0537109375,
+              "processes": 6,
+              "threads": 67
+            }
+          },
+          "cpu": {
+            "idlePercent": 0,
+            "endIdlePercent": 2
+          }
+        },
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.10610000000055879,
+                "n": 1000,
+                "mean": 0.10590000000037253,
+                "p50": 0.09999999962747097,
+                "p95": 0.20000000018626451,
+                "max": 1.099999999627471
+              },
+              "coreSmall": {
+                "perCallMs": 0.43620000000018627,
+                "n": 1000,
+                "mean": 0.4357999999998137,
+                "p50": 0.39999999944120646,
+                "p95": 0.7999999998137355,
+                "max": 4.099999999627471
+              },
+              "parallel1000": {
+                "totalMs": 69.79999999981374,
+                "callsPerSecond": 14326.647564508146
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 6.240000000037253,
+                  "p50": 3.900000000372529,
+                  "p95": 13.799999999813735,
+                  "max": 13.799999999813735,
+                  "mbPerSecond": 50.08012820034454
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 21.419999999925494,
+                  "p50": 20.899999999441206,
+                  "p95": 25.200000000186265,
+                  "max": 25.200000000186265,
+                  "mbPerSecond": 95.69377990686475
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 145.75999999996276,
+                  "p50": 146.70000000018626,
+                  "p95": 173.3999999994412,
+                  "max": 173.3999999994412,
+                  "mbPerSecond": 122.6993865029117
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 15.5,
+              "statusShownMs": 49.30000000074506,
+              "renderedMs": 107.5,
+              "loadFrames": {
+                "n": 4,
+                "mean": 20.824999999999818,
+                "p50": 16.700000000000728,
+                "p95": 33.29999999999927,
+                "max": 33.29999999999927,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.666386554621873,
+                "p50": 16.700000000000728,
+                "p95": 16.700000000000728,
+                "max": 16.80000000000291,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 60.001008420309496
+            },
+            "render-9mb": {
+              "newTabMs": 8,
+              "statusShownMs": 189.3999999994412,
+              "renderedMs": 400.3999999994412,
+              "loadFrames": {
+                "n": 18,
+                "mean": 21.296333333333475,
+                "p50": 16.700000000000728,
+                "p95": 100.10000000000218,
+                "max": 100.10000000000218,
+                "over50ms": 1,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.6655462184874,
+                "p50": 16.69999999999709,
+                "p95": 16.799999999999272,
+                "max": 16.80000000000291,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 60.004033884630886
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 32.33499999996275,
+                "p50": 33.200000000186265,
+                "p95": 33.89999999944121,
+                "max": 33.89999999944121
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 33.325,
+                "p50": 33.19999999925494,
+                "p95": 35.200000000186265,
+                "max": 35.200000000186265
+              },
+              "tabs": 27
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 11.068333333342647,
+              "p50": 11.299999999813735,
+              "p95": 18.299999999813735,
+              "max": 19,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 15.901666666644935,
+              "p50": 15.099999999627471,
+              "p95": 31.40000000037253,
+              "max": 39.90000000037253,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 292.3955078125,
+              "shellRssMB": 590.69140625,
+              "shellAnonMB": 108.70703125,
+              "corePssMB": 92.7275390625,
+              "processes": 6,
+              "threads": 67
+            },
+            "after-render-1mb": {
+              "shellPssMB": 500.806640625,
+              "shellRssMB": 810.25390625,
+              "shellAnonMB": 306.26953125,
+              "corePssMB": 325.2236328125,
+              "processes": 6,
+              "threads": 68
+            },
+            "after-render-9mb": {
+              "shellPssMB": 633.2705078125,
+              "shellRssMB": 942.31640625,
+              "shellAnonMB": 439.15625,
+              "corePssMB": 330.4658203125,
+              "processes": 6,
+              "threads": 68
+            },
+            "end": {
+              "shellPssMB": 468.4072265625,
+              "shellRssMB": 774.1640625,
+              "shellAnonMB": 275.265625,
+              "corePssMB": 333.9736328125,
+              "processes": 6,
+              "threads": 70
+            }
+          },
+          "cpu": {
+            "idlePercent": 0,
+            "endIdlePercent": 1.7999999999999998
+          }
+        }
+      ],
+      "firstLaunch": {
+        "navigationStartMs": 216.5,
+        "domContentLoadedMs": 352.300048828125,
+        "firstPaintMs": 392.5,
+        "readyMs": 815,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ping-desktop/0.0.6 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36"
+      }
+    },
+    "tauri": {
+      "warm": [
+        {
+          "navigationStartMs": 758,
+          "domContentLoadedMs": 927,
+          "firstPaintMs": 931,
+          "readyMs": 1154,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 796,
+          "domContentLoadedMs": 964,
+          "firstPaintMs": 968,
+          "readyMs": 1167,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 767,
+          "domContentLoadedMs": 933,
+          "firstPaintMs": 937,
+          "readyMs": 1166,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 772,
+          "domContentLoadedMs": 932,
+          "firstPaintMs": 936,
+          "readyMs": 1164,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 774,
+          "domContentLoadedMs": 948,
+          "firstPaintMs": 952,
+          "readyMs": 1182,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 786,
+          "domContentLoadedMs": 967,
+          "firstPaintMs": 971,
+          "readyMs": 1218,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 776,
+          "domContentLoadedMs": 966,
+          "firstPaintMs": 971,
+          "readyMs": 1132,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 822,
+          "domContentLoadedMs": 987,
+          "firstPaintMs": 991,
+          "readyMs": 1205,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 761,
+          "domContentLoadedMs": 936,
+          "firstPaintMs": 943,
+          "readyMs": 1143,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 757.000244140625,
+          "domContentLoadedMs": 922.000244140625,
+          "firstPaintMs": 927.000244140625,
+          "readyMs": 1226,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        }
+      ],
+      "cold": [
+        {
+          "navigationStartMs": 910,
+          "domContentLoadedMs": 1154,
+          "firstPaintMs": 1163,
+          "readyMs": 1349,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 875,
+          "domContentLoadedMs": 1075,
+          "firstPaintMs": 1079,
+          "readyMs": 1344,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 910.000244140625,
+          "domContentLoadedMs": 1135.000244140625,
+          "firstPaintMs": 1140.000244140625,
+          "readyMs": 1339,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 879,
+          "domContentLoadedMs": 1081,
+          "firstPaintMs": 1085,
+          "readyMs": 1351,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 943,
+          "domContentLoadedMs": 1146,
+          "firstPaintMs": 1152,
+          "readyMs": 1352,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        }
+      ],
+      "full": [
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.137,
+                "n": 1000,
+                "mean": 0.137,
+                "p50": 0,
+                "p95": 1,
+                "max": 3
+              },
+              "coreSmall": {
+                "perCallMs": 0.572,
+                "n": 1000,
+                "mean": 0.571,
+                "p50": 0.999999999996362,
+                "p95": 1.000000000001819,
+                "max": 5
+              },
+              "parallel1000": {
+                "totalMs": 136,
+                "callsPerSecond": 7352.941176470587
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 8.8,
+                  "p50": 7,
+                  "p95": 16,
+                  "max": 16,
+                  "mbPerSecond": 27.901785714285715
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 36.8,
+                  "p50": 33,
+                  "p95": 59,
+                  "max": 59,
+                  "mbPerSecond": 60.6060606060606
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 223.2,
+                  "p50": 213,
+                  "p95": 272,
+                  "max": 272,
+                  "mbPerSecond": 84.50704225352113
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 122,
+              "statusShownMs": 79,
+              "renderedMs": 443,
+              "loadFrames": {
+                "n": 2,
+                "mean": 181.5,
+                "p50": 270,
+                "p95": 270,
+                "max": 270,
+                "over50ms": 2,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 23.33613445378151,
+                "p50": 28,
+                "p95": 37,
+                "max": 51,
+                "over50ms": 1,
+                "over100ms": 0
+              },
+              "fps": 42.85199855959669
+            },
+            "render-9mb": {
+              "newTabMs": 38,
+              "statusShownMs": 799,
+              "renderedMs": 830,
+              "loadFrames": {
+                "n": 2,
+                "mean": 403,
+                "p50": 775,
+                "p95": 775,
+                "max": 775,
+                "over50ms": 1,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 22.294117647058822,
+                "p50": 28,
+                "p95": 36,
+                "max": 42,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 44.854881266490764
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 63.85000000000018,
+                "p50": 66,
+                "p95": 83,
+                "max": 83
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 65.85,
+                "p50": 68,
+                "p95": 88.00000000000364,
+                "max": 88.00000000000364
+              },
+              "tabs": 23
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 15.91666666666709,
+              "p50": 15.999999999992724,
+              "p95": 27.999999999992724,
+              "max": 31.000000000007276,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 21.08333333333309,
+              "p50": 18.000000000007276,
+              "p95": 40,
+              "max": 64,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 414.5791015625,
+              "shellRssMB": 577.54296875,
+              "shellAnonMB": 239.2109375,
+              "corePssMB": 92.673828125,
+              "processes": 3,
+              "threads": 70
+            },
+            "after-render-1mb": {
+              "shellPssMB": 659.390625,
+              "shellRssMB": 823.0859375,
+              "shellAnonMB": 465.94140625,
+              "corePssMB": 320.833984375,
+              "processes": 3,
+              "threads": 71
+            },
+            "after-render-9mb": {
+              "shellPssMB": 852.1875,
+              "shellRssMB": 1015.8828125,
+              "shellAnonMB": 646.99609375,
+              "corePssMB": 325.201171875,
+              "processes": 3,
+              "threads": 68
+            },
+            "end": {
+              "shellPssMB": 962.3203125,
+              "shellRssMB": 1126.140625,
+              "shellAnonMB": 767.98828125,
+              "corePssMB": 326.669921875,
+              "processes": 3,
+              "threads": 69
+            }
+          },
+          "cpu": {
+            "idlePercent": 0.1,
+            "endIdlePercent": 9
+          }
+        },
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.164,
+                "n": 1000,
+                "mean": 0.164,
+                "p50": 0,
+                "p95": 1,
+                "max": 1.000000000001819
+              },
+              "coreSmall": {
+                "perCallMs": 0.627,
+                "n": 1000,
+                "mean": 0.6259999999999982,
+                "p50": 0.999999999998181,
+                "p95": 1.000000000001819,
+                "max": 4.000000000001819
+              },
+              "parallel1000": {
+                "totalMs": 84,
+                "callsPerSecond": 11904.761904761905
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 8.2,
+                  "p50": 10,
+                  "p95": 12,
+                  "max": 12,
+                  "mbPerSecond": 19.53125
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 35.6,
+                  "p50": 31,
+                  "p95": 55,
+                  "max": 55,
+                  "mbPerSecond": 64.51612903225806
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 232.2,
+                  "p50": 223,
+                  "p95": 295,
+                  "max": 295,
+                  "mbPerSecond": 80.71748878923766
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 57,
+              "statusShownMs": 222,
+              "renderedMs": 381,
+              "loadFrames": {
+                "n": 2,
+                "mean": 171.5,
+                "p50": 187,
+                "p95": 187,
+                "max": 187,
+                "over50ms": 2,
+                "over100ms": 2
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 23.41176470588235,
+                "p50": 28,
+                "p95": 42,
+                "max": 59,
+                "over50ms": 2,
+                "over100ms": 0
+              },
+              "fps": 42.71356783919598
+            },
+            "render-9mb": {
+              "newTabMs": 44,
+              "statusShownMs": 402,
+              "renderedMs": 625,
+              "loadFrames": {
+                "n": 16,
+                "mean": 35.125,
+                "p50": 20,
+                "p95": 131,
+                "max": 131,
+                "over50ms": 3,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 23.142857142857142,
+                "p50": 28,
+                "p95": 37,
+                "max": 43,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 43.20987654320988
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 63.09999999999982,
+                "p50": 66,
+                "p95": 86,
+                "max": 86
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 50.85,
+                "p50": 48.00000000000364,
+                "p95": 73,
+                "max": 73
+              },
+              "tabs": 42
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 10.933333333332728,
+              "p50": 10,
+              "p95": 20,
+              "max": 25,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 20.23333333333297,
+              "p50": 18,
+              "p95": 37,
+              "max": 54,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 400.9326171875,
+              "shellRssMB": 564.19140625,
+              "shellAnonMB": 223.44140625,
+              "corePssMB": 92.205078125,
+              "processes": 3,
+              "threads": 70
+            },
+            "after-render-1mb": {
+              "shellPssMB": 719.220703125,
+              "shellRssMB": 883.14453125,
+              "shellAnonMB": 508.921875,
+              "corePssMB": 326.876953125,
+              "processes": 3,
+              "threads": 71
+            },
+            "after-render-9mb": {
+              "shellPssMB": 880.341796875,
+              "shellRssMB": 1044.265625,
+              "shellAnonMB": 658.421875,
+              "corePssMB": 332.798828125,
+              "processes": 3,
+              "threads": 68
+            },
+            "end": {
+              "shellPssMB": 881.103515625,
+              "shellRssMB": 1045.15234375,
+              "shellAnonMB": 688.203125,
+              "corePssMB": 336.095703125,
+              "processes": 3,
+              "threads": 68
+            }
+          },
+          "cpu": {
+            "idlePercent": 0.2,
+            "endIdlePercent": 9.4
+          }
+        },
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.132,
+                "n": 1000,
+                "mean": 0.132,
+                "p50": 0,
+                "p95": 1,
+                "max": 1.000000000001819
+              },
+              "coreSmall": {
+                "perCallMs": 0.582,
+                "n": 1000,
+                "mean": 0.582,
+                "p50": 0.999999999998181,
+                "p95": 1.000000000001819,
+                "max": 4
+              },
+              "parallel1000": {
+                "totalMs": 92,
+                "callsPerSecond": 10869.565217391304
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 7.2,
+                  "p50": 7,
+                  "p95": 13,
+                  "max": 13,
+                  "mbPerSecond": 27.901785714285715
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 30.6,
+                  "p50": 30.999999999996362,
+                  "p95": 34,
+                  "max": 34,
+                  "mbPerSecond": 64.51612903226564
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 232.4,
+                  "p50": 221,
+                  "p95": 291,
+                  "max": 291,
+                  "mbPerSecond": 81.44796380090497
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 59,
+              "statusShownMs": 197.00000000000364,
+              "renderedMs": 250,
+              "loadFrames": {
+                "n": 2,
+                "mean": 101.5,
+                "p50": 152,
+                "p95": 152,
+                "max": 152,
+                "over50ms": 2,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 23.218487394957982,
+                "p50": 27,
+                "p95": 39,
+                "max": 44,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 43.06912775968151
+            },
+            "render-9mb": {
+              "newTabMs": 39,
+              "statusShownMs": 393,
+              "renderedMs": 632,
+              "loadFrames": {
+                "n": 9,
+                "mean": 65,
+                "p50": 56,
+                "p95": 151,
+                "max": 151,
+                "over50ms": 5,
+                "over100ms": 2
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 23.672268907563026,
+                "p50": 29,
+                "p95": 39,
+                "max": 48,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 42.24352147674831
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 53.65,
+                "p50": 50.99999999999636,
+                "p95": 69,
+                "max": 69
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 54.250000000000185,
+                "p50": 54,
+                "p95": 75,
+                "max": 75
+              },
+              "tabs": 42
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 11.600000000000243,
+              "p50": 10.999999999996362,
+              "p95": 18.000000000007276,
+              "max": 20,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 22.916666666666302,
+              "p50": 21,
+              "p95": 42,
+              "max": 70,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 419.853515625,
+              "shellRssMB": 583.1171875,
+              "shellAnonMB": 242.5625,
+              "corePssMB": 92.462890625,
+              "processes": 3,
+              "threads": 70
+            },
+            "after-render-1mb": {
+              "shellPssMB": 717.2548828125,
+              "shellRssMB": 881.18359375,
+              "shellAnonMB": 509.1484375,
+              "corePssMB": 325.5361328125,
+              "processes": 3,
+              "threads": 71
+            },
+            "after-render-9mb": {
+              "shellPssMB": 886.4775390625,
+              "shellRssMB": 1050.40625,
+              "shellAnonMB": 665.75,
+              "corePssMB": 331.0244140625,
+              "processes": 3,
+              "threads": 69
+            },
+            "end": {
+              "shellPssMB": 896.923828125,
+              "shellRssMB": 1060.9765625,
+              "shellAnonMB": 705.26953125,
+              "corePssMB": 332.7470703125,
+              "processes": 3,
+              "threads": 68
+            }
+          },
+          "cpu": {
+            "idlePercent": 0.1,
+            "endIdlePercent": 9
+          }
+        }
+      ],
+      "firstLaunch": {
+        "navigationStartMs": 875,
+        "domContentLoadedMs": 1090,
+        "firstPaintMs": 1095,
+        "readyMs": 2242,
+        "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+      }
+    },
+    "tauri-nodmabuf": {
+      "warm": [
+        {
+          "navigationStartMs": 714,
+          "domContentLoadedMs": 885,
+          "firstPaintMs": 907,
+          "readyMs": 1063,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 695,
+          "domContentLoadedMs": 858,
+          "firstPaintMs": 884,
+          "readyMs": 1025,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 699,
+          "domContentLoadedMs": 868,
+          "firstPaintMs": 872,
+          "readyMs": 1040,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 706,
+          "domContentLoadedMs": 902,
+          "firstPaintMs": 927,
+          "readyMs": 1089,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 707,
+          "domContentLoadedMs": 875,
+          "firstPaintMs": 897,
+          "readyMs": 1053,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 708,
+          "domContentLoadedMs": 873,
+          "firstPaintMs": 895,
+          "readyMs": 1041,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 702.000244140625,
+          "domContentLoadedMs": 868.000244140625,
+          "firstPaintMs": 890.000244140625,
+          "readyMs": 1057,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 695,
+          "domContentLoadedMs": 863,
+          "firstPaintMs": 885,
+          "readyMs": 1028,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 715,
+          "domContentLoadedMs": 947,
+          "firstPaintMs": 951,
+          "readyMs": 1115,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 696,
+          "domContentLoadedMs": 864,
+          "firstPaintMs": 886,
+          "readyMs": 1082,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        }
+      ],
+      "cold": [
+        {
+          "navigationStartMs": 815,
+          "domContentLoadedMs": 1016,
+          "firstPaintMs": 1039,
+          "readyMs": 1199,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 835,
+          "domContentLoadedMs": 1035,
+          "firstPaintMs": 1058,
+          "readyMs": 1222,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 814,
+          "domContentLoadedMs": 1012,
+          "firstPaintMs": 1035,
+          "readyMs": 1200,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 815,
+          "domContentLoadedMs": 1018,
+          "firstPaintMs": 1042,
+          "readyMs": 1201,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        },
+        {
+          "navigationStartMs": 823.000244140625,
+          "domContentLoadedMs": 1024.000244140625,
+          "firstPaintMs": 1047.000244140625,
+          "readyMs": 1228,
+          "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+        }
+      ],
+      "full": [
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.164,
+                "n": 1000,
+                "mean": 0.163,
+                "p50": 0,
+                "p95": 1,
+                "max": 1.000000000001819
+              },
+              "coreSmall": {
+                "perCallMs": 0.572,
+                "n": 1000,
+                "mean": 0.571,
+                "p50": 0.999999999998181,
+                "p95": 1.000000000001819,
+                "max": 3
+              },
+              "parallel1000": {
+                "totalMs": 70.99999999999818,
+                "callsPerSecond": 14084.507042253883
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 10.800000000000727,
+                  "p50": 8,
+                  "p95": 24,
+                  "max": 24,
+                  "mbPerSecond": 24.4140625
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 39.4,
+                  "p50": 35.99999999999636,
+                  "p95": 57.00000000000364,
+                  "max": 57.00000000000364,
+                  "mbPerSecond": 55.55555555556117
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 244.2,
+                  "p50": 221,
+                  "p95": 288,
+                  "max": 288,
+                  "mbPerSecond": 81.44796380090497
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 24.999999999996362,
+              "statusShownMs": 70,
+              "renderedMs": 185,
+              "loadFrames": {
+                "n": 7,
+                "mean": 24.428571428571427,
+                "p50": 16,
+                "p95": 76,
+                "max": 76,
+                "over50ms": 1,
+                "over100ms": 0
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.243697478991596,
+                "p50": 16,
+                "p95": 26,
+                "max": 37,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 61.56233833419555
+            },
+            "render-9mb": {
+              "newTabMs": 22,
+              "statusShownMs": 331,
+              "renderedMs": 517,
+              "loadFrames": {
+                "n": 24,
+                "mean": 21.208333333333332,
+                "p50": 16,
+                "p95": 74,
+                "max": 113,
+                "over50ms": 2,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.058823529411764,
+                "p50": 16,
+                "p95": 21,
+                "max": 25,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 62.27106227106227
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 19.04999999999982,
+                "p50": 18,
+                "p95": 26,
+                "max": 26
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 24.4,
+                "p50": 24.000000000003638,
+                "p95": 35,
+                "max": 35
+              },
+              "tabs": 23
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 11.41666666666697,
+              "p50": 11,
+              "p95": 14.000000000003638,
+              "max": 25,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 21.199999999999516,
+              "p50": 18,
+              "p95": 50.00000000000364,
+              "max": 72.99999999999636,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 227.44921875,
+              "shellRssMB": 371.796875,
+              "shellAnonMB": 86.1796875,
+              "corePssMB": 92.46484375,
+              "processes": 3,
+              "threads": 48
+            },
+            "after-render-1mb": {
+              "shellPssMB": 410.0654296875,
+              "shellRssMB": 555.32421875,
+              "shellAnonMB": 247.1015625,
+              "corePssMB": 329.80859375,
+              "processes": 3,
+              "threads": 49
+            },
+            "after-render-9mb": {
+              "shellPssMB": 557.3701171875,
+              "shellRssMB": 702.62890625,
+              "shellAnonMB": 382.78515625,
+              "corePssMB": 334.56640625,
+              "processes": 3,
+              "threads": 49
+            },
+            "end": {
+              "shellPssMB": 644.0849609375,
+              "shellRssMB": 789.46875,
+              "shellAnonMB": 481.65234375,
+              "corePssMB": 335.2109375,
+              "processes": 3,
+              "threads": 47
+            }
+          },
+          "cpu": {
+            "idlePercent": 0.2,
+            "endIdlePercent": 2
+          }
+        },
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.135,
+                "n": 1000,
+                "mean": 0.134,
+                "p50": 0,
+                "p95": 1,
+                "max": 1.000000000001819
+              },
+              "coreSmall": {
+                "perCallMs": 0.592,
+                "n": 1000,
+                "mean": 0.5910000000000036,
+                "p50": 0.999999999998181,
+                "p95": 1.000000000001819,
+                "max": 5.000000000003638
+              },
+              "parallel1000": {
+                "totalMs": 98,
+                "callsPerSecond": 10204.08163265306
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 6.4,
+                  "p50": 5,
+                  "p95": 12,
+                  "max": 12,
+                  "mbPerSecond": 39.0625
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 34.6,
+                  "p50": 30,
+                  "p95": 55,
+                  "max": 55,
+                  "mbPerSecond": 66.66666666666667
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 224.6,
+                  "p50": 213,
+                  "p95": 270,
+                  "max": 270,
+                  "mbPerSecond": 84.50704225352113
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 26,
+              "statusShownMs": 66,
+              "renderedMs": 172,
+              "loadFrames": {
+                "n": 7,
+                "mean": 23.571428571428573,
+                "p50": 16,
+                "p95": 78,
+                "max": 78,
+                "over50ms": 1,
+                "over100ms": 0
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.210084033613445,
+                "p50": 16,
+                "p95": 19,
+                "max": 40,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 61.68999481596683
+            },
+            "render-9mb": {
+              "newTabMs": 26,
+              "statusShownMs": 381,
+              "renderedMs": 574,
+              "loadFrames": {
+                "n": 27,
+                "mean": 21.037037037037038,
+                "p50": 16,
+                "p95": 88,
+                "max": 104,
+                "over50ms": 2,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.058823529411764,
+                "p50": 16,
+                "p95": 21,
+                "max": 26,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 62.27106227106227
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 21.45,
+                "p50": 21,
+                "p95": 31,
+                "max": 31
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 21.6,
+                "p50": 21.999999999996362,
+                "p95": 29,
+                "max": 29
+              },
+              "tabs": 42
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 10.800000000000363,
+              "p50": 10.000000000003638,
+              "p95": 13.000000000003638,
+              "max": 22,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 26.950000000000607,
+              "p50": 19,
+              "p95": 103,
+              "max": 118,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 230.537109375,
+              "shellRssMB": 375.4375,
+              "shellAnonMB": 88.296875,
+              "corePssMB": 92.37109375,
+              "processes": 3,
+              "threads": 48
+            },
+            "after-render-1mb": {
+              "shellPssMB": 433.947265625,
+              "shellRssMB": 579.44921875,
+              "shellAnonMB": 260.32421875,
+              "corePssMB": 320.33203125,
+              "processes": 3,
+              "threads": 49
+            },
+            "after-render-9mb": {
+              "shellPssMB": 567.552734375,
+              "shellRssMB": 713.0546875,
+              "shellAnonMB": 382.30859375,
+              "corePssMB": 324.98828125,
+              "processes": 3,
+              "threads": 50
+            },
+            "end": {
+              "shellPssMB": 525.2587890625,
+              "shellRssMB": 670.88671875,
+              "shellAnonMB": 370.59765625,
+              "corePssMB": 325.76953125,
+              "processes": 3,
+              "threads": 46
+            }
+          },
+          "cpu": {
+            "idlePercent": 0.1,
+            "endIdlePercent": 1.4000000000000001
+          }
+        },
+        {
+          "phases": {
+            "ipc": {
+              "shellOnly": {
+                "perCallMs": 0.14900000000000183,
+                "n": 1000,
+                "mean": 0.14900000000000183,
+                "p50": 0,
+                "p95": 1,
+                "max": 1.000000000001819
+              },
+              "coreSmall": {
+                "perCallMs": 0.5270000000000018,
+                "n": 1000,
+                "mean": 0.526,
+                "p50": 0.999999999996362,
+                "p95": 1.000000000001819,
+                "max": 5
+              },
+              "parallel1000": {
+                "totalMs": 98.99999999999818,
+                "callsPerSecond": 10101.010101010286
+              },
+              "payloads": {
+                "100KB": {
+                  "n": 5,
+                  "mean": 10.4,
+                  "p50": 8,
+                  "p95": 17,
+                  "max": 17,
+                  "mbPerSecond": 24.4140625
+                },
+                "1MB": {
+                  "n": 5,
+                  "mean": 31.8,
+                  "p50": 30,
+                  "p95": 41,
+                  "max": 41,
+                  "mbPerSecond": 66.66666666666667
+                },
+                "9MB": {
+                  "n": 5,
+                  "mean": 227.2,
+                  "p50": 218,
+                  "p95": 268,
+                  "max": 268,
+                  "mbPerSecond": 82.56880733944953
+                }
+              }
+            },
+            "render-1mb": {
+              "newTabMs": 26,
+              "statusShownMs": 63,
+              "renderedMs": 192,
+              "loadFrames": {
+                "n": 8,
+                "mean": 23.125,
+                "p50": 13,
+                "p95": 84,
+                "max": 84,
+                "over50ms": 1,
+                "over100ms": 0
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.521008403361346,
+                "p50": 16,
+                "p95": 22,
+                "max": 43,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 60.528992878942006
+            },
+            "render-9mb": {
+              "newTabMs": 22,
+              "statusShownMs": 358,
+              "renderedMs": 567,
+              "loadFrames": {
+                "n": 25,
+                "mean": 22.16,
+                "p50": 16,
+                "p95": 89,
+                "max": 107,
+                "over50ms": 2,
+                "over100ms": 1
+              },
+              "scrollFrames": {
+                "n": 119,
+                "mean": 16.30252100840336,
+                "p50": 16,
+                "p95": 23,
+                "max": 37,
+                "over50ms": 0,
+                "over100ms": 0
+              },
+              "fps": 61.34020618556701
+            },
+            "tabs": {
+              "newTab": {
+                "n": 20,
+                "mean": 22.55,
+                "p50": 21,
+                "p95": 32,
+                "max": 32
+              },
+              "switchHeavyLight": {
+                "n": 20,
+                "mean": 20.3,
+                "p50": 19,
+                "p95": 29,
+                "max": 29
+              },
+              "tabs": 42
+            },
+            "typing-small": {
+              "n": 60,
+              "mean": 11.833333333333576,
+              "p50": 11,
+              "p95": 16,
+              "max": 21,
+              "typed": 60,
+              "docBytes": 20
+            },
+            "typing-1mb": {
+              "n": 60,
+              "mean": 20.799999999999574,
+              "p50": 18.999999999996362,
+              "p95": 37,
+              "max": 76.00000000000364,
+              "typed": 60,
+              "docBytes": 1048637
+            },
+            "done": {}
+          },
+          "memory": {
+            "idle": {
+              "shellPssMB": 230.6298828125,
+              "shellRssMB": 375.51171875,
+              "shellAnonMB": 88.26171875,
+              "corePssMB": 92.1162109375,
+              "processes": 3,
+              "threads": 48
+            },
+            "after-render-1mb": {
+              "shellPssMB": 389.1845703125,
+              "shellRssMB": 534.66796875,
+              "shellAnonMB": 224.4375,
+              "corePssMB": 326.958984375,
+              "processes": 3,
+              "threads": 49
+            },
+            "after-render-9mb": {
+              "shellPssMB": 549.0205078125,
+              "shellRssMB": 694.50390625,
+              "shellAnonMB": 372.65234375,
+              "corePssMB": 332.580078125,
+              "processes": 3,
+              "threads": 50
+            },
+            "end": {
+              "shellPssMB": 481.126953125,
+              "shellRssMB": 626.734375,
+              "shellAnonMB": 324.93359375,
+              "corePssMB": 333.263671875,
+              "processes": 3,
+              "threads": 46
+            }
+          },
+          "cpu": {
+            "idlePercent": 0,
+            "endIdlePercent": 1
+          }
+        }
+      ],
+      "firstLaunch": {
+        "navigationStartMs": 707,
+        "domContentLoadedMs": 874,
+        "firstPaintMs": 896,
+        "readyMs": 1155,
+        "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15"
+      }
+    }
+  }
+}
