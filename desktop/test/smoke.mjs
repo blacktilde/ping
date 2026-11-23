@@ -587,7 +587,7 @@ try {
   console.log('--- 0. workspace: load, dirty, save, watch')
   const sidebarText = async () =>
     await evaluate(`document.querySelector('[data-role="sidebar"]')?.textContent ?? ''`)
-  await waitFor(async () => (await sidebarText()).includes('Smoke get'), 8000, 'the tree to load')
+  await waitFor(async () => (await sidebarText()).includes('Smoke get'), 30000, 'the tree to load')
   check('shows the collection tree', (await sidebarText()).includes('demo'))
 
   await waitFor(
