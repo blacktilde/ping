@@ -13,7 +13,6 @@
   import { copyText } from '../lib/clipboard'
   import { formatBytes } from '../lib/format'
   import { isEventStream, type SseEvent } from '../lib/sse'
-  import CodeEditor from './CodeEditor.svelte'
   import ResponseEvents from './ResponseEvents.svelte'
 
   interface Props {
@@ -334,9 +333,13 @@
         Formatting {formatBytes(response.body.bytes)}…
       </div>
     {:else if view === 'pretty'}
-      <CodeEditor value={pretty} language="json" label="Response body, pretty" readonly pad="px-5" />
+      {#await import('./CodeEditor.svelte') then { default: CodeEditor }}
+        <CodeEditor value={pretty} language="json" label="Response body, pretty" readonly pad="px-5" />
+      {/await}
     {:else}
-      <CodeEditor value={raw} language="plain" label="Response body, raw" readonly pad="px-5" />
+      {#await import('./CodeEditor.svelte') then { default: CodeEditor }}
+        <CodeEditor value={raw} language="plain" label="Response body, raw" readonly pad="px-5" />
+      {/await}
     {/if}
   </div>
 </div>

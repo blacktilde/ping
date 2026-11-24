@@ -20,6 +20,9 @@ const MAX_LINE_CHARS = 4000
  */
 const MIN_MASKED_LENGTH = 4
 
+/** How long file writes wait to be batched. */
+const FLUSH_MS = 100
+
 const MASK = '***'
 
 const HEADER_NAMES = String.raw`(?:proxy-)?authorization|(?:set-)?cookie|x-api-key`
@@ -80,6 +83,8 @@ export class Logger {
   private seq = 0
   private folder: string | null = null
   private fileBytes = 0
+  private queued: string[] = []
+  private flushTimer: NodeJS.Timeout | undefined
   private sensitive: () => readonly string[] = () => []
   private listeners = new Set<(entry: LogEntry) => void>()
   private readonly capacity: number
@@ -108,6 +113,7 @@ export class Logger {
       this.fileBytes = sizeOf(this.file())
       if (this.entries.length > 0) {
         this.append(this.entries.map(format).join(''))
+        this.flush()
       }
     } catch (error) {
       this.folder = null
@@ -169,10 +175,34 @@ export class Logger {
     return join(this.folder ?? '', 'ping.log')
   }
 
+  /**
+   * Queues text for the file. A chatty core would otherwise cost the main process one disk
+   * write per line; this turns a burst into a single append. {@link flush} forces it out, and
+   * the shell calls it on quit.
+   */
   private append(text: string): void {
     if (!this.folder) {
       return
     }
+    this.queued.push(text)
+    if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => this.flush(), FLUSH_MS)
+      this.flushTimer.unref()
+    }
+  }
+
+  /** Writes whatever is queued to `ping.log`, rolling the file over first if it would overflow. */
+  flush(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = undefined
+    }
+    if (!this.folder || this.queued.length === 0) {
+      this.queued = []
+      return
+    }
+    const text = this.queued.join('')
+    this.queued = []
     const bytes = Buffer.byteLength(text)
     try {
       if (this.fileBytes > 0 && this.fileBytes + bytes > this.maxFileBytes) {
@@ -184,6 +214,7 @@ export class Logger {
     } catch (error) {
       // Echoed rather than logged: logging it would try the same file again.
       this.folder = null
+      this.queued = []
       this.echo(`[log] stopped writing the log file: ${String(error)}\n`)
     }
   }

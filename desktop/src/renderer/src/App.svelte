@@ -95,11 +95,6 @@
   import SplitPane from './components/SplitPane.svelte'
   import CommandPalette from './components/CommandPalette.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
-  import SaveRequestDialog from './components/SaveRequestDialog.svelte'
-  import ExportDialog from './components/ExportDialog.svelte'
-  import NetworkSettings from './components/NetworkSettings.svelte'
-  import LogsPanel from './components/LogsPanel.svelte'
-  import RunPanel from './components/RunPanel.svelte'
   import UpdateBadge from './components/UpdateBadge.svelte'
   import type { HistoryEntry } from '../../shared/history'
 
@@ -2098,7 +2093,9 @@
     {/snippet}
 
     {#snippet second()}
-      <LogsPanel onClose={() => setLogsOpen(false)} />
+      {#await import('./components/LogsPanel.svelte') then { default: LogsPanel }}
+        <LogsPanel onClose={() => setLogsOpen(false)} />
+      {/await}
     {/snippet}
   </SplitPane>
 
@@ -2136,29 +2133,37 @@
   <CommandPalette bind:open={paletteOpen} commands={paletteCommands} />
 
   {#if showExport}
-    <ExportDialog
-      {nodes}
-      onExport={(paths) => void exportCollections(paths)}
-      onCancel={() => (showExport = false)}
-    />
+    {#await import('./components/ExportDialog.svelte') then { default: ExportDialog }}
+      <ExportDialog
+        {nodes}
+        onExport={(paths) => void exportCollections(paths)}
+        onCancel={() => (showExport = false)}
+      />
+    {/await}
   {/if}
 
   {#if showNetwork}
-    <NetworkSettings onClose={() => (showNetwork = false)} />
+    {#await import('./components/NetworkSettings.svelte') then { default: NetworkSettings }}
+      <NetworkSettings onClose={() => (showNetwork = false)} />
+    {/await}
   {/if}
 
   {#if run.open}
-    <RunPanel />
+    {#await import('./components/RunPanel.svelte') then { default: RunPanel }}
+      <RunPanel />
+    {/await}
   {/if}
 
   {#if choosingSaveTarget}
-    <SaveRequestDialog
-      {nodes}
-      name={active.draft.name}
-      preferred={lastSaveTarget}
-      onSave={(target, name) => void saveInto(target, name)}
-      onCancel={() => (choosingSaveTarget = false)}
-    />
+    {#await import('./components/SaveRequestDialog.svelte') then { default: SaveRequestDialog }}
+      <SaveRequestDialog
+        {nodes}
+        name={active.draft.name}
+        preferred={lastSaveTarget}
+        onSave={(target, name) => void saveInto(target, name)}
+        onCancel={() => (choosingSaveTarget = false)}
+      />
+    {/await}
   {/if}
 
   <ConfirmDialog />

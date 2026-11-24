@@ -1,3 +1,4 @@
+import { enableCompileCache } from 'node:module'
 import { readFile, stat } from 'node:fs/promises'
 import { existsSync, mkdirSync } from 'node:fs'
 import { basename, delimiter, join, resolve, sep } from 'node:path'
@@ -22,6 +23,14 @@ import {
 import { readWindowState, restoreBounds, type WindowState } from './window-state'
 import { Workspace } from './workspace'
 import { log, logger } from './log'
+import type { LogEntry } from '../shared/logs'
+
+// Caches compiled JavaScript on disk, so the second launch skips parsing the main bundle.
+try {
+  enableCompileCache()
+} catch {
+  // An unwritable cache directory is not worth a failed launch.
+}
 
 const core = new CoreClient()
 const workspace = new Workspace()
@@ -31,6 +40,8 @@ const grants = new FileGrants()
 const history = new HistoryStore()
 const network = new NetworkStore()
 const oauthTokens = new OAuthTokenStore()
+/** Settles once the workspace and the shell's stores are loaded; IPC answers wait for it. */
+let startup: Promise<void> = Promise.resolve()
 let mainWindow: BrowserWindow | null = null
 /** Set when a close has been approved (renderer confirmed, or the updater is restarting). */
 let closeApproved = false
@@ -484,8 +495,23 @@ function storeOAuthTokens(params: unknown): void {
  * once the value is back in its own realm.
  */
 function registerIpc(): void {
-  ipcMain.handle('workspace:current', () => workspace.current())
-  ipcMain.handle('workspace:choose', async () => {
+  // Handlers are registered at once but answer only after startup has loaded the stores and
+  // the workspace, so the window can open without waiting for them and an early call from the
+  // renderer simply queues behind them.
+  const ipc = {
+    handle(
+      channel: string,
+      listener: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => unknown
+    ): void {
+      ipcMain.handle(channel, async (event, ...args) => {
+        await startup
+        return listener(event, ...args)
+      })
+    }
+  }
+
+  ipc.handle('workspace:current', () => workspace.current())
+  ipc.handle('workspace:choose', async () => {
     const before = workspace.current()?.root
     const next = await workspace.choose()
     if (next?.root !== before) {
@@ -499,7 +525,7 @@ function registerIpc(): void {
 
   // Opens a collection or folder in the OS file manager. The renderer sends a path relative
   // to the workspace; main resolves and re-checks it so it cannot reach outside the root.
-  ipcMain.handle('workspace:open', async (_event, path: unknown) => {
+  ipc.handle('workspace:open', async (_event, path: unknown) => {
     const current = workspace.current()
     if (!current) {
       throw new Error('No collection folder is open')
@@ -520,7 +546,7 @@ function registerIpc(): void {
 
   // Saves a response body to a file the user picks: bytes the renderer already holds,
   // written atomically so a crash cannot leave a half-written file.
-  ipcMain.handle('response:save', async (_event, payload: unknown) => {
+  ipc.handle('response:save', async (_event, payload: unknown) => {
     const body = payload as { suggestedName?: unknown; text?: unknown; base64?: unknown } | null
     if (!body || typeof body !== 'object') {
       throw new Error('response:save requires a payload')
@@ -548,7 +574,7 @@ function registerIpc(): void {
   // stays in main: the file is chosen here and read here (the renderer never names a path),
   // the workspace root is injected here, and lifted credentials are stored here and stripped
   // from what the renderer gets back.
-  ipcMain.handle('import:collection', async () => {
+  ipc.handle('import:collection', async () => {
     const current = workspace.current()
     if (!current) {
       return failure(null, 'No collection folder is open')
@@ -580,7 +606,7 @@ function registerIpc(): void {
   // gets a save dialog; several get a folder, where a taken name becomes `Name 2` rather than
   // overwriting a file the user never named. The documents go from the core straight to disk and
   // never cross to the renderer.
-  ipcMain.handle('export:collections', async (_event, paths: unknown) => {
+  ipc.handle('export:collections', async (_event, paths: unknown) => {
     const current = workspace.current()
     if (!current) {
       return failure(null, 'No collection folder is open')
@@ -638,16 +664,16 @@ function registerIpc(): void {
   })
 
   // The updater runs in main and pushes its state; the renderer only asks for the next step.
-  ipcMain.handle('updates:state', () => updateState())
-  ipcMain.handle('updates:check', () => {
+  ipc.handle('updates:state', () => updateState())
+  ipc.handle('updates:check', () => {
     checkForUpdates()
     return updateState()
   })
-  ipcMain.handle('updates:download', () => {
+  ipc.handle('updates:download', () => {
     downloadUpdate()
     return updateState()
   })
-  ipcMain.handle('updates:install', () => {
+  ipc.handle('updates:install', () => {
     // The renderer asks about unsaved work after installing, so the restart must not
     // surface a second confirmation while tearing the window down.
     closeApproved = true
@@ -656,7 +682,7 @@ function registerIpc(): void {
   })
 
   // The renderer confirmed closing; allow it through.
-  ipcMain.handle('app:confirm-close', () => {
+  ipc.handle('app:confirm-close', () => {
     closeApproved = true
     mainWindow?.close()
   })
@@ -664,7 +690,7 @@ function registerIpc(): void {
   // Choosing a file for an upload. The dialog runs here, so every path the renderer stores came
   // from it: inside the collection it is stored relative, elsewhere it is stored absolute and
   // granted for this session.
-  ipcMain.handle('file:pick', async (_event, collection: unknown) => {
+  ipc.handle('file:pick', async (_event, collection: unknown) => {
     const current = workspace.current()
     const collectionDir =
       current && typeof collection === 'string' && collection && isRelativePath(collection)
@@ -683,11 +709,11 @@ function registerIpc(): void {
 
   // Network settings are the user's, app-global, and never part of a collection. The password is
   // write-only: `get` reports whether one is set, and only `withNetwork` ever reads it.
-  ipcMain.handle('network:get', () => network.get())
-  ipcMain.handle('network:set', (_event, update: unknown) => network.set(update))
+  ipc.handle('network:get', () => network.get())
+  ipc.handle('network:set', (_event, update: unknown) => network.set(update))
   // The renderer says which host and format; the shell asks the user for the files, so a path never
   // comes from the renderer. Resolves with the settings unchanged when the dialog is dismissed.
-  ipcMain.handle('network:addCert', async (_event, request: unknown) => {
+  ipc.handle('network:addCert', async (_event, request: unknown) => {
     network.checkCert(request)
     const type = (request as { type?: unknown } | null)?.type
     const first = await chooseCertFile(
@@ -706,12 +732,12 @@ function registerIpc(): void {
     }
     return network.addCert(request, { cert: first, key })
   })
-  ipcMain.handle('network:removeCert', (_event, id: unknown) => network.removeCert(id))
+  ipc.handle('network:removeCert', (_event, id: unknown) => network.removeCert(id))
 
-  ipcMain.handle('secrets:list', () => secrets.names())
+  ipc.handle('secrets:list', () => secrets.names())
   // The cookie jar lives in the core, keyed by scope. The renderer names a collection and an
   // environment; the shell builds the scope. The core never returns a cookie's value.
-  ipcMain.handle('cookies:list', async (_event, collection: unknown, environment: unknown) => {
+  ipc.handle('cookies:list', async (_event, collection: unknown, environment: unknown) => {
     const scope = scopeFrom(collection, environment)
     if (!scope) {
       return []
@@ -720,7 +746,7 @@ function registerIpc(): void {
     const result = (await core.request('cookies.list', { scope })) as { cookies?: unknown[] }
     return result.cookies ?? []
   })
-  ipcMain.handle(
+  ipc.handle(
     'cookies:clear',
     async (_event, collection: unknown, environment: unknown, domain: unknown, name: unknown) => {
       const scope = scopeFrom(collection, environment)
@@ -736,15 +762,15 @@ function registerIpc(): void {
       return result.removed ?? 0
     }
   )
-  ipcMain.handle('runtime:list', () => runtime.names())
-  ipcMain.handle('runtime:clear', () => runtime.clear())
-  ipcMain.handle('secrets:set', (_event, name: unknown, value: unknown) => {
+  ipc.handle('runtime:list', () => runtime.names())
+  ipc.handle('runtime:clear', () => runtime.clear())
+  ipc.handle('secrets:set', (_event, name: unknown, value: unknown) => {
     if (typeof name !== 'string' || typeof value !== 'string') {
       throw new Error('secrets:set requires a name and a value')
     }
     secrets.set(name, value)
   })
-  ipcMain.handle('secrets:delete', (_event, name: unknown) => {
+  ipc.handle('secrets:delete', (_event, name: unknown) => {
     if (typeof name !== 'string') {
       throw new Error('secrets:delete requires a name')
     }
@@ -754,11 +780,11 @@ function registerIpc(): void {
   // The diagnostic log. Lines are redacted before they are kept, so what the renderer reads here
   // is what the file on disk holds; the folder is opened by the shell and never named by the
   // renderer.
-  ipcMain.handle('logs:list', () => logger.list())
-  ipcMain.handle('logs:clear', () => {
+  ipc.handle('logs:list', () => logger.list())
+  ipc.handle('logs:clear', () => {
     logger.clear()
   })
-  ipcMain.handle('logs:openFolder', async () => {
+  ipc.handle('logs:openFolder', async () => {
     const folder = logger.dir()
     if (!folder) {
       throw new Error('Logs are not being written to disk this session')
@@ -771,13 +797,13 @@ function registerIpc(): void {
 
   // History is shell-local: the renderer records a finished exchange and reads the list
   // back, but the request payload is opaque here and is returned to the renderer unchanged.
-  ipcMain.handle('history:list', () => history.list())
-  ipcMain.handle('history:add', (_event, entry: unknown) => history.add(entry))
-  ipcMain.handle('history:clear', () => {
+  ipc.handle('history:list', () => history.list())
+  ipc.handle('history:add', (_event, entry: unknown) => history.add(entry))
+  ipc.handle('history:clear', () => {
     history.clear()
   })
 
-  ipcMain.handle('core:request', async (_event, method: unknown, params: unknown) => {
+  ipc.handle('core:request', async (_event, method: unknown, params: unknown) => {
     if (typeof method !== 'string') {
       return failure(null, 'core:request requires a method name')
     }
@@ -893,11 +919,21 @@ app.whenReady().then(async () => {
     'app',
     `Ping ${app.getVersion()} on ${process.platform} ${process.arch}, Electron ${process.versions.electron}`
   )
+  // A chatty core can log hundreds of lines a second; they cross to the renderer in batches.
+  let logBatch: LogEntry[] = []
   logger.onEntry((entry) => {
-    // Lines keep coming while the app shuts down, after the window is gone.
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('logs:entry', entry)
+    logBatch.push(entry)
+    if (logBatch.length > 1) {
+      return
     }
+    setTimeout(() => {
+      const batch = logBatch
+      logBatch = []
+      // Lines keep coming while the app shuts down, after the window is gone.
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('logs:entries', batch)
+      }
+    }, 50).unref()
   })
   core.notifications((notification) => {
     if (notification.method === 'auth.completed') {
@@ -917,15 +953,22 @@ app.whenReady().then(async () => {
 
   registerIpc()
   workspace.onChange(() => mainWindow?.webContents.send('store:changed'))
-  await workspace.restore()
-  if (!workspace.current()) {
-    await seedWorkspace()
-  }
-  secrets.load()
-  history.load()
-  network.load()
-  oauthTokens.load()
+
+  // The window opens first: its renderer boots in another process while this one loads the
+  // workspace and decrypts the stores, and `startup` holds back any IPC answer that needs them.
+  startup = (async () => {
+    await workspace.restore()
+    if (!workspace.current()) {
+      await seedWorkspace()
+    }
+    secrets.load()
+    history.load()
+    network.load()
+    oauthTokens.load()
+  })()
+  startup.catch((error) => log('app', `startup failed: ${String(error)}`))
   createWindow()
+  await startup.catch(() => undefined)
   startUpdater((state) => mainWindow?.webContents.send('updates:state', state))
 
   app.on('activate', () => {
@@ -944,5 +987,7 @@ app.on('window-all-closed', () => {
 // Closing stdin is what tells the core to exit; without this it would outlive the UI.
 app.on('will-quit', () => {
   workspace.dispose()
+  history.flush()
+  logger.flush()
   core.stop()
 })

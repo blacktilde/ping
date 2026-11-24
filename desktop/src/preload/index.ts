@@ -233,9 +233,13 @@ const api = {
       return ipcRenderer.invoke('logs:openFolder') as Promise<void>
     },
     onEntry(listener: (entry: LogEntry) => void): () => void {
-      const handler = (_event: IpcRendererEvent, entry: LogEntry): void => listener(entry)
-      ipcRenderer.on('logs:entry', handler)
-      return () => ipcRenderer.off('logs:entry', handler)
+      const handler = (_event: IpcRendererEvent, entries: LogEntry[]): void => {
+        for (const entry of entries) {
+          listener(entry)
+        }
+      }
+      ipcRenderer.on('logs:entries', handler)
+      return () => ipcRenderer.off('logs:entries', handler)
     }
   },
 

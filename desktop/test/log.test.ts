@@ -122,6 +122,7 @@ test('the file starts with what was logged before it was attached, and rolls ove
 
     for (let i = 0; i < 5; i++) {
       logger.write('core', `line ${i} ${'y'.repeat(40)}`)
+      logger.flush()
     }
     const current = readFileSync(join(dir, 'logs', 'ping.log'), 'utf8')
     const previous = readFileSync(join(dir, 'logs', 'ping.1.log'), 'utf8')

@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import type { AppUpdater } from 'electron-updater'
 import {
   findMacUpdate,
   installMacUpdate,
@@ -9,6 +9,16 @@ import {
 } from './mac-update'
 import type { MacUpdateOffer } from './mac-update-verify'
 import type { UpdateState } from '../shared/updates'
+
+/**
+ * electron-updater is slow to load and only a packaged, non-macOS build uses it, so it is
+ * imported on first need rather than at launch.
+ */
+let updaterModule: Promise<AppUpdater> | undefined
+function loadUpdater(): Promise<AppUpdater> {
+  updaterModule ??= import('electron-updater').then((module) => module.autoUpdater)
+  return updaterModule
+}
 
 type Notify = (state: UpdateState) => void
 
@@ -88,7 +98,9 @@ export function checkForUpdates(): void {
     return
   }
 
-  void autoUpdater.checkForUpdates().catch(failed)
+  void loadUpdater()
+    .then((updater) => updater.checkForUpdates())
+    .catch(failed)
 }
 
 export function downloadUpdate(): void {
@@ -143,7 +155,9 @@ export function downloadUpdate(): void {
     return
   }
 
-  void autoUpdater.downloadUpdate().catch(failed)
+  void loadUpdater()
+    .then((updater) => updater.downloadUpdate())
+    .catch(failed)
 }
 
 export function installUpdate(): void {
@@ -164,7 +178,7 @@ export function installUpdate(): void {
     return
   }
 
-  autoUpdater.quitAndInstall()
+  void loadUpdater().then((updater) => updater.quitAndInstall())
 }
 
 export function startUpdater(publish: Notify): void {
@@ -188,26 +202,30 @@ export function startUpdater(publish: Notify): void {
     return
   }
 
-  autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.on('error', (cause) => set({ status: 'error', error: cause.message }))
-  autoUpdater.on('update-available', (info) => set({ status: 'available', version: info.version }))
-  autoUpdater.on('update-not-available', () => set({ status: 'up-to-date' }))
-  autoUpdater.on('download-progress', (info) =>
-    set({
-      status: 'downloading',
-      progress: {
-        percent: info.percent,
-        transferred: info.transferred,
-        total: info.total,
-        bytesPerSecond: info.bytesPerSecond
-      }
-    })
-  )
-  autoUpdater.on('update-downloaded', (info) =>
-    set({ status: 'downloaded', version: info.version, progress: null })
-  )
+  void loadUpdater()
+    .then((updater) => {
+      updater.autoDownload = false
+      updater.autoInstallOnAppQuit = false
+      updater.on('error', (cause) => set({ status: 'error', error: cause.message }))
+      updater.on('update-available', (info) => set({ status: 'available', version: info.version }))
+      updater.on('update-not-available', () => set({ status: 'up-to-date' }))
+      updater.on('download-progress', (info) =>
+        set({
+          status: 'downloading',
+          progress: {
+            percent: info.percent,
+            transferred: info.transferred,
+            total: info.total,
+            bytesPerSecond: info.bytesPerSecond
+          }
+        })
+      )
+      updater.on('update-downloaded', (info) =>
+        set({ status: 'downloaded', version: info.version, progress: null })
+      )
 
-  // One check on launch; the user can ask again from the command palette.
-  checkForUpdates()
+      // One check on launch; the user can ask again from the command palette.
+      checkForUpdates()
+    })
+    .catch(failed)
 }
