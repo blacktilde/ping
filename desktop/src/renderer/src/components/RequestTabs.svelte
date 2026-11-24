@@ -222,7 +222,7 @@
 <!--
   A header, not a bare strip: the app's own controls share this row rather than taking one
   above it, so this is where anything that must not shift the page belongs — an update offer
-  arrives here and the layout below it never moves. Only the tabs scroll — the new-tab button sits outside them so it stays visible however many are open; the wrapper carries
+  arrives here and the layout below it never moves. Only the tabs scroll — the strip hugs its tabs and the new-tab button sits right after it, outside the scroll area, so it stays visible however many are open; a spacer keeps `trailing` on the right; the wrapper carries
   the rule and the edges, so a long list of tabs never pushes the environment picker out of reach.
 -->
 <header class="flex items-stretch border-b border-line">
@@ -233,7 +233,7 @@
     role="tablist"
     aria-label="Open requests"
     onwheel={onWheel}
-    class="scroll-quiet flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto px-2"
+    class="scroll-quiet flex min-w-0 flex-initial items-stretch gap-1 overflow-x-auto pl-2"
   >
     {#each tabs as tab, index (tab.id)}
       {@const active = tab.id === activeId}
@@ -325,7 +325,7 @@
       </div>
     {/each}
   </div>
-  <div class="flex shrink-0 items-center pr-2">
+  <div class="flex shrink-0 items-center px-2">
     <button
       type="button"
       onclick={onNew}
@@ -347,6 +347,7 @@
       </svg>
     </button>
   </div>
+  <div class="flex-1"></div>
   {#if trailing}
     <div class="flex shrink-0 items-center gap-2 pr-4">{@render trailing()}</div>
   {/if}

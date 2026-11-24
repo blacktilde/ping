@@ -113,7 +113,7 @@ export function newDraft(): RequestDraft {
   return {
     name: 'Untitled request',
     method: 'GET',
-    url: 'https://jsonplaceholder.typicode.com/todos/1',
+    url: '',
     query: [],
     headers: [],
     body: { type: 'none', content: '', contentType: '', fields: [] },
