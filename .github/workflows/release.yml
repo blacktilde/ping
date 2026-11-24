@@ -61,7 +61,7 @@ jobs:
 
       - uses: graalvm/setup-graalvm@v1
         with:
-          java-version: '25'
+          version: '25i-latest'
           distribution: graalvm-community
           cache: ${{ matrix.cache }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
