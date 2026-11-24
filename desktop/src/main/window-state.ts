@@ -19,6 +19,13 @@ export interface WindowState {
   x?: number
   y?: number
   maximized: boolean
+  /** The theme's window colour (`#rrggbb`), so the frame before first paint matches the UI. */
+  background?: string
+}
+
+/** Only an opaque hex colour is accepted: the value is handed to the native window. */
+export function isWindowBackground(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
 }
 
 /** Read the saved state, or null when there is none or the file is unusable. */
@@ -28,11 +35,14 @@ export function readWindowState(file: string): WindowState | null {
     if (!parsed || typeof parsed !== 'object') {
       return null
     }
-    const { width, height, x, y, maximized } = parsed
+    const { width, height, x, y, maximized, background } = parsed
     if (!isLength(width) || !isLength(height)) {
       return null
     }
     const state: WindowState = { width, height, maximized: maximized === true }
+    if (isWindowBackground(background)) {
+      state.background = background
+    }
     if (isCoordinate(x) && isCoordinate(y)) {
       state.x = x
       state.y = y

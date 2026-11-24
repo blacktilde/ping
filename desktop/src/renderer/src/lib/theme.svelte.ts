@@ -80,9 +80,28 @@ function resolve(choice: ThemeChoice): ThemeName {
   return choice
 }
 
+/**
+ * The opaque colour the native window wears behind each theme. The rocket themes paint a
+ * translucent base over a photo, so they name the plain colour closest to what shows through.
+ */
+const WINDOW_COLOR: Record<ThemeName, string> = {
+  light: '#f3f4f6',
+  dark: '#0b0d10',
+  'rocket-night': '#0b0d10',
+  'rocket-daylight': '#f3f4f6',
+  violet: '#1d1b2c',
+  nord: '#2e3440',
+  dracula: '#21222c',
+  gruvbox: '#1d2021',
+  solarized: '#eee8d5',
+  'rose-dawn': '#f2e9e1'
+}
+
 export function applyTheme(): void {
   theme.resolved = resolve(theme.choice)
   document.documentElement.dataset.theme = theme.resolved
+  // The shell remembers it, so the next launch opens in this colour instead of flashing dark.
+  window.ping.setWindowBackground(WINDOW_COLOR[theme.resolved])
 }
 
 export function setTheme(choice: ThemeChoice): void {

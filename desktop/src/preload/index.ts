@@ -255,6 +255,11 @@ const api = {
   },
   confirmClose(): Promise<void> {
     return ipcRenderer.invoke('app:confirm-close') as Promise<void>
+  },
+
+  /** Tells the shell the window colour for the current theme, as `#rrggbb`. */
+  setWindowBackground(color: string): void {
+    ipcRenderer.send('window:background', color)
   }
 }
 

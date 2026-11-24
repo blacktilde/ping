@@ -2,7 +2,7 @@ import { enableCompileCache } from 'node:module'
 import { readFile, stat } from 'node:fs/promises'
 import { existsSync, mkdirSync } from 'node:fs'
 import { basename, delimiter, join, resolve, sep } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, shell } from 'electron'
 import { writeFileSyncAtomic } from './atomic'
 import { CoreClient, CoreRpcError } from './core'
 import { HistoryStore } from './history'
@@ -20,7 +20,7 @@ import {
   startUpdater,
   updateState
 } from './updater'
-import { readWindowState, restoreBounds, type WindowState } from './window-state'
+import { isWindowBackground, readWindowState, restoreBounds, type WindowState } from './window-state'
 import { Workspace } from './workspace'
 import { log, logger } from './log'
 import type { LogEntry } from '../shared/logs'
@@ -46,6 +46,9 @@ let mainWindow: BrowserWindow | null = null
 /** Set when a close has been approved (renderer confirmed, or the updater is restarting). */
 let closeApproved = false
 
+/** The theme's window colour, remembered so the next launch opens in it. */
+let windowBackground: string | undefined
+
 const MIN_WINDOW = { width: 900, height: 600 }
 
 function windowStateFile(): string {
@@ -57,7 +60,11 @@ function saveWindowState(win: BrowserWindow): void {
   if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) {
     return
   }
-  const state: WindowState = { ...win.getNormalBounds(), maximized: win.isMaximized() }
+  const state: WindowState = {
+    ...win.getNormalBounds(),
+    maximized: win.isMaximized(),
+    background: windowBackground
+  }
   try {
     mkdirSync(app.getPath('userData'), { recursive: true })
     writeFileSyncAtomic(windowStateFile(), JSON.stringify(state))
@@ -75,13 +82,15 @@ function createWindow(): void {
     MIN_WINDOW,
     screen.getAllDisplays().map((display) => display.workArea)
   )
+  windowBackground = saved?.background
   mainWindow = new BrowserWindow({
     ...bounds,
     minWidth: MIN_WINDOW.width,
     minHeight: MIN_WINDOW.height,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#0b0d10',
+    // The theme lives in the renderer, which reports its colour; until it has, follow the OS.
+    backgroundColor: windowBackground ?? (nativeTheme.shouldUseDarkColors ? '#0b0d10' : '#f3f4f6'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: true,
@@ -509,6 +518,18 @@ function registerIpc(): void {
       })
     }
   }
+
+  // The renderer owns the theme and says what colour the window should wear before it paints.
+  ipcMain.on('window:background', (_event, color: unknown) => {
+    if (!isWindowBackground(color) || color === windowBackground) {
+      return
+    }
+    windowBackground = color
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setBackgroundColor(color)
+      saveWindowState(mainWindow)
+    }
+  })
 
   ipc.handle('workspace:current', () => workspace.current())
   ipc.handle('workspace:choose', async () => {
