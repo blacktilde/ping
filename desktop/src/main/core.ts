@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { LineSplitter } from './lines'
 import { log, LogLines } from './log'
+import { peekResult } from './raw-result'
 
 /** A server-initiated message: no id, so nothing is waiting on it. */
 export interface CoreNotification {
@@ -27,7 +28,14 @@ export class CoreRpcError extends Error {
   }
 }
 
+/** A large result handed over as JSON text, unparsed, for the renderer to read. */
+export class RawJson {
+  constructor(readonly json: string) {}
+}
+
 interface PendingCall {
+  /** Set by {@link CoreClient.requestMaybeRaw}: the caller will take a large result as text. */
+  rawOk?: (json: string) => boolean
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
   timer: NodeJS.Timeout | null
@@ -190,6 +198,28 @@ export class CoreClient {
   }
 
   request(method: string, params?: unknown): Promise<unknown> {
+    return this.send(method, params)
+  }
+
+  /**
+   * Like {@link request}, but a large result may come back as {@link RawJson} instead of a parsed
+   * value. Parsing a response of megabytes blocks this process, and with it every other call, so
+   * it is left to the renderer when the shell has nothing to do with the content. `rawOk` gets
+   * the result's text and says whether that holds.
+   */
+  requestMaybeRaw(
+    method: string,
+    params: unknown,
+    rawOk: (json: string) => boolean
+  ): Promise<unknown> {
+    return this.send(method, params, rawOk)
+  }
+
+  private send(
+    method: string,
+    params: unknown,
+    rawOk?: (json: string) => boolean
+  ): Promise<unknown> {
     const child = this.child
     if (!child || child.exitCode !== null) {
       return Promise.reject(new Error('Core is not running'))
@@ -210,7 +240,7 @@ export class CoreClient {
         }, RESPONSE_TIMEOUT_MS)
         timer.unref()
       }
-      this.pending.set(id, { resolve, reject, timer })
+      this.pending.set(id, { resolve, reject, timer, rawOk })
       child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
     })
   }
@@ -229,6 +259,19 @@ export class CoreClient {
   }
 
   private dispatch(line: string): void {
+    const raw = peekResult(line)
+    if (raw) {
+      const call = this.pending.get(raw.id)
+      if (call?.rawOk?.(raw.json)) {
+        this.pending.delete(raw.id)
+        if (call.timer) {
+          clearTimeout(call.timer)
+        }
+        call.resolve(new RawJson(raw.json))
+        return
+      }
+    }
+
     let message: Record<string, any>
     try {
       message = JSON.parse(line)

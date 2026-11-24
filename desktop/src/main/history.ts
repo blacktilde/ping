@@ -59,7 +59,24 @@ export class HistoryStore {
     this.persist()
   }
 
+  private timer: NodeJS.Timeout | undefined
+
+  /**
+   * Writes are coalesced: a run of requests costs one write, not one per request, and none of
+   * them on the path of the response. {@link flush} forces it out; the shell calls it on quit.
+   */
   private persist(): void {
+    clearTimeout(this.timer)
+    this.timer = setTimeout(() => this.flush(), 500)
+    this.timer.unref()
+  }
+
+  flush(): void {
+    if (!this.timer) {
+      return
+    }
+    clearTimeout(this.timer)
+    this.timer = undefined
     try {
       writeFileSyncAtomic(this.file(), JSON.stringify(this.entries))
     } catch (error) {

@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { readWindowState, restoreBounds } from '../src/main/window-state.ts'
+import { isWindowBackground, readWindowState, restoreBounds } from '../src/main/window-state.ts'
 
 const fallback = { width: 1280, height: 820 }
 const min = { width: 900, height: 600 }
@@ -81,4 +81,19 @@ test('a position on a second display is kept while that display is connected', (
 test('a saved size below the window minimum is raised to it', () => {
   const saved = { width: 300, height: 200, maximized: false }
   assert.deepEqual(restoreBounds(saved, fallback, min, screen), { width: 900, height: 600 })
+})
+
+test('a saved window colour is kept only when it is an opaque hex colour', () => {
+  const dir = scratch()
+  try {
+    const file = join(dir, 'window-state.json')
+    writeFileSync(file, JSON.stringify({ width: 1000, height: 700, maximized: false, background: '#f3f4f6' }))
+    assert.equal(readWindowState(file)?.background, '#f3f4f6')
+    writeFileSync(file, JSON.stringify({ width: 1000, height: 700, maximized: false, background: 'red' }))
+    assert.equal(readWindowState(file)?.background, undefined)
+    assert.equal(isWindowBackground('#12345'), false)
+    assert.equal(isWindowBackground('rgb(0 0 0 / 0.5)'), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

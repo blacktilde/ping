@@ -1,9 +1,9 @@
 <script lang="ts">
+  import { codeEditor, loadEditor } from '../lib/code-editor.svelte'
   import { completeVariables } from '../lib/completion.svelte'
   import type { RequestBody } from '../lib/http'
   import { BODY_MODES } from '../lib/request'
   import { prettyJson } from '../lib/response'
-  import CodeEditor from './CodeEditor.svelte'
   import FileField from './FileField.svelte'
   import KeyValueEditor from './KeyValueEditor.svelte'
   import MultipartEditor from './MultipartEditor.svelte'
@@ -34,6 +34,8 @@
     void body.type
     beautifyError = ''
   })
+
+  void loadEditor()
 </script>
 
 <div class="flex h-full flex-col">
@@ -82,9 +84,13 @@
     {#if body.type === 'none'}
       <p class="px-5 py-6 text-sm text-fg-faint">This request sends no body.</p>
     {:else if body.type === 'json'}
-      <CodeEditor bind:value={body.content} language="json" label="JSON request body" pad="px-5" variables />
+      {#if codeEditor.component}
+        <codeEditor.component bind:value={body.content} language="json" label="JSON request body" pad="px-5" variables />
+      {/if}
     {:else if body.type === 'raw'}
-      <CodeEditor bind:value={body.content} language="plain" label="Raw request body" pad="px-5" variables />
+      {#if codeEditor.component}
+        <codeEditor.component bind:value={body.content} language="plain" label="Raw request body" pad="px-5" variables />
+      {/if}
     {:else if body.type === 'file'}
       <div class="flex items-center px-5 py-4">
         <FileField

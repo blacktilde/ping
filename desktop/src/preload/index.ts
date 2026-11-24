@@ -20,6 +20,9 @@ export interface CoreRpcError {
  */
 export type CoreResult<T> = { ok: true; value: T } | { ok: false; error: CoreRpcError }
 
+/** What `request` resolves with: a large result may arrive as unparsed `json` text instead. */
+export type RequestResult<T> = CoreResult<T> | { ok: true; json: string }
+
 /**
  * The renderer's entire view of the outside world.
  *
@@ -27,8 +30,8 @@ export type CoreResult<T> = { ok: true; value: T } | { ok: false; error: CoreRpc
  * filesystem, or the core process on its own.
  */
 const api = {
-  request<T = unknown>(method: string, params?: unknown): Promise<CoreResult<T>> {
-    return ipcRenderer.invoke('core:request', method, params) as Promise<CoreResult<T>>
+  request<T = unknown>(method: string, params?: unknown): Promise<RequestResult<T>> {
+    return ipcRenderer.invoke('core:request', method, params) as Promise<RequestResult<T>>
   },
 
   /** The folder the shell has open, or null. The renderer never chooses it directly. */
@@ -233,9 +236,13 @@ const api = {
       return ipcRenderer.invoke('logs:openFolder') as Promise<void>
     },
     onEntry(listener: (entry: LogEntry) => void): () => void {
-      const handler = (_event: IpcRendererEvent, entry: LogEntry): void => listener(entry)
-      ipcRenderer.on('logs:entry', handler)
-      return () => ipcRenderer.off('logs:entry', handler)
+      const handler = (_event: IpcRendererEvent, entries: LogEntry[]): void => {
+        for (const entry of entries) {
+          listener(entry)
+        }
+      }
+      ipcRenderer.on('logs:entries', handler)
+      return () => ipcRenderer.off('logs:entries', handler)
     }
   },
 
@@ -251,6 +258,11 @@ const api = {
   },
   confirmClose(): Promise<void> {
     return ipcRenderer.invoke('app:confirm-close') as Promise<void>
+  },
+
+  /** Tells the shell the window colour for the current theme, as `#rrggbb`. */
+  setWindowBackground(color: string): void {
+    ipcRenderer.send('window:background', color)
   }
 }
 

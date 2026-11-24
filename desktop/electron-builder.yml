@@ -27,6 +27,8 @@ extraResources:
     to: LICENSE-Inter.txt
 
 asar: true
+# Only English locale packs ship: the UI is English, and the rest are tens of megabytes.
+electronLanguages: en-US
 # No native node modules to rebuild; electron-builder's default would only slow the build.
 npmRebuild: false
 
