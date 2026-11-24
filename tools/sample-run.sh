@@ -11,26 +11,42 @@ set -u
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy
 
 BIN=${1:?usage: sample-run.sh <ping-core binary>}
-PORT=${PORT:-18099}
-PROXY_PORT=${PROXY_PORT:-18098}
+# Ports are picked free per run: the self-hosted runners share a host, so fixed ports let two
+# jobs collide, and the loser's server dies at bind and every request is refused.
+free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])'; }
+PORT=${PORT:-$(free_port)}
+PROXY_PORT=${PROXY_PORT:-$(free_port)}
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 BASE="http://127.0.0.1:$PORT"
 
-python3 "$HERE/sample/server.py" "$PORT" &
+python3 "$HERE/sample/server.py" "$PORT" 2>"$WORK/server.err" &
 SERVER=$!
 PROXYLOG="$WORK/proxy.log"
 : >"$PROXYLOG"
-python3 "$HERE/sample/proxy.py" "$PROXY_PORT" "$PROXYLOG" &
+python3 "$HERE/sample/proxy.py" "$PROXY_PORT" "$PROXYLOG" 2>"$WORK/proxy.err" &
 PROXY=$!
 trap 'kill $SERVER $PROXY 2>/dev/null; rm -rf "$WORK"' EXIT
 
-for waiting_on in "$PORT" "$PROXY_PORT"; do
+# A helper that never came up must stop the gate with its own error, not show up later as
+# a wall of "Connection refused" that looks like a runner bug.
+wait_for() { # wait_for <name> <port> <pid> <stderr file>
   for _ in $(seq 1 50); do
-    (exec 3<>"/dev/tcp/127.0.0.1/$waiting_on") 2>/dev/null && break
+    # Open AND still ours: another process holding the port would answer while ours died at bind.
+    if (exec 3<>"/dev/tcp/127.0.0.1/$2") 2>/dev/null; then
+      sleep 0.3
+      kill -0 "$3" 2>/dev/null && return 0
+      break
+    fi
+    kill -0 "$3" 2>/dev/null || break
     sleep 0.1
   done
-done
+  echo "FAIL the sample $1 is not listening on 127.0.0.1:$2"
+  sed 's/^/     err: /' "$4"
+  exit 1
+}
+wait_for server "$PORT" "$SERVER" "$WORK/server.err"
+wait_for proxy "$PROXY_PORT" "$PROXY" "$WORK/proxy.err"
 
 failures=0
 expect() { # expect <exit code> <label> <command...>
