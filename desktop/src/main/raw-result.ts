@@ -13,8 +13,13 @@ export const RAW_THRESHOLD = 64 * 1024
 /**
  * The core writes a response as `{"jsonrpc":"2.0","id":N,"result":...}` (Jackson keeps the order
  * the keys were put in). Anything that does not look exactly like that is left to `JSON.parse`.
+ *
+ * The prefix is read by hand rather than with a regular expression on a slice of the line: V8
+ * makes a slice of 13 or more characters a view onto its parent, and the regex engine remembers
+ * the last string it matched, so a 14 MB response would stay in memory until the next match.
  */
-const RESULT_PREFIX = /^\{"jsonrpc":"2\.0","id":(\d+),"result":/
+const HEAD = '{"jsonrpc":"2.0","id":'
+const MID = ',"result":'
 
 export interface RawResult {
   id: number
@@ -27,11 +32,24 @@ export function peekResult(line: string): RawResult | null {
   if (line.length < RAW_THRESHOLD || line.charCodeAt(line.length - 1) !== 0x7d /* } */) {
     return null
   }
-  const match = RESULT_PREFIX.exec(line.slice(0, 64))
-  if (!match) {
+  if (!line.startsWith(HEAD)) {
     return null
   }
-  return { id: Number(match[1]), json: line.slice(match[0].length, -1) }
+  let at = HEAD.length
+  let id = 0
+  const digitsFrom = at
+  while (at < digitsFrom + 15) {
+    const code = line.charCodeAt(at)
+    if (code < 0x30 || code > 0x39) {
+      break
+    }
+    id = id * 10 + (code - 0x30)
+    at++
+  }
+  if (at === digitsFrom || !line.startsWith(MID, at)) {
+    return null
+  }
+  return { id, json: line.slice(at + MID.length, -1) }
 }
 
 const CAPTURED_KEY = '"captured":'
