@@ -1,5 +1,7 @@
 name: CI
 
+# A pull request runs the whole pipeline. A push to main re-runs only what a PR cannot cover
+# (the macOS test), because the merged tree was already tested as the PR's head.
 on:
   push:
     branches: [main]
@@ -17,6 +19,7 @@ jobs:
   wrapper:
     name: Gradle wrapper
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 5
 
     steps:
       - uses: actions/checkout@v7
@@ -26,6 +29,7 @@ jobs:
   changes:
     name: Changes
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 5
     outputs:
       code: ${{ steps.diff.outputs.code }}
 
@@ -50,8 +54,9 @@ jobs:
   core:
     name: Core tests
     needs: [wrapper, changes]
-    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    if: ${{ !cancelled() && github.event_name != 'push' && needs.changes.outputs.code != 'false' }}
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 15
 
     steps:
       - name: Require a verified Gradle wrapper
@@ -76,8 +81,9 @@ jobs:
   core-cross-os:
     name: Core tests (${{ matrix.os }})
     needs: [wrapper, changes]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.changes.outputs.code != 'false' }}
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.changes.outputs.code != 'false' }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -104,8 +110,9 @@ jobs:
   native:
     name: Native compatibility
     needs: [wrapper, changes]
-    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    if: ${{ !cancelled() && github.event_name != 'push' && needs.changes.outputs.code != 'false' }}
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 25
 
     steps:
       - name: Require a verified Gradle wrapper
@@ -131,8 +138,9 @@ jobs:
   desktop:
     name: Desktop
     needs: [wrapper, changes]
-    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    if: ${{ !cancelled() && github.event_name != 'push' && needs.changes.outputs.code != 'false' }}
     runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 15
 
     steps:
       - name: Require a verified Gradle wrapper
