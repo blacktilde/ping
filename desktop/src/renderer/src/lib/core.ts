@@ -26,7 +26,7 @@ export class CoreError extends Error {
 export async function call<T>(method: string, params?: unknown): Promise<T> {
   const result = await window.ping.request<T>(method, params)
   if (result.ok) {
-    return result.value
+    return 'json' in result ? (JSON.parse(result.json) as T) : result.value
   }
   throw new CoreError(result.error.code, result.error.message)
 }

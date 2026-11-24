@@ -4,7 +4,8 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { basename, delimiter, join, resolve, sep } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, shell } from 'electron'
 import { writeFileSyncAtomic } from './atomic'
-import { CoreClient, CoreRpcError } from './core'
+import { CoreClient, CoreRpcError, RawJson } from './core'
+import { hasCapturedEntries } from './raw-result'
 import { HistoryStore } from './history'
 import { checkBodyFiles, FileGrants, isRelativePath, storedPathFor } from './files'
 import { exportFileName, exportReport, readExport, uniqueFileNames, type Exported } from './exporter'
@@ -887,7 +888,17 @@ function registerIpc(): void {
 
     try {
       await core.ready
-      const value = await core.request(method, args)
+      // `auth.authorize` is read here; an `http.send` result is read here only for its captures.
+      // Everything else crosses as text when it is large, and the renderer parses it.
+      const value =
+        method === 'auth.authorize'
+          ? await core.request(method, args)
+          : await core.requestMaybeRaw(method, args, (json) =>
+              method === 'http.send' ? !hasCapturedEntries(json) : true
+            )
+      if (value instanceof RawJson) {
+        return { ok: true, json: value.json }
+      }
       if (method === 'auth.authorize') {
         const url = authorizeUrl(value)
         if (url) {
