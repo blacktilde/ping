@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Newline-delimited JSON-RPC 2.0 over a byte stream, normally the core's stdin/stdout.
@@ -36,6 +37,8 @@ public final class RpcServer {
     private final BufferedReader in;
     private final PrintWriter out;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
+    /** Requests accepted but not yet answered, so a drain that gives up can say what it dropped. */
+    private final AtomicInteger inFlight = new AtomicInteger();
 
     public RpcServer(InputStream in, OutputStream out) {
         this.in = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
@@ -62,6 +65,10 @@ public final class RpcServer {
         workers.shutdown();
         try {
             if (!workers.awaitTermination(30, TimeUnit.SECONDS)) {
+                // Stderr only: stdout is protocol traffic. Without this, a handler that stalls
+                // past the drain leaves a client waiting on a reply that never comes, silently.
+                System.err.println("ping-core: " + inFlight.get()
+                        + " request(s) still running 30s after input closed; dropping them without a reply");
                 workers.shutdownNow();
             }
         } catch (InterruptedException e) {
@@ -94,7 +101,14 @@ public final class RpcServer {
         }
 
         JsonNode params = request.get("params");
-        workers.execute(() -> invoke(handler, params, idNode));
+        inFlight.incrementAndGet();
+        workers.execute(() -> {
+            try {
+                invoke(handler, params, idNode);
+            } finally {
+                inFlight.decrementAndGet();
+            }
+        });
     }
 
     private void invoke(MethodHandler handler, JsonNode params, JsonNode idNode) {

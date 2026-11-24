@@ -43,8 +43,13 @@ class StoreHygieneTest {
         RpcServer server = new RpcServer(
                 new ByteArrayInputStream((line + "\n").getBytes(StandardCharsets.UTF_8)), out);
         StoreMethods.registerOn(server);
+        long started = System.nanoTime();
         server.serve();
-        return out.toString(StandardCharsets.UTF_8).lines()
+        long tookMillis = (System.nanoTime() - started) / 1_000_000;
+        String output = out.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains("\"id\":"), method + " got no reply after " + tookMillis
+                + " ms (the server drops a request still running 30 s after input closes): " + output);
+        return output.lines()
                 .filter(l -> !l.isBlank())
                 .map(l -> {
                     try {
