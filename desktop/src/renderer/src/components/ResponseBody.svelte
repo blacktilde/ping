@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { codeEditor, loadEditor } from '../lib/code-editor.svelte'
   import type { HttpResponse } from '../lib/http'
   import { FORMAT_OFF_THREAD_FROM, formatJson } from '../lib/pretty'
   import {
@@ -181,6 +182,8 @@
     }
     wasEventStream = eventStream
   })
+
+  void loadEditor()
 </script>
 
 <div class="flex h-full flex-col">
@@ -333,13 +336,13 @@
         Formatting {formatBytes(response.body.bytes)}…
       </div>
     {:else if view === 'pretty'}
-      {#await import('./CodeEditor.svelte') then { default: CodeEditor }}
-        <CodeEditor value={pretty} language="json" label="Response body, pretty" readonly pad="px-5" />
-      {/await}
+      {#if codeEditor.component}
+        <codeEditor.component value={pretty} language="json" label="Response body, pretty" readonly pad="px-5" />
+      {/if}
     {:else}
-      {#await import('./CodeEditor.svelte') then { default: CodeEditor }}
-        <CodeEditor value={raw} language="plain" label="Response body, raw" readonly pad="px-5" />
-      {/await}
+      {#if codeEditor.component}
+        <codeEditor.component value={raw} language="plain" label="Response body, raw" readonly pad="px-5" />
+      {/if}
     {/if}
   </div>
 </div>
