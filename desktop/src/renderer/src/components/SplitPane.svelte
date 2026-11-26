@@ -11,8 +11,8 @@
     collapsed?: boolean
     /**
      * The first pane takes only the height its content needs, between `min` and the stored
-     * split, instead of always claiming its share. Resizing pins it to an explicit size;
-     * double-clicking the handle lets it fit again. Fraction splits only.
+     * split, instead of always claiming its share. Dragging the handle pins a size through `pinned`;
+     * double-clicking clears it so the pane fits again. Fraction splits only.
      */
     fit?: boolean
     /**
@@ -27,6 +27,12 @@
      * Fraction splits only; the stored split is untouched, so expanding restores it.
      */
     firstCollapsed?: boolean
+    /**
+     * A fitting pane's hand-set size as a fraction, or null while it fits its content. Owned by
+     * the caller, so it lives and dies with whatever the caller keys it to (a request tab) and is
+     * never written to storage. Fraction splits with `fit` only.
+     */
+    pinned?: number | null
     initial?: number
     min?: number
     max?: number
@@ -44,6 +50,7 @@
     fit = false,
     fitMin = 0,
     firstCollapsed = false,
+    pinned = $bindable(null),
     initial = unit === 'fraction' ? 0.5 : 256,
     min = unit === 'fraction' ? 0.15 : 180,
     max = unit === 'fraction' ? 0.85 : 520,
@@ -74,54 +81,29 @@
     }
   }
 
-  /**
-   * A fitting split has no explicit first size: the pane is as tall as its content, and the
-   * stored value is only the ceiling. The choice persists, so a pane someone sized by hand
-   * stays that way across launches.
-   */
-  function storedFixed(): boolean {
-    if (!storageKey) {
-      return false
-    }
-    try {
-      return localStorage.getItem(`${storageKey}.fixed`) === '1'
-    } catch {
-      return false
-    }
-  }
-
   let size = $state(stored())
-  let fixed = $state(untrack(() => !fit || unit !== 'fraction' || storedFixed()))
+  // A fitting pane is pinned only by the caller's `pinned`, and only until that is cleared.
+  const fixed = $derived(!fit || unit !== 'fraction' || pinned != null)
+  const fitting = $derived(fit && unit === 'fraction')
+  const current = $derived(pinned ?? size)
   let dragging = $state(false)
   let container = $state<HTMLDivElement>()
   let firstPane = $state<HTMLDivElement>()
 
-  function setFixed(value: boolean): void {
-    fixed = value
-    if (!storageKey) {
-      return
-    }
-    try {
-      localStorage.setItem(`${storageKey}.fixed`, value ? '1' : '0')
-    } catch {
-      // A locked-down profile just means the choice is not remembered.
-    }
-  }
-
-  /**
-   * Pins a fitting pane at the height it is showing right now, so the first drag continues
-   * from where the handle sits rather than jumping to the stored ceiling.
-   */
-  function fixAtCurrent(): void {
+  /** Pins a fitting pane at the height it is showing now, so a drag continues from the handle. */
+  function pinAtCurrent(): void {
     const bounds = container?.getBoundingClientRect()
     const pane = firstPane?.getBoundingClientRect()
     if (bounds && pane && bounds.height > 0) {
-      apply(pane.height / bounds.height)
+      pinned = clamp(pane.height / bounds.height)
     }
-    setFixed(true)
   }
 
   function apply(next: number): void {
+    if (fitting) {
+      pinned = clamp(next)
+      return
+    }
     size = clamp(next)
     if (!storageKey) {
       return
@@ -139,8 +121,8 @@
     if (!rect) {
       return
     }
-    if (!fixed) {
-      fixAtCurrent()
+    if (fitting && pinned == null) {
+      pinAtCurrent()
     }
     dragging = true
     // Keep receiving moves even if the pointer leaves the window. Synthetic events in tests
@@ -152,7 +134,7 @@
       // No active pointer to capture.
     }
     const origin = vertical ? event.clientY : event.clientX
-    const start = size
+    const start = current
 
     const move = (moveEvent: PointerEvent): void => {
       const current = vertical ? moveEvent.clientY : moveEvent.clientX
@@ -181,21 +163,20 @@
     if (!fit || unit !== 'fraction') {
       return
     }
-    apply(initial)
-    setFixed(false)
+    pinned = null
   }
 
   function onKeydown(event: KeyboardEvent): void {
     const step = unit === 'fraction' ? (event.shiftKey ? 0.1 : 0.02) : event.shiftKey ? 48 : 16
-    if (!fixed && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-      fixAtCurrent()
+    if (fitting && pinned == null && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      pinAtCurrent()
     }
     const decrease = vertical ? (sign < 0 ? 'ArrowDown' : 'ArrowUp') : sign < 0 ? 'ArrowRight' : 'ArrowLeft'
     const increase = vertical ? (sign < 0 ? 'ArrowUp' : 'ArrowDown') : sign < 0 ? 'ArrowLeft' : 'ArrowRight'
     if (event.key === decrease) {
-      apply(size - step)
+      apply(current - step)
     } else if (event.key === increase) {
-      apply(size + step)
+      apply(current + step)
     } else if (event.key === 'Home') {
       apply(min)
     } else if (event.key === 'End') {
@@ -256,7 +237,7 @@
   // pane ends where its content does and the second pane takes everything below it.
   const fractionFirst = $derived(
     fixed
-      ? `flex: ${size} 1 0%`
+      ? `flex: ${current} 1 0%`
       : `flex: 0 1 auto; min-height: max(${min * 100}%, ${fitMin}px); max-height: ${size * 100}%`
   )
   const firstStyle = $derived(
@@ -275,19 +256,19 @@
         ? `flex: 0 0 ${shown}px`
         : unit === 'fraction'
           ? fixed
-            ? `flex: ${1 - size} 1 0%`
+            ? `flex: ${1 - current} 1 0%`
             : fill
           : fill
   )
   const slide = $derived(
     dragging ? '' : 'transition-[flex-basis] duration-200 ease-out motion-reduce:transition-none'
   )
-  const valueNow = $derived(Math.round(unit === 'fraction' ? size * 100 : size))
+  const valueNow = $derived(Math.round(unit === 'fraction' ? current * 100 : size))
   const valueMin = $derived(Math.round(unit === 'fraction' ? min * 100 : min))
   const valueMax = $derived(Math.round(unit === 'fraction' ? max * 100 : max))
 </script>
 
-{#snippet pinned(content: Snippet, toEnd: boolean)}
+{#snippet clipped(content: Snippet, toEnd: boolean)}
   <!-- Fixed to the pane's full size, so what slides in and out is clipped, not squeezed. -->
   {#if vertical}
     <div class="w-full {toEnd ? 'self-end' : 'self-start'}" style="height: {size}px">
@@ -311,7 +292,7 @@
       style={firstStyle}
     >
       {#if unit === 'pixels' && !anchoredSecond}
-        {@render pinned(first, false)}
+        {@render clipped(first, false)}
       {:else}
         {@render first()}
       {/if}
@@ -334,9 +315,9 @@
       aria-valuemax={valueMax}
       tabindex="0"
       title={fit && unit === 'fraction'
-        ? fixed
+        ? pinned != null
           ? 'Drag to resize. Double-click to fit the editor to its content.'
-          : 'The editor fits its content. Drag to give it a fixed height.'
+          : 'The editor fits its content. Drag to set a height for this request.'
         : undefined}
       onpointerdown={onPointerDown}
       ondblclick={refit}
@@ -360,7 +341,7 @@
       style={secondStyle}
     >
       {#if anchoredSecond}
-        {@render pinned(second, true)}
+        {@render clipped(second, true)}
       {:else}
         {@render second()}
       {/if}

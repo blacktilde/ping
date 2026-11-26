@@ -169,12 +169,19 @@
    * How much room the open editor needs before fitting to its content makes sense. A list of
    * rows is honest at its natural height; a text surface that happens to be empty is not.
    */
-  const editorFloor = $derived(
-    active.editorTab === 'docs' ||
-      (active.editorTab === 'body' && (active.draft.body.type === 'json' || active.draft.body.type === 'raw'))
-      ? 260
-      : 0
-  )
+  const editorFloor = $derived.by(() => {
+    const body = active.draft.body
+    if (active.editorTab === 'docs') {
+      return 260
+    }
+    if (active.editorTab === 'body' && (body.type === 'json' || body.type === 'raw')) {
+      // Chrome (tabs, toolbar) plus one row per line, so a short body does not leave a void
+      // below it; an empty one still gets room to type.
+      const lines = Math.max(3, body.content.split('\n').length + 1)
+      return Math.min(260, 120 + lines * 20)
+    }
+    return 0
+  })
 
   const requestTabs = $derived([
     { id: 'params', label: 'Params', badge: queryCount > 0 ? String(queryCount) : null },
@@ -1895,6 +1902,7 @@
         fit
         fitMin={editorFloor}
         firstCollapsed={editorCollapsed}
+        bind:pinned={active.editorSize}
       >
         {#snippet first()}
           <section
