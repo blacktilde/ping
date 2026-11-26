@@ -11,8 +11,8 @@
     collapsed?: boolean
     /**
      * The first pane takes only the height its content needs, between `min` and the stored
-     * split, instead of always claiming its share. Resizing pins it to an explicit size;
-     * double-clicking the handle lets it fit again. Fraction splits only.
+     * split, instead of always claiming its share. Dragging the handle moves that ceiling and never
+     * pins a size; double-clicking resets it. Fraction splits only.
      */
     fit?: boolean
     /**
@@ -74,52 +74,11 @@
     }
   }
 
-  /**
-   * A fitting split has no explicit first size: the pane is as tall as its content, and the
-   * stored value is only the ceiling. The choice persists, so a pane someone sized by hand
-   * stays that way across launches.
-   */
-  function storedFixed(): boolean {
-    if (!storageKey) {
-      return false
-    }
-    try {
-      return localStorage.getItem(`${storageKey}.fixed`) === '1'
-    } catch {
-      return false
-    }
-  }
-
   let size = $state(stored())
-  let fixed = $state(untrack(() => !fit || unit !== 'fraction' || storedFixed()))
+  // A fitting pane is never pinned: dragging only moves its ceiling.
+  const fixed = $derived(!fit || unit !== 'fraction')
   let dragging = $state(false)
   let container = $state<HTMLDivElement>()
-  let firstPane = $state<HTMLDivElement>()
-
-  function setFixed(value: boolean): void {
-    fixed = value
-    if (!storageKey) {
-      return
-    }
-    try {
-      localStorage.setItem(`${storageKey}.fixed`, value ? '1' : '0')
-    } catch {
-      // A locked-down profile just means the choice is not remembered.
-    }
-  }
-
-  /**
-   * Pins a fitting pane at the height it is showing right now, so the first drag continues
-   * from where the handle sits rather than jumping to the stored ceiling.
-   */
-  function fixAtCurrent(): void {
-    const bounds = container?.getBoundingClientRect()
-    const pane = firstPane?.getBoundingClientRect()
-    if (bounds && pane && bounds.height > 0) {
-      apply(pane.height / bounds.height)
-    }
-    setFixed(true)
-  }
 
   function apply(next: number): void {
     size = clamp(next)
@@ -138,9 +97,6 @@
     const rect = container?.getBoundingClientRect()
     if (!rect) {
       return
-    }
-    if (!fixed) {
-      fixAtCurrent()
     }
     dragging = true
     // Keep receiving moves even if the pointer leaves the window. Synthetic events in tests
@@ -182,14 +138,10 @@
       return
     }
     apply(initial)
-    setFixed(false)
   }
 
   function onKeydown(event: KeyboardEvent): void {
     const step = unit === 'fraction' ? (event.shiftKey ? 0.1 : 0.02) : event.shiftKey ? 48 : 16
-    if (!fixed && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-      fixAtCurrent()
-    }
     const decrease = vertical ? (sign < 0 ? 'ArrowDown' : 'ArrowUp') : sign < 0 ? 'ArrowRight' : 'ArrowLeft'
     const increase = vertical ? (sign < 0 ? 'ArrowUp' : 'ArrowDown') : sign < 0 ? 'ArrowLeft' : 'ArrowRight'
     if (event.key === decrease) {
@@ -306,7 +258,6 @@
 >
   {#if anchoredSecond || rendered}
     <div
-      bind:this={firstPane}
       class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden {anchoredSecond ? '' : slide}"
       style={firstStyle}
     >
@@ -334,9 +285,7 @@
       aria-valuemax={valueMax}
       tabindex="0"
       title={fit && unit === 'fraction'
-        ? fixed
-          ? 'Drag to resize. Double-click to fit the editor to its content.'
-          : 'The editor fits its content. Drag to give it a fixed height.'
+        ? 'The editor fits its content. Drag to set the tallest it may grow. Double-click to reset.'
         : undefined}
       onpointerdown={onPointerDown}
       ondblclick={refit}
