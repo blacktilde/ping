@@ -238,7 +238,7 @@
   const fractionFirst = $derived(
     fixed
       ? `flex: ${current} 1 0%`
-      : `flex: 0 1 auto; min-height: max(${min * 100}%, ${fitMin}px); max-height: ${size * 100}%`
+      : `flex: 0 1 auto; min-height: max(${min * 100}%, ${fitMin}px); max-height: ${max * 100}%`
   )
   const firstStyle = $derived(
     headerOnly
