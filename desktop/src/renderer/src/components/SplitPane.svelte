@@ -268,7 +268,7 @@
   const valueMax = $derived(Math.round(unit === 'fraction' ? max * 100 : max))
 </script>
 
-{#snippet pinned(content: Snippet, toEnd: boolean)}
+{#snippet clipped(content: Snippet, toEnd: boolean)}
   <!-- Fixed to the pane's full size, so what slides in and out is clipped, not squeezed. -->
   {#if vertical}
     <div class="w-full {toEnd ? 'self-end' : 'self-start'}" style="height: {size}px">
@@ -292,7 +292,7 @@
       style={firstStyle}
     >
       {#if unit === 'pixels' && !anchoredSecond}
-        {@render pinned(first, false)}
+        {@render clipped(first, false)}
       {:else}
         {@render first()}
       {/if}
@@ -341,7 +341,7 @@
       style={secondStyle}
     >
       {#if anchoredSecond}
-        {@render pinned(second, true)}
+        {@render clipped(second, true)}
       {:else}
         {@render second()}
       {/if}
