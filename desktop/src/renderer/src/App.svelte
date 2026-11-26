@@ -1902,6 +1902,7 @@
         fit
         fitMin={editorFloor}
         firstCollapsed={editorCollapsed}
+        bind:pinned={active.editorSize}
       >
         {#snippet first()}
           <section

@@ -41,6 +41,8 @@ export interface RequestTab {
   responseCap: number
   /** Which request editor pane is showing: params, headers, body or auth. */
   editorTab: string
+  /** A hand-set editor height (fraction of the split), kept only while the tab is open. */
+  editorSize: number | null
   authStatus: string
 }
 
@@ -68,6 +70,7 @@ function makeTab(init: Partial<Pick<RequestTab, 'draft' | 'path' | 'savedKey'>> 
     requestId: '',
     responseCap: DEFAULT_DISPLAY_CAP,
     editorTab: 'params',
+    editorSize: null,
     authStatus: ''
   }
 }
@@ -329,6 +332,7 @@ function revive(item: unknown): RequestTab | undefined {
     requestId: '',
     responseCap: DEFAULT_DISPLAY_CAP,
     editorTab: 'params',
+    editorSize: null,
     authStatus: ''
   }
 }
